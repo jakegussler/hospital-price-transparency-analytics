@@ -235,8 +235,23 @@ __marimo__/
 # Local notes
 local_notes/
 
-# Local data
+# Local data (raw downloads, bronze parquet, DuckDB files)
 data/
+*.duckdb
+*.duckdb.wal
+pricetransparency.db
+
+# dbt artifacts
+transform/target/
+transform/dbt_packages/
+transform/logs/
+transform/.user.yml
+
+# Terraform state
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/*.tfplan
 
 # Mac OS
 .DS_Store

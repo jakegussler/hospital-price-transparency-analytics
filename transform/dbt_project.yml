@@ -1,0 +1,30 @@
+name: hospital_price_transparency
+version: "0.1.0"
+config-version: 2
+
+profile: hospital_price_transparency
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+analysis-paths: ["analyses"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  hospital_price_transparency:
+    staging:
+      +materialized: view
+    silver:
+      +materialized: table
+    gold:
+      +materialized: table
+
+seeds:
+  hospital_price_transparency:
+    +schema: seeds

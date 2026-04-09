@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project]
+name = "hospital-price-transparency"
+version = "0.1.0"
+description = "Ingest, normalize, and analyze CMS hospital machine-readable price transparency (MRF) data."
+requires-python = ">=3.11"
+dependencies = [
+  "polars>=1.0",
+  "ijson>=3.2",
+  "pyyaml>=6.0",
+  "click>=8.1",
+  "pyarrow>=15.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+]
+warehouse = [
+  "duckdb>=1.0",
+  "psycopg[binary]>=3.1",
+]
+orchestration = [
+  "apache-airflow>=2.8",
+]
+
+[project.scripts]
+hpt = "hpt.cli:cli"
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
