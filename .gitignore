@@ -233,7 +233,9 @@ __marimo__/
 .env.*
 
 # Local notes
-local_notes/
+docs/local/
+docs/diagram_images/
+
 
 # Local data (raw downloads, bronze parquet, DuckDB files)
 data/
