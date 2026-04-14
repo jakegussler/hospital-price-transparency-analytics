@@ -1,1 +1,1 @@
-"""File discovery, download, and format detection."""
+"""MRF acquisition: download, hash, store, and record snapshot metadata."""

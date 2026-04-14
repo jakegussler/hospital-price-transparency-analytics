@@ -1,0 +1,16 @@
+hospitals:
+  - hospital_id: dupe-hospital
+    canonical_hospital_name: Hospital One
+    canonical_state: FL
+    hospital_type: community
+    mrf_source:
+      url: https://example.com/one.csv
+      expected_format: csv_wide
+
+  - hospital_id: dupe-hospital
+    canonical_hospital_name: Hospital Two
+    canonical_state: TN
+    hospital_type: nonprofit
+    mrf_source:
+      url: https://example.com/two.csv
+      expected_format: csv_tall

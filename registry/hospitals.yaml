@@ -1,0 +1,60 @@
+# Hospital Price Transparency — Control Plane
+#
+# Each entry drives the pipeline: the registry routes to the correct parser
+# based on layout_type + parser_profile, and hospital-specific quirks are
+# captured in overrides rather than code branches.
+#
+# Required fields:
+#   hospital_id, hospital_name, system, state, ein,
+#   source_url, layout_type, dictionary_version, compression,
+#   parser_profile, active
+#
+# Optional:
+#   overrides          — dict of parser-level overrides (column renames, etc.)
+#   expected_refresh   — how often the hospital republishes (monthly, quarterly)
+#   notes              — free-text context
+
+hospitals:
+
+  # --- Tennessee — Ballad Health (CSV wide) --------------------------------
+
+  - hospital_id: ballad_jcmc
+    hospital_name: Johnson City Medical Center
+    system: ballad_health
+    state: TN
+    city: Johnson City
+    ein: "620476282"
+    source_url: https://www.balladhealth.org/pricing-transparency
+    layout_type: csv_wide
+
+  - hospital_id: ballad_sycamore
+    hospital_name: Sycamore Shoals Hospital
+    system: ballad_health
+    state: TN
+    city: Elizabethton
+    ein: "620476282"
+    source_url: https://www.balladhealth.org/pricing-transparency
+    layout_type: csv_wide
+
+
+  # --- Tennessee — Erlanger (CSV) ------------------------------------------
+
+  - hospital_id: erlanger_baroness
+    hospital_name: Erlanger Baroness Hospital
+    system: erlanger_health_system
+    state: TN
+    city: Chattanooga
+    ein: "883616696"
+    source_url: https://www.erlanger.org/patients-visitors/billing-insurance/pricing-transparency
+    layout_type: csv_wide
+
+  # --- Tennessee — Vanderbilt (JSON) ---------------------------------------
+
+  - hospital_id: vumc
+    hospital_name: Vanderbilt University Medical Center
+    system: vumc
+    state: TN
+    city: Nashville
+    ein: ""
+    source_url: https://www.vumc.org/patients-visitors/estimates-and-price-transparency
+    layout_type: json

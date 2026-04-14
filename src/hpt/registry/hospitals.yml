@@ -1,0 +1,52 @@
+# Hospital Price Transparency — Source Registry
+#
+# Each entry drives the downloader: hospital_id is the partition key,
+# mrf_source.url is fetched, and mrf_source.expected_format tells
+# downstream parsers which layout to expect.
+#
+# Add real hospitals here as you research their MRF URLs.
+# See docs/local/req_docs/source_registry_downloader.md for the
+# required mix (15-20 hospitals across FL, TN, NC).
+
+hospitals:
+
+  # --- Tennessee ---------------------------------------------------------------
+
+  - hospital_id: ballad-jcmc
+    canonical_hospital_name: Johnson City Medical Center
+    canonical_state: TN
+    hospital_type: community
+    health_system: Ballad Health
+    mrf_source:
+      url: https://www.balladhealth.org/sites/default/files/transparent-pricing/620476282_johnson-city-medical-center_standardcharges.csv
+      expected_format: csv_wide
+      notes: Ballad publishes one CSV per facility under /transparent-pricing/
+
+  - hospital_id: ballad-sycamore
+    canonical_hospital_name: Sycamore Shoals Hospital
+    canonical_state: TN
+    hospital_type: community
+    health_system: Ballad Health
+    mrf_source:
+      url: https://www.balladhealth.org/sites/default/files/transparent-pricing/620476282_sycamore-shoals-hospital_standardcharges.csv
+      expected_format: csv_wide
+
+  - hospital_id: erlanger-baroness
+    canonical_hospital_name: Erlanger Baroness Hospital
+    canonical_state: TN
+    hospital_type: nonprofit
+    health_system: Erlanger Health System
+    mrf_source:
+      url: https://www.erlanger.org/sites/default/files/2025-01/883616696-1861194086_erlanger-health-system-erlanger-baroness-hospital_standardcharges.csv
+      expected_format: csv_wide
+
+  - hospital_id: vumc
+    canonical_hospital_name: Vanderbilt University Medical Center
+    canonical_state: TN
+    hospital_type: academic_medical_center
+    health_system: VUMC
+    mrf_source:
+      url: https://www.vumc.org/main/sites/default/files/public_files/standardcharges.json
+      expected_format: json
+
+  # --- Add FL and NC hospitals below -------------------------------------------

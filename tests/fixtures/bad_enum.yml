@@ -1,0 +1,8 @@
+hospitals:
+  - hospital_id: bad-enum-hospital
+    canonical_hospital_name: Bad Enum Hospital
+    canonical_state: XX
+    hospital_type: community
+    mrf_source:
+      url: https://example.com/bad.csv
+      expected_format: csv_wide

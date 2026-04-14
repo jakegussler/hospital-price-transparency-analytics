@@ -235,6 +235,7 @@ __marimo__/
 # Local notes
 docs/local/
 docs/diagram_images/
+docs/cms_reference/
 
 
 # Local data (raw downloads, bronze parquet, DuckDB files)

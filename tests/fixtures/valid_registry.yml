@@ -1,0 +1,19 @@
+hospitals:
+  - hospital_id: test-hospital-a
+    canonical_hospital_name: Test Hospital A
+    canonical_state: FL
+    hospital_type: community
+    health_system: Test System
+    mrf_source:
+      url: https://example.com/hospital-a/standardcharges.csv
+      expected_format: csv_wide
+
+  - hospital_id: test-hospital-b
+    canonical_hospital_name: Test Hospital B
+    canonical_state: TN
+    hospital_type: academic_medical_center
+    health_system: null
+    mrf_source:
+      url: https://example.com/hospital-b/standardcharges.json
+      expected_format: json
+      notes: Large JSON file

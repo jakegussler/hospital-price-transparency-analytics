@@ -1,0 +1,8 @@
+hospitals:
+  - hospital_id: bad-url-hospital
+    canonical_hospital_name: Bad URL Hospital
+    canonical_state: FL
+    hospital_type: nonprofit
+    mrf_source:
+      url: not-a-valid-url
+      expected_format: json
