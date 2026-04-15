@@ -37,7 +37,7 @@ hospitals:
     hospital_type: nonprofit
     health_system: Erlanger Health System
     mrf_source:
-      url: https://www.erlanger.org/sites/default/files/2025-01/883616696-1861194086_erlanger-health-system-erlanger-baroness-hospital_standardcharges.csv
+      url: https://erlanger.pt.panaceainc.com/MRFDownload/erlanger/baroness
       expected_format: csv_wide
 
   - hospital_id: vumc
