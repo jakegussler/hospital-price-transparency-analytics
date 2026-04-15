@@ -19,6 +19,7 @@ class IngestConfig:
     http_read_timeout: float
     http_retries: int
     user_agent: str
+    http_timeout: float
 
     @classmethod
     def from_env(cls) -> IngestConfig:
@@ -28,4 +29,5 @@ class IngestConfig:
             http_read_timeout=float(os.environ.get("HPT_HTTP_READ_TIMEOUT", "300")),
             http_retries=int(os.environ.get("HPT_HTTP_RETRIES", "3")),
             user_agent=os.environ.get("HPT_USER_AGENT", "hpt-pipeline/0.1"),
+            http_timeout=float(os.environ.get("HPT_HTTP_TIMEOUT", "60")),
         )
