@@ -2,7 +2,7 @@ from hpt.ingest.download import download_hospital
 from hpt.ingest.snapshot import SnapshotManager
 from hpt.ingest.storage import BronzeStorage
 from hpt.registry.models import HospitalSource
-from hpt.registry.loader import get_hospital
+from hpt.registry.loader import get_hospital, load_registry
 from hpt.ingest.config import IngestConfig
 from hpt.ingest.client import build_httpx_client
 from pathlib import Path
@@ -20,4 +20,5 @@ def download_hospitals(hospitals: list[HospitalSource]):
         download_hospital(hospital, storage, snapshots, client)
 
 if __name__ == "__main__":
-    download_hospitals([get_hospital("erlanger-baroness")])
+
+    download_hospitals(load_registry())

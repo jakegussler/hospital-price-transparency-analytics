@@ -18,7 +18,7 @@ hospitals:
     hospital_type: community
     health_system: Ballad Health
     mrf_source:
-      url: https://www.balladhealth.org/sites/default/files/transparent-pricing/620476282_johnson-city-medical-center_standardcharges.csv
+      url: https://www.balladhealth.org/sites/default/files/2026-03/620476282_johnson-city-medical-center_standardcharges.zip
       expected_format: csv_wide
       notes: Ballad publishes one CSV per facility under /transparent-pricing/
 
@@ -28,7 +28,7 @@ hospitals:
     hospital_type: community
     health_system: Ballad Health
     mrf_source:
-      url: https://www.balladhealth.org/sites/default/files/transparent-pricing/620476282_sycamore-shoals-hospital_standardcharges.csv
+      url: https://www.balladhealth.org/sites/default/files/2026-03/620476282_sycamore-shoals-hospital_standardcharges.zip
       expected_format: csv_wide
 
   - hospital_id: erlanger-baroness
@@ -46,7 +46,7 @@ hospitals:
     hospital_type: academic_medical_center
     health_system: VUMC
     mrf_source:
-      url: https://www.vumc.org/main/sites/default/files/public_files/standardcharges.json
+      url: https://finance.vumc.org/assets/pub/pt/352528741_vanderbilt-university-medical-center_standardcharges.json
       expected_format: json
 
   # --- Add FL and NC hospitals below -------------------------------------------
