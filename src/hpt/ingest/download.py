@@ -14,7 +14,9 @@ from urllib.parse import urlparse
 
 import httpx
 
+from hpt.ingest.compression import decompress_file
 from hpt.ingest.config import IngestConfig
+from hpt.ingest.detect import Compression, detect_format
 from hpt.ingest.snapshot import SnapshotManager, SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
 from hpt.registry.models import HospitalSource
@@ -40,6 +42,7 @@ class DownloadResult:
     duration_s: float = 0.0
     snapshot: SnapshotRecord | None = None
     error: str | None = None
+    final_path: str | None = None
 
 
 
@@ -152,6 +155,20 @@ def download_hospital(
         )
         storage.mv(tmp, dest)
 
+        final_path = dest
+        fmt = detect_format(dest, storage.fs)
+        if fmt.compression != Compression.NONE:
+            final_path = decompress_file(dest, storage.fs, fmt.compression)
+            logger.info(
+                "decompressed",
+                extra={
+                    "hospital_id": hid,
+                    "compression": fmt.compression,
+                    "src": dest,
+                    "dest": final_path,
+                },
+            )
+
         snapshot = snapshots.write_snapshot(
             hospital_id=hid,
             source_url=url,
@@ -177,6 +194,7 @@ def download_hospital(
             bytes_transferred=nbytes,
             duration_s=duration,
             snapshot=snapshot,
+            final_path=final_path,
         )
 
     except httpx.HTTPStatusError as exc:
