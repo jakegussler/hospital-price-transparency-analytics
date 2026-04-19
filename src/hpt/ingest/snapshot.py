@@ -19,7 +19,6 @@ SNAPSHOT_SCHEMA = pa.schema(
         ("source_file_name", pa.string()),
         ("file_hash", pa.string()),
         ("ingested_at", pa.timestamp("us", tz="UTC")),
-        ("raw_record_count", pa.int64()),
         ("is_current_snapshot", pa.bool_()),
         ("valid_from", pa.timestamp("us", tz="UTC")),
         ("valid_to", pa.timestamp("us", tz="UTC")),
@@ -35,7 +34,6 @@ class SnapshotRecord:
     source_file_name: str
     file_hash: str
     ingested_at: datetime
-    raw_record_count: int | None = None
     is_current_snapshot: bool = True
     valid_from: datetime = field(default_factory=lambda: datetime.now(UTC))
     valid_to: datetime | None = None
@@ -49,7 +47,6 @@ class SnapshotRecord:
                 "source_file_name": [self.source_file_name],
                 "file_hash": [self.file_hash],
                 "ingested_at": [self.ingested_at],
-                "raw_record_count": [self.raw_record_count],
                 "is_current_snapshot": [self.is_current_snapshot],
                 "valid_from": [self.valid_from],
                 "valid_to": [self.valid_to],
