@@ -1,0 +1,143 @@
+version: 2
+
+# Bronze sources are Parquet files written by ``hpt.loaders.parquet.BronzeWriter``.
+# Each table lives under ``{bronze_root}/{table}/snapshot_id={id}/part-NNN.parquet``.
+# The dbt-duckdb adapter substitutes ``{name}`` with the table name and uses
+# ``external_location`` as the target for ``SELECT`` statements against the
+# source reference.
+#
+# See: https://github.com/duckdb/dbt-duckdb#reading-and-writing-external-files
+sources:
+  - name: bronze
+    description: "Raw, source-faithful Parquet tables produced by the HPT ingest pipeline."
+    meta:
+      external_location: "read_parquet('{{ env_var('HPT_BRONZE_ROOT', '../data/bronze') }}/{name}/**/*.parquet', hive_partitioning=true)"
+    tables:
+      # ---- Shared across all formats ------------------------------------
+      - name: hospital_mrf_snapshots
+        description: "One row per ingested MRF file; header + pipeline metadata."
+        columns:
+          - name: snapshot_id
+            description: "Unique identifier for the snapshot."
+            tests:
+              - not_null
+              - unique
+          - name: hospital_id
+            description: "Registry identifier for the hospital."
+            tests:
+              - not_null
+          - name: ingested_at
+            description: "Timestamp when the MRF was ingested."
+            tests:
+              - not_null
+
+      - name: hospital_locations
+        description: "Physical locations reported in the MRF header."
+        columns:
+          - name: snapshot_id
+            description: "FK to hospital_mrf_snapshots."
+            tests:
+              - not_null
+          - name: location_ordinal
+            description: "0-based index of the location within the MRF header array."
+            tests:
+              - not_null
+
+      - name: type2_npi
+        description: "Type-2 NPIs reported in the MRF header."
+        columns:
+          - name: snapshot_id
+            description: "FK to hospital_mrf_snapshots."
+            tests:
+              - not_null
+          - name: npi_ordinal
+            description: "0-based index of the NPI within the MRF header array."
+            tests:
+              - not_null
+
+      # ---- JSON-only tables --------------------------------------------
+      - name: standard_charge_info
+        description: "One row per entry in the source standard_charge_information array."
+        columns:
+          - name: charge_item_id
+            description: "Unique identifier for the charge item (snapshot_id + ordinal)."
+            tests:
+              - not_null
+              - unique
+          - name: snapshot_id
+            description: "FK to hospital_mrf_snapshots."
+            tests:
+              - not_null
+
+      - name: code_information
+        description: "Billing codes attached to a charge item."
+        columns:
+          - name: charge_item_id
+            description: "FK to standard_charge_info."
+            tests:
+              - not_null
+          - name: snapshot_id
+            description: "FK to hospital_mrf_snapshots."
+            tests:
+              - not_null
+
+      - name: drug_information
+        description: "Drug unit metadata; 1:1 with standard_charge_info when present."
+
+      - name: standard_charges
+        description: "One row per payer-setting charge record within a charge item."
+        columns:
+          - name: standard_charge_id
+            description: "Unique identifier for a standard charge row."
+            tests:
+              - not_null
+              - unique
+          - name: snapshot_id
+            description: "FK to hospital_mrf_snapshots."
+            tests:
+              - not_null
+
+      - name: standard_charge_modifiers
+        description: "Raw modifier code strings applied to a standard charge (not a resolved FK)."
+        columns:
+          - name: standard_charge_id
+            description: "FK to standard_charges."
+            tests:
+              - not_null
+
+      - name: payers_information
+        description: "Payer/plan rate records within a standard charge."
+        columns:
+          - name: standard_charge_id
+            description: "FK to standard_charges."
+            tests:
+              - not_null
+          - name: snapshot_id
+            description: "FK to hospital_mrf_snapshots."
+            tests:
+              - not_null
+
+      - name: modifiers
+        description: "Top-level modifier dimension from JSON ``modifier_information``."
+        columns:
+          - name: modifier_code_id
+            description: "Unique identifier for the modifier (snapshot_id + ordinal)."
+            tests:
+              - not_null
+              - unique
+          - name: snapshot_id
+            description: "FK to hospital_mrf_snapshots."
+            tests:
+              - not_null
+
+      - name: modifier_payer_info
+        description: "Payer/plan rate records within a modifier definition."
+        columns:
+          - name: modifier_code_id
+            description: "FK to modifiers."
+            tests:
+              - not_null
+          - name: snapshot_id
+            description: "FK to hospital_mrf_snapshots."
+            tests:
+              - not_null

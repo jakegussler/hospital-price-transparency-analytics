@@ -6,6 +6,7 @@ import json
 import logging
 import sys
 from collections import Counter
+from pathlib import Path
 
 import click
 
@@ -13,6 +14,7 @@ from hpt.ingest.config import IngestConfig
 from hpt.ingest.download import Outcome, download_all, download_hospital, _build_client
 from hpt.ingest.snapshot import SnapshotManager
 from hpt.ingest.storage import BronzeStorage
+from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospital, load_registry
 
 
@@ -48,10 +50,113 @@ def cli() -> None:
 
 
 @cli.command()
-@click.argument("hospital_id", required=False)
-def parse(hospital_id: str | None) -> None:
-    """Parse source files into bronze parquet."""
-    click.echo(f"parse: not yet implemented (hospital_id={hospital_id})")
+@click.option(
+    "--hospital-id",
+    default=None,
+    help="Ingest the current snapshot for a single hospital.",
+)
+@click.option(
+    "--all",
+    "ingest_all",
+    is_flag=True,
+    help="Ingest the current snapshot for every hospital in the registry.",
+)
+@click.option(
+    "--bronze-root",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path("data/bronze"),
+    show_default=True,
+    help="Directory where Bronze Parquet partitions are written.",
+)
+@click.option(
+    "--quarantine-root",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path("data/quarantine"),
+    show_default=True,
+    help="Directory where records that fail Pydantic validation are written.",
+)
+def ingest(
+    hospital_id: str | None,
+    ingest_all: bool,
+    bronze_root: Path,
+    quarantine_root: Path,
+) -> None:
+    """Parse downloaded MRF files into Bronze Parquet."""
+    if not hospital_id and not ingest_all:
+        raise click.UsageError("Provide --hospital-id <id> or --all.")
+
+    _configure_logging()
+    log = logging.getLogger("hpt.cli.ingest")
+
+    try:
+        cfg = IngestConfig.from_env()
+        storage = BronzeStorage(cfg.bronze_base_uri)
+        snapshots = SnapshotManager(storage)
+
+        if hospital_id:
+            try:
+                hospitals = [get_hospital(hospital_id)]
+            except (KeyError, RegistryError) as exc:
+                log.error("registry_error", extra={"error": str(exc)})
+                sys.exit(2)
+        else:
+            try:
+                hospitals = load_registry()
+            except RegistryError as exc:
+                log.error("registry_error", extra={"error": str(exc)})
+                sys.exit(2)
+
+        failures = 0
+        for hospital in hospitals:
+            hid = hospital.hospital_id
+            snapshot = snapshots.get_current_snapshot(hid)
+            if snapshot is None:
+                log.warning(
+                    "no_snapshot",
+                    extra={"hospital_id": hid, "error": "no current snapshot"},
+                )
+                failures += 1
+                continue
+
+            try:
+                summary = ingest_snapshot(
+                    snapshot=snapshot,
+                    hospital_config=hospital.model_dump(),
+                    storage=storage,
+                    bronze_root=bronze_root,
+                    quarantine_root=quarantine_root,
+                )
+                log.info("ingested", extra=summary)
+            except NotImplementedError as exc:
+                log.error(
+                    "unsupported_format",
+                    extra={
+                        "hospital_id": hid,
+                        "snapshot_id": snapshot.snapshot_id,
+                        "error": str(exc),
+                    },
+                )
+                failures += 1
+            except Exception as exc:  # noqa: BLE001
+                log.exception(
+                    "ingest_failed: %s",
+                    exc,
+                    extra={
+                        "hospital_id": hid,
+                        "snapshot_id": snapshot.snapshot_id,
+                        "error": str(exc),
+                    },
+                )
+                failures += 1
+
+        if failures and failures == len(hospitals):
+            sys.exit(2)
+        if failures:
+            sys.exit(1)
+
+    except RegistryError as exc:
+        log.error("registry_error", extra={"error": str(exc)})
+        sys.exit(2)
 
 
 @cli.command()

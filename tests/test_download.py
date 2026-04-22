@@ -27,6 +27,7 @@ def cfg():
         http_read_timeout=30,
         http_retries=0,
         user_agent="hpt-test/0.1",
+        http_timeout=60,
     )
 
 

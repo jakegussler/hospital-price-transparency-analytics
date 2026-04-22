@@ -8,7 +8,15 @@ from pathlib import Path
 import fsspec
 import pytest
 
-from hpt.ingest.mrf_sniffer import Layout, SchemaInfo, sniff_schema
+from hpt.ingest.detect import Compression
+from hpt.ingest.mrf_sniffer import (
+    Layout,
+    SchemaInfo,
+    _classify_csv_layout,
+    _extract_csv_version,
+    _open_stream,
+    sniff_schema,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CMS_REF = REPO_ROOT / "docs" / "cms_reference" / "hospital-price-transparency"
@@ -86,3 +94,59 @@ def test_short_csv_returns_unknown(
     assert sniff_schema(str(dest), local_fs) == SchemaInfo(
         layout=Layout.UNKNOWN, version=None
     )
+
+
+# ---------------------------------------------------------------------------
+# Edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_sniff_schema_unknown_content(
+    tmp_path: Path, local_fs: fsspec.AbstractFileSystem
+) -> None:
+    """Binary file with no JSON/CSV markers and no recognized extension → UNKNOWN."""
+    dest = tmp_path / "data.bin"
+    dest.write_bytes(b"\x00\x01\x02\x03\x04\x05\x06\x07")
+    result = sniff_schema(str(dest), local_fs)
+    assert result == SchemaInfo(layout=Layout.UNKNOWN, version=None)
+
+
+def test_open_stream_raises_for_zip_compression(
+    tmp_path: Path, local_fs: fsspec.AbstractFileSystem
+) -> None:
+    """_open_stream raises ValueError for ZIP (must be extracted first)."""
+    dest = tmp_path / "archive.zip"
+    dest.write_bytes(b"PK\x03\x04")
+    with pytest.raises(ValueError, match="Zip archives must be extracted"):
+        with _open_stream(str(dest), local_fs, Compression.ZIP):
+            pass
+
+
+def test_classify_csv_layout_unknown_when_no_signature() -> None:
+    """Headers with neither payer_name nor 4-segment standard_charge| → UNKNOWN."""
+    headers = ["description", "code", "gross_charge"]
+    assert _classify_csv_layout(headers) == Layout.UNKNOWN
+
+
+def test_classify_csv_layout_tall_by_payer_name() -> None:
+    headers = ["description", "payer_name", "plan_name", "standard_charge"]
+    assert _classify_csv_layout(headers) == Layout.CSV_TALL
+
+
+def test_classify_csv_layout_wide_by_pipe_column() -> None:
+    headers = ["description", "standard_charge|Aetna|PPO|negotiated_dollar"]
+    assert _classify_csv_layout(headers) == Layout.CSV_WIDE
+
+
+def test_extract_csv_version_missing_from_headers() -> None:
+    """No 'version' column in meta headers → None."""
+    headers = ["hospital_name", "last_updated_on"]
+    values = ["Test Hospital", "2025-01-01"]
+    assert _extract_csv_version(headers, values) is None
+
+
+def test_extract_csv_version_index_out_of_bounds() -> None:
+    """'version' header at index beyond values list → None."""
+    headers = ["hospital_name", "version"]
+    values = ["Test Hospital"]  # index 1 is missing
+    assert _extract_csv_version(headers, values) is None

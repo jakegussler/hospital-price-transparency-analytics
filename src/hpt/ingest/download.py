@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from hpt.ingest.client import build_httpx_client
 from hpt.ingest.compression import decompress_file
 from hpt.ingest.config import IngestConfig
 from hpt.ingest.detect import Compression, detect_format
@@ -24,6 +25,8 @@ from hpt.registry.models import HospitalSource
 logger = logging.getLogger(__name__)
 
 CHUNK_SIZE = 256 * 1024  # 256 KiB
+
+_build_client = build_httpx_client
 
 
 class Outcome(str, Enum):
