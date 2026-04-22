@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import sys
 from collections import Counter
 from pathlib import Path
 
-import click
+import typer
 
 from hpt.ingest.config import IngestConfig
 from hpt.ingest.download import Outcome, download_all, download_hospital, _build_client
@@ -17,46 +16,65 @@ from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospital, load_registry
 
 
-@click.group()
-def cli() -> None:
-    """Hospital Price Transparency pipeline CLI."""
+cli = typer.Typer(help="Hospital Price Transparency pipeline CLI.", no_args_is_help=True)
 
 
 @cli.command()
-@click.option(
-    "--hospital-id",
-    default=None,
-    help="Ingest the current snapshot for a single hospital.",
-)
-@click.option(
-    "--all",
-    "ingest_all",
-    is_flag=True,
-    help="Ingest the current snapshot for every hospital in the registry.",
-)
-@click.option(
-    "--bronze-root",
-    type=click.Path(file_okay=False, path_type=Path),
-    default=Path("data/bronze"),
-    show_default=True,
-    help="Directory where Bronze Parquet partitions are written.",
-)
-@click.option(
-    "--quarantine-root",
-    type=click.Path(file_okay=False, path_type=Path),
-    default=Path("data/quarantine"),
-    show_default=True,
-    help="Directory where records that fail Pydantic validation are written.",
-)
 def ingest(
+    hospital_id: str | None = typer.Option(
+        None,
+        "--hospital-id",
+        help="Ingest the current snapshot for a single hospital.",
+    ),
+    ingest_all: bool = typer.Option(
+        False,
+        "--all",
+        help="Ingest the current snapshot for every hospital in the registry.",
+    ),
+    bronze_root: Path = typer.Option(
+        Path("data/bronze"),
+        "--bronze-root",
+        file_okay=False,
+        dir_okay=True,
+        help="Directory where Bronze Parquet partitions are written.",
+        show_default=True,
+    ),
+    quarantine_root: Path = typer.Option(
+        Path("data/quarantine"),
+        "--quarantine-root",
+        file_okay=False,
+        dir_okay=True,
+        help="Directory where records that fail Pydantic validation are written.",
+        show_default=True,
+    ),
+) -> None:
+    """Parse downloaded MRF files into Bronze Parquet."""
+    try:
+        exit_code = ingest_logic(
+            hospital_id=hospital_id,
+            ingest_all=ingest_all,
+            bronze_root=bronze_root,
+            quarantine_root=quarantine_root,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    raise typer.Exit(code=exit_code)
+
+
+def _require_target_selection(hospital_id: str | None, run_all: bool) -> None:
+    if not hospital_id and not run_all:
+        raise ValueError("Provide --hospital-id <id> or --all.")
+
+
+def ingest_logic(
     hospital_id: str | None,
     ingest_all: bool,
     bronze_root: Path,
     quarantine_root: Path,
-) -> None:
-    """Parse downloaded MRF files into Bronze Parquet."""
-    if not hospital_id and not ingest_all:
-        raise click.UsageError("Provide --hospital-id <id> or --all.")
+) -> int:
+    """Run ingest logic and return a process-style exit code."""
+    _require_target_selection(hospital_id, ingest_all)
 
     configure_logging()
     log = get_logger("cli.ingest")
@@ -71,13 +89,13 @@ def ingest(
                 hospitals = [get_hospital(hospital_id)]
             except (KeyError, RegistryError) as exc:
                 log.error("registry_error", extra={"error": str(exc)})
-                sys.exit(2)
+                return 2
         else:
             try:
                 hospitals = load_registry()
             except RegistryError as exc:
                 log.error("registry_error", extra={"error": str(exc)})
-                sys.exit(2)
+                return 2
 
         failures = 0
         for hospital in hospitals:
@@ -123,29 +141,61 @@ def ingest(
                 failures += 1
 
         if failures and failures == len(hospitals):
-            sys.exit(2)
+            return 2
         if failures:
-            sys.exit(1)
+            return 1
+        return 0
 
     except RegistryError as exc:
         log.error("registry_error", extra={"error": str(exc)})
-        sys.exit(2)
+        return 2
 
 
 @cli.command()
-@click.option("--hospital-id", default=None, help="Download a single hospital by ID.")
-@click.option("--all", "run_all", is_flag=True, help="Download every hospital in the registry.")
-@click.option("--dry-run", is_flag=True, help="Resolve URLs and report without fetching.")
-@click.option("--force", is_flag=True, help="Re-download even if registry is unchanged.")
 def download(
+    hospital_id: str | None = typer.Option(
+        None,
+        "--hospital-id",
+        help="Download a single hospital by ID.",
+    ),
+    run_all: bool = typer.Option(
+        False,
+        "--all",
+        help="Download every hospital in the registry.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Resolve URLs and report without fetching.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Re-download even if registry is unchanged.",
+    ),
+) -> None:
+    """Download source MRF files."""
+    try:
+        exit_code = download_logic(
+            hospital_id=hospital_id,
+            run_all=run_all,
+            dry_run=dry_run,
+            force=force,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    raise typer.Exit(code=exit_code)
+
+
+def download_logic(
     hospital_id: str | None,
     run_all: bool,
     dry_run: bool,
     force: bool,
-) -> None:
-    """Download source MRF files."""
-    if not hospital_id and not run_all:
-        raise click.UsageError("Provide --hospital-id <id> or --all.")
+) -> int:
+    """Run download logic and return a process-style exit code."""
+    _require_target_selection(hospital_id, run_all)
 
     configure_logging()
     log = get_logger("cli.download")
@@ -160,7 +210,7 @@ def download(
                 hospital = get_hospital(hospital_id)
             except (KeyError, RegistryError) as exc:
                 log.error("registry_error", extra={"error": str(exc)})
-                sys.exit(2)
+                return 2
 
             client = _build_client(cfg)
             try:
@@ -175,7 +225,7 @@ def download(
                 hospitals = load_registry()
             except RegistryError as exc:
                 log.error("registry_error", extra={"error": str(exc)})
-                sys.exit(2)
+                return 2
             results = download_all(
                 hospitals, storage, snapshots, cfg, dry_run=dry_run, force=force
             )
@@ -185,13 +235,15 @@ def download(
         log.info("run_summary", extra=summary)
 
         if counts.get(Outcome.FAILED, 0) == len(results):
-            sys.exit(2)
-        elif counts.get(Outcome.FAILED, 0) > 0:
-            sys.exit(1)
+            return 2
+        if counts.get(Outcome.FAILED, 0) > 0:
+            return 1
+        return 0
 
     except RegistryError as exc:
         log.error("registry_error", extra={"error": str(exc)})
-        sys.exit(2)
+        return 2
+
 
 if __name__ == "__main__":
     cli()

@@ -894,7 +894,6 @@ name = "hospital-price-transparency"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "click" },
     { name = "fsspec" },
     { name = "httpx" },
     { name = "ijson" },
@@ -902,6 +901,7 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "typer" },
 ]
 
 [package.optional-dependencies]
@@ -922,7 +922,6 @@ warehouse = [
 [package.metadata]
 requires-dist = [
     { name = "apache-airflow", marker = "extra == 'orchestration'", specifier = ">=2.8" },
-    { name = "click", specifier = ">=8.1" },
     { name = "duckdb", marker = "extra == 'warehouse'", specifier = ">=1.0" },
     { name = "fsspec", specifier = ">=2024.2" },
     { name = "httpx", specifier = ">=0.27" },
@@ -936,6 +935,7 @@ requires-dist = [
     { name = "python-dotenv", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+    { name = "typer", specifier = ">=0.24" },
 ]
 provides-extras = ["dev", "warehouse", "orchestration"]
 
