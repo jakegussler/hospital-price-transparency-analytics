@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import logging
 import sys
 from collections import Counter
 from pathlib import Path
@@ -14,34 +12,9 @@ from hpt.ingest.config import IngestConfig
 from hpt.ingest.download import Outcome, download_all, download_hospital, _build_client
 from hpt.ingest.snapshot import SnapshotManager
 from hpt.ingest.storage import BronzeStorage
+from hpt.log import configure_logging, get_logger
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospital, load_registry
-
-
-class _JsonFormatter(logging.Formatter):
-    """Emit one JSON object per log line."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        payload: dict = {
-            "ts": self.formatTime(record),
-            "level": record.levelname,
-            "msg": record.getMessage(),
-        }
-        if hasattr(record, "hospital_id"):
-            payload["hospital_id"] = record.hospital_id  # type: ignore[attr-defined]
-        for key in ("file_hash", "bytes", "duration_s", "snapshot_id", "error", "url"):
-            val = getattr(record, key, None)
-            if val is not None:
-                payload[key] = val
-        return json.dumps(payload)
-
-
-def _configure_logging() -> None:
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(_JsonFormatter())
-    root = logging.getLogger("hpt")
-    root.handlers = [handler]
-    root.setLevel(logging.INFO)
 
 
 @click.group()
@@ -85,8 +58,8 @@ def ingest(
     if not hospital_id and not ingest_all:
         raise click.UsageError("Provide --hospital-id <id> or --all.")
 
-    _configure_logging()
-    log = logging.getLogger("hpt.cli.ingest")
+    configure_logging()
+    log = get_logger("cli.ingest")
 
     try:
         cfg = IngestConfig.from_env()
@@ -174,8 +147,8 @@ def download(
     if not hospital_id and not run_all:
         raise click.UsageError("Provide --hospital-id <id> or --all.")
 
-    _configure_logging()
-    log = logging.getLogger("hpt.cli.download")
+    configure_logging()
+    log = get_logger("cli.download")
 
     try:
         cfg = IngestConfig.from_env()
@@ -219,3 +192,6 @@ def download(
     except RegistryError as exc:
         log.error("registry_error", extra={"error": str(exc)})
         sys.exit(2)
+
+if __name__ == "__main__":
+    cli()
