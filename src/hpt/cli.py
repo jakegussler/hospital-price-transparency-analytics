@@ -96,6 +96,7 @@ def ingest_logic(
             except RegistryError as exc:
                 log.error("registry_error", extra={"error": str(exc)})
                 return 2
+        print(hospitals)
 
         failures = 0
         for hospital in hospitals:
