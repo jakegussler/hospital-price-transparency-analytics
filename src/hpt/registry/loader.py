@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
 from pydantic import ValidationError
 
+from hpt.logging.log_helpers import log_registry_loaded
 from hpt.registry.models import HospitalSource
 
 _DEFAULT_REGISTRY = Path(__file__).resolve().parent / "hospitals.yml"
+logger = logging.getLogger(__name__)
 
 
 class RegistryError(Exception):
@@ -18,6 +21,7 @@ class RegistryError(Exception):
 
 def load_registry(path: Path = _DEFAULT_REGISTRY) -> list[HospitalSource]:
     """Read *path*, validate every entry, and return a list of HospitalSource."""
+    logger.debug("registry_load_start", extra={"path": str(path)})
     with open(path) as fh:
         raw = yaml.safe_load(fh)
 
@@ -42,6 +46,7 @@ def load_registry(path: Path = _DEFAULT_REGISTRY) -> list[HospitalSource]:
         seen_ids.add(hospital.hospital_id)
         hospitals.append(hospital)
 
+    log_registry_loaded(logger, path=path, n_hospitals=len(hospitals))
     return hospitals
 
 

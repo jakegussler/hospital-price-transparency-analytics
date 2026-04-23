@@ -28,6 +28,7 @@ import fsspec
 import ijson
 
 from hpt.ingest.detect import Compression, ContentFormat, FormatInfo, detect_format
+from hpt.logging.log_helpers import log_schema_sniff
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +71,37 @@ def sniff_schema(
     if format_info is None:
         format_info = detect_format(path, fs)
 
+    logger.debug(
+        "sniff_schema_start",
+        extra={
+            "path": path,
+            "compression": format_info.compression.value,
+            "content_format": format_info.content_format.value,
+        },
+    )
+
     if format_info.content_format == ContentFormat.JSON:
-        return _sniff_json(path, fs, format_info.compression)
+        info = _sniff_json(path, fs, format_info.compression)
+        log_schema_sniff(
+            logger,
+            path_basename=path.rsplit("/", 1)[-1],
+            layout=info.layout.value,
+            version=info.version,
+            compression=format_info.compression.value,
+            content_format=format_info.content_format.value,
+        )
+        return info
     if format_info.content_format == ContentFormat.CSV:
-        return _sniff_csv(path, fs, format_info.compression)
+        info = _sniff_csv(path, fs, format_info.compression)
+        log_schema_sniff(
+            logger,
+            path_basename=path.rsplit("/", 1)[-1],
+            layout=info.layout.value,
+            version=info.version,
+            compression=format_info.compression.value,
+            content_format=format_info.content_format.value,
+        )
+        return info
 
     logger.warning("Unknown content format for %s; cannot sniff schema", path)
     return SchemaInfo(layout=Layout.UNKNOWN, version=None)
@@ -100,8 +128,16 @@ def _sniff_json(
         with _open_stream(path, fs, compression) as stream:
             for prefix, event, value in ijson.parse(stream):
                 if prefix == "version" and event in ("string", "number"):
+                    logger.debug(
+                        "json_version_found",
+                        extra={"path": path, "version_prefix": prefix},
+                    )
                     return SchemaInfo(layout=Layout.JSON, version=str(value))
                 if prefix in _JSON_BULK_PREFIXES:
+                    logger.debug(
+                        "json_version_not_found_before_bulk",
+                        extra={"path": path, "bulk_prefix": prefix},
+                    )
                     break
     except ijson.JSONError as exc:
         logger.warning("ijson failed to parse %s: %s", path, exc)
@@ -131,6 +167,15 @@ def _sniff_csv(
 
     version = _extract_csv_version(meta_headers, meta_values)
     layout = _classify_csv_layout(data_headers)
+    logger.debug(
+        "csv_sniff_details",
+        extra={
+            "path": path,
+            "meta_header_count": len(meta_headers),
+            "data_header_count": len(data_headers),
+            "layout": layout.value,
+        },
+    )
     return SchemaInfo(layout=layout, version=version)
 
 

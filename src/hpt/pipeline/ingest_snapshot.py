@@ -22,6 +22,7 @@ from hpt.ingest.mrf_sniffer import Layout, sniff_schema
 from hpt.ingest.snapshot import SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
 from hpt.loaders.parquet import BronzeWriter
+from hpt.logging.log_helpers import log_ingest_phase, log_schema_sniff
 from hpt.parsers.base import BaseParser
 from hpt.parsers.json_mrf import JsonMrfParser
 
@@ -46,16 +47,22 @@ def ingest_snapshot(
     Returns a small summary dict for logging by the caller.
     """
     local_path = resolve_local_path(snapshot, storage)
-    logger.info(
+    log_ingest_phase(
+        logger,
         "ingest_start",
-        extra={
-            "snapshot_id": snapshot.snapshot_id,
-            "hospital_id": snapshot.hospital_id,
-            "local_path": str(local_path),
-        },
+        snapshot.snapshot_id,
+        snapshot.hospital_id,
+        local_path=local_path.name,
     )
 
     schema_info = sniff_schema(str(local_path), storage.fs)
+    log_schema_sniff(
+        logger,
+        local_path.name,
+        schema_info.layout.value,
+        schema_info.version,
+        level=logging.INFO,
+    )
 
     source_format = _LAYOUT_TO_SOURCE_FORMAT.get(schema_info.layout)
     if source_format is None:
@@ -71,19 +78,27 @@ def ingest_snapshot(
         snapshot_meta=snapshot_meta,
         quarantine_root=quarantine_root,
     )
+    log_ingest_phase(
+        logger,
+        "parser_selected",
+        snapshot.snapshot_id,
+        snapshot.hospital_id,
+        source_format=source_format,
+        parser=type(parser).__name__,
+        level=logging.DEBUG,
+    )
 
     with BronzeWriter(bronze_root, snapshot.snapshot_id) as writer:
         for batch in parser.parse(local_path):
             writer.write_batch(batch)
 
-    logger.info(
+    log_ingest_phase(
+        logger,
         "ingest_complete",
-        extra={
-            "snapshot_id": snapshot.snapshot_id,
-            "hospital_id": snapshot.hospital_id,
-            "source_format": source_format,
-            "schema_version": schema_info.version,
-        },
+        snapshot.snapshot_id,
+        snapshot.hospital_id,
+        source_format=source_format,
+        schema_version=schema_info.version,
     )
     return {
         "snapshot_id": snapshot.snapshot_id,
@@ -115,6 +130,15 @@ def resolve_local_path(
     # BronzeStorage.ls returns protocol-stripped paths; we reconstruct
     # via the storage base URI so fsspec can re-open them.
     files = [p for p in storage.ls(partition_dir) if not p.endswith("/")]
+    logger.debug(
+        "resolve_local_path_scan",
+        extra={
+            "snapshot_id": snapshot.snapshot_id,
+            "hospital_id": snapshot.hospital_id,
+            "partition_dir": partition_dir,
+            "candidate_count": len(files),
+        },
+    )
 
     if not files:
         raise FileNotFoundError(
@@ -124,24 +148,39 @@ def resolve_local_path(
 
     # Prefer the exact filename match, then the hash-suffixed variant,
     # then (as a last resort) the only file in a single-file partition.
+    strategy = "exact_filename"
     candidates = [p for p in files if posixpath.basename(p) == snapshot.source_file_name]
     if not candidates:
+        strategy = "hash_suffix"
         hash_suffix = snapshot.file_hash[:12]
         candidates = [p for p in files if hash_suffix in posixpath.basename(p)]
     if not candidates:
         # Decompression may have stripped an extension; match by stem.
+        strategy = "stem_prefix"
         stem = snapshot.source_file_name.split(".")[0]
         candidates = [
             p for p in files if posixpath.basename(p).startswith(stem)
         ]
     if not candidates and len(files) == 1:
+        strategy = "single_file_partition"
         candidates = files
     if not candidates:
         raise FileNotFoundError(
             f"Could not identify the raw file for snapshot "
             f"{snapshot.snapshot_id} among {files}"
         )
-    return Path(candidates[0])
+    chosen = Path(candidates[0])
+    logger.info(
+        "resolved_raw_file",
+        extra={
+            "snapshot_id": snapshot.snapshot_id,
+            "hospital_id": snapshot.hospital_id,
+            "file_name": chosen.name,
+            "strategy": strategy,
+            "candidate_count": len(candidates),
+        },
+    )
+    return chosen
 
 
 def _snapshot_meta(

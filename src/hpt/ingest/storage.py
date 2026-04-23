@@ -5,8 +5,11 @@ from __future__ import annotations
 import posixpath
 import uuid
 from datetime import UTC, datetime
+import logging
 
 import fsspec
+
+logger = logging.getLogger(__name__)
 
 
 class BronzeStorage:
@@ -117,4 +120,13 @@ class BronzeStorage:
             stem, ext = filename, ""
         else:
             ext = f".{ext}"
-        return f"{stem}__{file_hash[:12]}{ext}"
+        final_name = f"{stem}__{file_hash[:12]}{ext}"
+        logger.debug(
+            "raw_filename_collision",
+            extra={
+                "partition_dir": partition_dir,
+                "original_filename": filename,
+                "resolved_filename": final_name,
+            },
+        )
+        return final_name

@@ -66,8 +66,34 @@ class JsonMrfParser(BaseParser):
     """Parse CMS JSON MRF files using streaming (ijson)."""
 
     def parse(self, file_path: Path) -> Iterator[dict[str, pl.DataFrame]]:
-        yield self._header_batch(file_path)
+        snapshot_id = self.snapshot_meta["snapshot_id"]
+        self._quarantine_counts: dict[str, int] = defaultdict(int)
+
+        logger.info(
+            "json_parse_pass_start",
+            extra={"snapshot_id": snapshot_id, "pass_name": "header"},
+        )
+        header_batch = self._header_batch(file_path)
+        logger.info(
+            "json_parse_pass_complete",
+            extra={
+                "snapshot_id": snapshot_id,
+                "pass_name": "header",
+                "tables": sorted(header_batch.keys()),
+            },
+        )
+        yield header_batch
+
+        logger.info(
+            "json_parse_pass_start",
+            extra={"snapshot_id": snapshot_id, "pass_name": "modifier_information"},
+        )
         yield from self._parse_modifiers(file_path)
+
+        logger.info(
+            "json_parse_pass_start",
+            extra={"snapshot_id": snapshot_id, "pass_name": "standard_charge_information"},
+        )
         yield from self._parse_charges(file_path)
 
     # ------------------------------------------------------------------
@@ -181,8 +207,10 @@ class JsonMrfParser(BaseParser):
         self, file_path: Path
     ) -> Iterator[dict[str, pl.DataFrame]]:
         snapshot_id = self.snapshot_meta["snapshot_id"]
+        section = "modifier_information"
         modifiers_rows: list[dict[str, Any]] = []
         modifier_payer_rows: list[dict[str, Any]] = []
+        parsed_count = 0
 
         with _open_maybe_gz(file_path) as f:
             for ordinal, raw_item in enumerate(
@@ -191,12 +219,11 @@ class JsonMrfParser(BaseParser):
                 try:
                     mi = ModifierInformation.model_validate(raw_item)
                 except ValidationError as exc:
-                    self._quarantine(
-                        "modifier_information", ordinal, raw_item, exc
-                    )
+                    self._quarantine(section, ordinal, raw_item, exc)
                     continue
 
                 modifier_code_id = f"{snapshot_id}_{ordinal}"
+                parsed_count += 1
                 modifiers_rows.append(
                     {
                         "modifier_code_id": modifier_code_id,
@@ -217,12 +244,24 @@ class JsonMrfParser(BaseParser):
                         }
                     )
 
-        yield {
+        batch = {
             "modifiers": _df(modifiers_rows, BRONZE_SCHEMAS["modifiers"]),
             "modifier_payer_info": _df(
                 modifier_payer_rows, BRONZE_SCHEMAS["modifier_payer_info"]
             ),
         }
+        logger.info(
+            "json_parse_pass_complete",
+            extra={
+                "snapshot_id": snapshot_id,
+                "pass_name": section,
+                "parsed_items": parsed_count,
+                "quarantined": self._quarantine_counts.get(section, 0),
+                "modifier_rows": len(modifiers_rows),
+                "modifier_payer_rows": len(modifier_payer_rows),
+            },
+        )
+        yield batch
 
     # ------------------------------------------------------------------
     # Pass 3 — standard_charge_information
@@ -233,6 +272,9 @@ class JsonMrfParser(BaseParser):
     ) -> Iterator[dict[str, pl.DataFrame]]:
         accumulator: dict[str, list[dict[str, Any]]] = defaultdict(list)
         processed = 0
+        batches_emitted = 0
+        snapshot_id = self.snapshot_meta["snapshot_id"]
+        section = "standard_charge_information"
 
         with _open_maybe_gz(file_path) as f:
             for item_ordinal, raw_item in enumerate(
@@ -243,12 +285,7 @@ class JsonMrfParser(BaseParser):
                 try:
                     sci = StandardChargeInformation.model_validate(raw_item)
                 except ValidationError as exc:
-                    self._quarantine(
-                        "standard_charge_information",
-                        item_ordinal,
-                        raw_item,
-                        exc,
-                    )
+                    self._quarantine(section, item_ordinal, raw_item, exc)
                     continue
 
                 flat = self._flatten_sci(sci, item_ordinal)
@@ -257,11 +294,48 @@ class JsonMrfParser(BaseParser):
 
                 processed += 1
                 if processed % BATCH_SIZE == 0:
-                    yield _accumulator_to_batch(accumulator)
+                    batch = _accumulator_to_batch(accumulator)
+                    batches_emitted += 1
+                    logger.debug(
+                        "json_charge_batch_emitted",
+                        extra={
+                            "snapshot_id": snapshot_id,
+                            "batch_index": batches_emitted,
+                            "processed_items": processed,
+                            "table_row_counts": {
+                                table: len(rows) for table, rows in accumulator.items()
+                            },
+                        },
+                    )
+                    yield batch
                     accumulator = defaultdict(list)
 
         if any(accumulator.values()):
-            yield _accumulator_to_batch(accumulator)
+            batch = _accumulator_to_batch(accumulator)
+            batches_emitted += 1
+            logger.debug(
+                "json_charge_batch_emitted",
+                extra={
+                    "snapshot_id": snapshot_id,
+                    "batch_index": batches_emitted,
+                    "processed_items": processed,
+                    "table_row_counts": {
+                        table: len(rows) for table, rows in accumulator.items()
+                    },
+                },
+            )
+            yield batch
+
+        logger.info(
+            "json_parse_pass_complete",
+            extra={
+                "snapshot_id": snapshot_id,
+                "pass_name": section,
+                "parsed_items": processed,
+                "batches_emitted": batches_emitted,
+                "quarantined": self._quarantine_counts.get(section, 0),
+            },
+        )
 
     def _flatten_sci(
         self,
@@ -387,6 +461,27 @@ class JsonMrfParser(BaseParser):
         }
         with q_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, default=str) + "\n")
+
+        if not hasattr(self, "_quarantine_counts"):
+            self._quarantine_counts = defaultdict(int)
+        self._quarantine_counts[section] += 1
+        if isinstance(exc, ValidationError):
+            err_locs = sorted(
+                {
+                    ".".join(str(part) for part in err.get("loc", ()))
+                    for err in exc.errors()
+                }
+            )
+            logger.debug(
+                "validation_error_detail",
+                extra={
+                    "snapshot_id": snapshot_id,
+                    "section": section,
+                    "ordinal": ordinal,
+                    "error_count": len(exc.errors()),
+                    "fields": err_locs[:8],
+                },
+            )
 
         logger.warning(
             "validation_error",

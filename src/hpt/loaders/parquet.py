@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from hpt.logging.log_helpers import log_bronze_part_roll
+
 if TYPE_CHECKING:
     import polars as pl
 
@@ -44,6 +46,7 @@ class BronzeWriter:
 
     def write_batch(self, batch: dict[str, pl.DataFrame]) -> None:
         """Append each non-empty DataFrame in *batch* to its Parquet file."""
+        batch_row_counts: dict[str, int] = {}
         for table_name, df in batch.items():
             if df.is_empty():
                 continue
@@ -52,11 +55,32 @@ class BronzeWriter:
             writer.write_table(arrow_table)
 
             rows = arrow_table.num_rows
+            batch_row_counts[table_name] = rows
             self._row_counts[table_name] += rows
             self._total_rows[table_name] += rows
+            logger.debug(
+                "bronze_batch_write",
+                extra={
+                    "snapshot_id": self.snapshot_id,
+                    "table_name": table_name,
+                    "rows": rows,
+                    "part_index": self._part_index[table_name],
+                    "part_row_count": self._row_counts[table_name],
+                },
+            )
 
             if self._row_counts[table_name] >= self.PART_ROW_THRESHOLD:
                 self._roll_part(table_name)
+
+        if batch_row_counts:
+            logger.info(
+                "bronze_batch_written",
+                extra={
+                    "snapshot_id": self.snapshot_id,
+                    "table_count": len(batch_row_counts),
+                    "batch_row_counts": batch_row_counts,
+                },
+            )
 
     def close(self) -> None:
         """Close every open writer and log per-table row totals."""
@@ -101,6 +125,15 @@ class BronzeWriter:
             part_num = self._part_index[table_name]
             path = part_dir / f"part-{part_num:03d}.parquet"
             self._writers[table_name] = pq.ParquetWriter(str(path), schema)
+            logger.info(
+                "bronze_table_start",
+                extra={
+                    "snapshot_id": self.snapshot_id,
+                    "table_name": table_name,
+                    "part_index": part_num,
+                    "path": str(path),
+                },
+            )
         return self._writers[table_name]
 
     def _roll_part(self, table_name: str) -> None:
@@ -109,4 +142,11 @@ class BronzeWriter:
         if writer is not None:
             writer.close()
         self._part_index[table_name] += 1
+        log_bronze_part_roll(
+            logger,
+            snapshot_id=self.snapshot_id,
+            table_name=table_name,
+            part_index=self._part_index[table_name],
+            row_threshold=self.PART_ROW_THRESHOLD,
+        )
         self._row_counts[table_name] = 0

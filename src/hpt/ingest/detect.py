@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import logging
 
 import fsspec
+
+logger = logging.getLogger(__name__)
 
 _MAGIC_GZIP = b"\x1f\x8b"
 _MAGIC_ZIP = b"\x50\x4b\x03\x04"
@@ -47,7 +50,17 @@ def detect_format(path: str, fs: fsspec.AbstractFileSystem) -> FormatInfo:
         compression = Compression.NONE
 
     content_format = _sniff_content_format(header, path, compression)
-    return FormatInfo(compression=compression, content_format=content_format)
+    info = FormatInfo(compression=compression, content_format=content_format)
+    logger.debug(
+        "format_detected",
+        extra={
+            "path": path,
+            "header_hex": header.hex(),
+            "compression": info.compression.value,
+            "content_format": info.content_format.value,
+        },
+    )
+    return info
 
 
 def _sniff_content_format(

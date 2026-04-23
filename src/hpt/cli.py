@@ -11,7 +11,7 @@ from hpt.ingest.config import DownloadConfig, IngestConfig
 from hpt.ingest.download import Outcome, download_all
 from hpt.ingest.snapshot import SnapshotManager
 from hpt.ingest.storage import BronzeStorage
-from hpt.log import configure_logging, get_logger
+from hpt.logging.log import configure_logging, get_logger
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospital, load_registry
 from hpt.registry.models import HospitalSource
@@ -67,18 +67,15 @@ def ingest(
     ),
 ) -> None:
     """Parse downloaded MRF files into Bronze Parquet."""
-    try:
-        cfg = IngestConfig.from_env(
-            hospital_id=hospital_id,
-            run_all=ingest_all,
-            bronze_root=bronze_root,
-            quarantine_root=quarantine_root,
-            registry_path=registry_path,
-        )
-        exit_code = ingest_logic(cfg)
-    except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
-
+    
+    exit_code = ingest_logic(
+        hospital_id=hospital_id,
+        ingest_all=ingest_all,
+        bronze_root=bronze_root,
+        quarantine_root=quarantine_root,
+        registry_path=registry_path,
+        log_level=log_level,
+    )
     raise typer.Exit(code=exit_code)
 
 
@@ -93,17 +90,72 @@ def _load_hospitals_for_target(
 ) -> list[HospitalSource] | None:
     try:
         if hospital_id:
-            return [get_hospital(hospital_id, **_registry_kwargs(registry_path))]
-        return load_registry(**_registry_kwargs(registry_path))
+            hospital = get_hospital(hospital_id, **_registry_kwargs(registry_path))
+            log.info(
+                "target_selected",
+                extra={
+                    "hospital_id": hospital.hospital_id,
+                    "mode": "single",
+                },
+            )
+            return [hospital]
+        hospitals = load_registry(**_registry_kwargs(registry_path))
+        log.info(
+            "targets_loaded",
+            extra={"mode": "all", "hospital_count": len(hospitals)},
+        )
+        return hospitals
     except (KeyError, RegistryError) as exc:
         log.error("registry_error", extra={"error": str(exc)})
         return None
 
 
-def ingest_logic(cfg: IngestConfig) -> int:
+def ingest_logic(
+    hospital_id: str | None,
+    ingest_all: bool,
+    bronze_root: Path | None,
+    quarantine_root: Path | None,
+    registry_path: Path | None,
+    log_level: int,
+) -> int:
     """Run ingest logic and return a process-style exit code."""
+    try:
+        cfg = IngestConfig.from_env(
+            hospital_id=hospital_id,
+            run_all=ingest_all,
+            bronze_root=bronze_root,
+            quarantine_root=quarantine_root,
+            registry_path=registry_path,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
     configure_logging()
     log = get_logger("cli.ingest")
+    log.info(
+        "ingest_run_start",
+        extra={
+            "mode": "single" if cfg.hospital_id else "all",
+            "hospital_id": cfg.hospital_id,
+            "registry_path": str(cfg.registry_path) if cfg.registry_path else None,
+            "raw_base_uri": cfg.storage.raw_base_uri,
+            "bronze_root": str(cfg.storage.bronze_root),
+            "quarantine_root": str(cfg.storage.quarantine_root),
+        },
+    )
+    log.debug(
+        "ingest_config",
+        extra={
+            "run_all": cfg.run_all,
+            "hospital_id": cfg.hospital_id,
+            "storage": {
+                "raw_base_uri": cfg.storage.raw_base_uri,
+                "bronze_root": str(cfg.storage.bronze_root),
+                "quarantine_root": str(cfg.storage.quarantine_root),
+            },
+            "registry_path": str(cfg.registry_path) if cfg.registry_path else None,
+        },
+    )
 
     try:
         storage = BronzeStorage(cfg.storage.raw_base_uri)
@@ -116,10 +168,12 @@ def ingest_logic(cfg: IngestConfig) -> int:
         )
         if hospitals is None:
             return 2
+        log.info("ingest_targets_ready", extra={"hospital_count": len(hospitals)})
 
         failures = 0
         for hospital in hospitals:
             hid = hospital.hospital_id
+            log.info("ingest_hospital_start", extra={"hospital_id": hid})
             snapshot = snapshots.get_current_snapshot(hid)
             if snapshot is None:
                 log.warning(
@@ -160,6 +214,10 @@ def ingest_logic(cfg: IngestConfig) -> int:
                 )
                 failures += 1
 
+        log.info(
+            "ingest_run_complete",
+            extra={"hospital_count": len(hospitals), "failures": failures},
+        )
         if failures and failures == len(hospitals):
             return 2
         if failures:
@@ -204,8 +262,35 @@ def download(
         ),
         show_default=False,
     ),
+    log_level: int = typer.Option(
+        "INFO",
+        "--log-level",
+        help="Set the logging level.",
+    )
 ) -> None:
     """Download source MRF files."""
+    
+    exit_code = download_logic(
+        hospital_id=hospital_id,
+        run_all=run_all,
+        dry_run=dry_run,
+        force=force,
+        registry_path=registry_path,
+        log_level=log_level,
+    )
+
+    raise typer.Exit(code=exit_code)
+
+
+def download_logic(
+    hospital_id: str | None,
+    run_all: bool,
+    dry_run: bool,
+    force: bool,
+    registry_path: Path | None,
+    log_level: int,
+) -> int:
+    """Run download logic and return a process-style exit code."""
     try:
         cfg = DownloadConfig.from_env(
             hospital_id=hospital_id,
@@ -218,13 +303,35 @@ def download(
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    raise typer.Exit(code=exit_code)
-
-
-def download_logic(cfg: DownloadConfig) -> int:
-    """Run download logic and return a process-style exit code."""
-    configure_logging()
+    configure_logging(log_level)
     log = get_logger("cli.download")
+    log.info(
+        "download_run_start",
+        extra={
+            "mode": "single" if cfg.hospital_id else "all",
+            "hospital_id": cfg.hospital_id,
+            "run_all": cfg.run_all,
+            "dry_run": cfg.dry_run,
+            "force": cfg.force,
+            "registry_path": str(cfg.registry_path) if cfg.registry_path else None,
+            "raw_base_uri": cfg.storage.raw_base_uri,
+        },
+    )
+    log.debug(
+        "download_config",
+        extra={
+            "storage": {"raw_base_uri": cfg.storage.raw_base_uri},
+            "client": {
+                "connect_timeout_s": cfg.client.connect_timeout_s,
+                "read_timeout_s": cfg.client.read_timeout_s,
+                "timeout_s": cfg.client.timeout_s,
+                "retries": cfg.client.retries,
+                "user_agent": cfg.client.user_agent,
+            },
+            "dry_run": cfg.dry_run,
+            "force": cfg.force,
+        },
+    )
 
     try:
         storage = BronzeStorage(cfg.storage.raw_base_uri)
@@ -237,12 +344,17 @@ def download_logic(cfg: DownloadConfig) -> int:
         )
         if hospitals is None:
             return 2
+        log.info("download_targets_ready", extra={"hospital_count": len(hospitals)})
 
         results = download_all(hospitals, storage, snapshots, cfg)
 
         counts = Counter(r.outcome for r in results)
         summary = {o.value: counts.get(o, 0) for o in Outcome}
         log.info("run_summary", extra=summary)
+        log.info(
+            "download_run_complete",
+            extra={"hospital_count": len(results), "failed": counts.get(Outcome.FAILED, 0)},
+        )
 
         if counts.get(Outcome.FAILED, 0) == len(results):
             return 2

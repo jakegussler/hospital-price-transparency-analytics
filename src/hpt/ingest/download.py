@@ -20,6 +20,12 @@ from hpt.ingest.config import DownloadConfig
 from hpt.ingest.detect import Compression, detect_format
 from hpt.ingest.snapshot import SnapshotManager, SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
+from hpt.logging.log_helpers import (
+    log_download_chunk,
+    log_transfer_summary,
+    log_url_event,
+    sanitize_url,
+)
 from hpt.registry.models import HospitalSource
 
 logger = logging.getLogger(__name__)
@@ -112,14 +118,32 @@ def download_hospital(
     hid = hospital.hospital_id
     url = str(hospital.mrf_source.url)
     t0 = time.monotonic()
+    safe_url = sanitize_url(url)
+    log_url_event(
+        logger,
+        hid,
+        url,
+        "download_start",
+        dry_run=dry_run,
+        force=force,
+    )
+    logger.debug(
+        "download_parameters",
+        extra={
+            "hospital_id": hid,
+            "chunk_size": CHUNK_SIZE,
+            "url": safe_url,
+        },
+    )
 
     if dry_run:
-        logger.info("dry_run", extra={"hospital_id": hid, "url": url})
+        logger.info("dry_run", extra={"hospital_id": hid, "url": safe_url})
         return DownloadResult(hospital_id=hid, outcome=Outcome.DRY_RUN)
 
     tmp = storage.temp_path(hid)
     sha = hashlib.sha256()
     nbytes = 0
+    chunk_index = 0
 
     try:
         storage.makedirs(posixpath.dirname(tmp))
@@ -128,11 +152,28 @@ def download_hospital(
         with client.stream("GET", url) as resp:
             resp.raise_for_status()
             filename = _filename_from_response(url, resp)
+            logger.debug(
+                "filename_resolved",
+                extra={
+                    "hospital_id": hid,
+                    "filename": filename,
+                    "content_type": resp.headers.get("content-type"),
+                },
+            )
             with storage.open(tmp, "wb") as fh:
                 for chunk in resp.iter_raw():
                     fh.write(chunk)
                     sha.update(chunk)
                     nbytes += len(chunk)
+                    chunk_index += 1
+                    if chunk_index == 1 or chunk_index % 100 == 0:
+                        log_download_chunk(
+                            logger,
+                            hid,
+                            chunk_index=chunk_index,
+                            chunk_bytes=len(chunk),
+                            total_bytes=nbytes,
+                        )
 
         file_hash = sha.hexdigest()
         duration = time.monotonic() - t0
@@ -140,9 +181,13 @@ def download_hospital(
         current_hash = snapshots.current_hash(hid)
         if current_hash == file_hash:
             storage.rm(tmp)
-            logger.info(
-                "unchanged",
-                extra={"hospital_id": hid, "file_hash": file_hash, "bytes": nbytes},
+            log_transfer_summary(
+                logger,
+                hid,
+                nbytes=nbytes,
+                duration_s=duration,
+                file_hash=file_hash,
+                event="unchanged",
             )
             return DownloadResult(
                 hospital_id=hid,
@@ -160,15 +205,23 @@ def download_hospital(
 
         final_path = dest
         fmt = detect_format(dest, storage.fs)
+        logger.debug(
+            "format_detected",
+            extra={
+                "hospital_id": hid,
+                "compression": fmt.compression.value,
+                "content_format": fmt.content_format.value,
+            },
+        )
         if fmt.compression != Compression.NONE:
             final_path = decompress_file(dest, storage.fs, fmt.compression)
             logger.info(
                 "decompressed",
                 extra={
                     "hospital_id": hid,
-                    "compression": fmt.compression,
-                    "src": dest,
-                    "dest": final_path,
+                    "compression": fmt.compression.value,
+                    "src": posixpath.basename(dest),
+                    "dest": posixpath.basename(final_path),
                 },
             )
 
@@ -180,15 +233,15 @@ def download_hospital(
             ingested_at=ingested_at,
         )
 
-        logger.info(
-            "downloaded",
-            extra={
-                "hospital_id": hid,
-                "file_hash": file_hash,
-                "bytes": nbytes,
-                "duration_s": round(duration, 2),
-                "snapshot_id": snapshot.snapshot_id,
-            },
+        log_transfer_summary(
+            logger,
+            hid,
+            nbytes=nbytes,
+            duration_s=duration,
+            file_hash=file_hash,
+            event="downloaded",
+            snapshot_id=snapshot.snapshot_id,
+            final_path=posixpath.basename(final_path),
         )
         return DownloadResult(
             hospital_id=hid,
@@ -203,13 +256,13 @@ def download_hospital(
     except httpx.HTTPStatusError as exc:
         storage.rm(tmp)
         duration = time.monotonic() - t0
-        error_msg = f"HTTP {exc.response.status_code} from {url}"
+        error_msg = f"HTTP {exc.response.status_code} from {safe_url}"
         logger.error(
             "failed: %s",
             error_msg,
             extra={
                 "hospital_id": hid,
-                "url": url,
+                "url": safe_url,
                 "status_code": exc.response.status_code,
                 "bytes_transferred": nbytes,
                 "duration_s": round(duration, 2),
@@ -225,13 +278,13 @@ def download_hospital(
     except httpx.RequestError as exc:
         storage.rm(tmp)
         duration = time.monotonic() - t0
-        error_msg = f"{type(exc).__name__} requesting {url}: {exc}"
+        error_msg = f"{type(exc).__name__} requesting {safe_url}: {exc}"
         logger.error(
             "failed: %s",
             error_msg,
             extra={
                 "hospital_id": hid,
-                "url": url,
+                "url": safe_url,
                 "bytes_transferred": nbytes,
                 "duration_s": round(duration, 2),
             },
@@ -253,7 +306,7 @@ def download_hospital(
             error_msg,
             extra={
                 "hospital_id": hid,
-                "url": url,
+                "url": safe_url,
                 "bytes_transferred": nbytes,
                 "duration_s": round(duration, 2),
             },
@@ -274,6 +327,14 @@ def download_all(
     cfg: DownloadConfig,
 ) -> list[DownloadResult]:
     """Iterate the full registry and download each hospital's MRF."""
+    logger.info(
+        "download_all_start",
+        extra={
+            "hospital_count": len(hospitals),
+            "dry_run": cfg.dry_run,
+            "force": cfg.force,
+        },
+    )
     client = _build_client(cfg.client)
     results: list[DownloadResult] = []
     try:
@@ -289,4 +350,5 @@ def download_all(
             results.append(result)
     finally:
         client.close()
+    logger.info("download_all_complete", extra={"hospital_count": len(results)})
     return results

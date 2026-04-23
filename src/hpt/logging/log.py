@@ -43,6 +43,24 @@ class JsonFormatter(logging.Formatter):
         if record.exc_info:
             payload["exc_info"] = self.formatException(record.exc_info)
         return json.dumps(payload)
+    
+class StandardOutputFormatter(logging.Formatter):
+    """Human-friendly formatter for local CLI and pipeline runs."""
+
+    _DEFAULT_FMT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+    _DEFAULT_DATEFMT = "%Y-%m-%d %H:%M:%S"
+
+    def __init__(
+        self,
+        fmt: str | None = None,
+        datefmt: str | None = None,
+        style: str = "%",
+    ) -> None:
+        super().__init__(
+            fmt=fmt or self._DEFAULT_FMT,
+            datefmt=datefmt or self._DEFAULT_DATEFMT,
+            style=style,
+        )
 
 
 def configure_logging(level: int = logging.INFO) -> None:
@@ -54,11 +72,13 @@ def configure_logging(level: int = logging.INFO) -> None:
     """
     root = logging.getLogger("hpt")
     if root.handlers:
+        root.setLevel(level)
         return
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(JsonFormatter())
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(StandardOutputFormatter())
     root.addHandler(handler)
     root.setLevel(level)
+    root.propagate = False
 
 
 def get_logger(name: str) -> logging.Logger:

@@ -5,11 +5,14 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+import logging
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from hpt.ingest.storage import BronzeStorage
+
+logger = logging.getLogger(__name__)
 
 SNAPSHOT_SCHEMA = pa.schema(
     [
@@ -65,6 +68,14 @@ class SnapshotManager:
         """Return the current (is_current_snapshot=True) record, or None."""
         meta_dir = self._storage.metadata_path(hospital_id)
         files = self._storage.ls(meta_dir)
+        logger.debug(
+            "snapshot_scan_start",
+            extra={
+                "hospital_id": hospital_id,
+                "metadata_path": meta_dir,
+                "file_count": len(files),
+            },
+        )
         if not files:
             return None
 
@@ -76,6 +87,10 @@ class SnapshotManager:
             for row in table.to_pydict()["is_current_snapshot"]:
                 if row is True:
                     d = {col: table.column(col).to_pylist()[0] for col in table.column_names}
+                    logger.debug(
+                        "snapshot_current_found",
+                        extra={"hospital_id": hospital_id, "snapshot_id": d["snapshot_id"]},
+                    )
                     return SnapshotRecord(**d)
         return None
 
@@ -95,6 +110,14 @@ class SnapshotManager:
             prev.is_current_snapshot = False
             prev.valid_to = now
             self._write_record(prev)
+            logger.info(
+                "snapshot_expired",
+                extra={
+                    "hospital_id": hospital_id,
+                    "snapshot_id": prev.snapshot_id,
+                    "valid_to": now.isoformat(),
+                },
+            )
 
         record = SnapshotRecord(
             snapshot_id=str(uuid.uuid4()),
@@ -108,6 +131,14 @@ class SnapshotManager:
             valid_to=None,
         )
         self._write_record(record)
+        logger.info(
+            "snapshot_written",
+            extra={
+                "hospital_id": hospital_id,
+                "snapshot_id": record.snapshot_id,
+                "source_file_name": source_file_name,
+            },
+        )
         return record
 
     def current_hash(self, hospital_id: str) -> str | None:
