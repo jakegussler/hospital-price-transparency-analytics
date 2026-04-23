@@ -62,14 +62,22 @@ class StandardOutputFormatter(logging.Formatter):
             style=style,
         )
 
+def get_log_level(log_level: str) -> int:
+    """Get the log level from the string."""
+    try:
+        return logging.getLevelName(log_level.upper())
+    except ValueError:
+        raise ValueError(f"Invalid log level: {log_level}")
 
-def configure_logging(level: int = logging.INFO) -> None:
+
+def configure_logging(log_level: str = "INFO") -> None:
     """Attach a JSON handler to the root ``hpt`` logger.
 
     Safe to call multiple times; subsequent calls are no-ops so that
     library callers that import ``hpt`` sub-modules do not unexpectedly
     reconfigure logging.
     """
+    level = get_log_level(log_level)
     root = logging.getLogger("hpt")
     if root.handlers:
         root.setLevel(level)

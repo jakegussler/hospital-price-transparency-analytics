@@ -326,9 +326,9 @@ def download_all(
     snapshots: SnapshotManager,
     cfg: DownloadConfig,
 ) -> list[DownloadResult]:
-    """Iterate the full registry and download each hospital's MRF."""
+    """Iterate the provided hospital targets and download each MRF."""
     logger.info(
-        "download_all_start",
+        "download_targets_start",
         extra={
             "hospital_count": len(hospitals),
             "dry_run": cfg.dry_run,
@@ -350,5 +350,5 @@ def download_all(
             results.append(result)
     finally:
         client.close()
-    logger.info("download_all_complete", extra={"hospital_count": len(results)})
+    logger.info("download_targets_complete", extra={"hospital_count": len(results)})
     return results

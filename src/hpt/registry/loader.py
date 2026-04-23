@@ -22,8 +22,11 @@ class RegistryError(Exception):
 def load_registry(path: Path = _DEFAULT_REGISTRY) -> list[HospitalSource]:
     """Read *path*, validate every entry, and return a list of HospitalSource."""
     logger.debug("registry_load_start", extra={"path": str(path)})
-    with open(path) as fh:
-        raw = yaml.safe_load(fh)
+    try:
+        with open(path) as fh:
+            raw = yaml.safe_load(fh)
+    except FileNotFoundError as exc:
+        raise RegistryError(f"Registry file not found: {path}") from exc
 
     if not isinstance(raw, dict) or "hospitals" not in raw:
         raise RegistryError(f"Registry at {path} must contain a top-level 'hospitals' key")
@@ -58,3 +61,20 @@ def get_hospital(
         if h.hospital_id == hospital_id:
             return h
     raise KeyError(f"Hospital not found in registry: {hospital_id!r}")
+
+def get_hospitals(hospital_ids: list[str], path: Path = _DEFAULT_REGISTRY) -> list[HospitalSource]:
+    """Return a list of HospitalSource by *hospital_ids*, or raise KeyError."""
+    hospitals_by_id = {h.hospital_id: h for h in load_registry(path)}
+    ordered_ids: list[str] = []
+    seen: set[str] = set()
+    for hospital_id in hospital_ids:
+        if hospital_id not in seen:
+            ordered_ids.append(hospital_id)
+            seen.add(hospital_id)
+
+    missing = [hospital_id for hospital_id in ordered_ids if hospital_id not in hospitals_by_id]
+    if missing:
+        raise KeyError(f"Hospitals not found in registry: {missing!r}")
+
+    return [hospitals_by_id[hospital_id] for hospital_id in ordered_ids]
+

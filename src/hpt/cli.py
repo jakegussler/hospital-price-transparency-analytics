@@ -13,8 +13,9 @@ from hpt.ingest.snapshot import SnapshotManager
 from hpt.ingest.storage import BronzeStorage
 from hpt.logging.log import configure_logging, get_logger
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
-from hpt.registry.loader import RegistryError, get_hospital, load_registry
+from hpt.registry.loader import RegistryError, get_hospitals, load_registry
 from hpt.registry.models import HospitalSource
+from hpt.utils.string_utils import convert_string_to_list
 
 
 cli = typer.Typer(help="Hospital Price Transparency pipeline CLI.", no_args_is_help=True)
@@ -22,15 +23,10 @@ cli = typer.Typer(help="Hospital Price Transparency pipeline CLI.", no_args_is_h
 
 @cli.command()
 def ingest(
-    hospital_id: str | None = typer.Option(
+    hospital_ids: str | None = typer.Option(
         None,
-        "--hospital-id",
-        help="Ingest the current snapshot for a single hospital.",
-    ),
-    ingest_all: bool = typer.Option(
-        False,
-        "--all",
-        help="Ingest the current snapshot for every hospital in the registry.",
+        "--hospital-ids",
+        help="Comma-separated hospital IDs to ingest. Omit to ingest all hospitals.",
     ),
     bronze_root: Path | None = typer.Option(
         None,
@@ -65,12 +61,16 @@ def ingest(
         ),
         show_default=False,
     ),
+    log_level: str = typer.Option(
+        "INFO",
+        "--log-level",
+        help="Set the logging level.",
+    ),
 ) -> None:
     """Parse downloaded MRF files into Bronze Parquet."""
-    
+
     exit_code = ingest_logic(
-        hospital_id=hospital_id,
-        ingest_all=ingest_all,
+        hospital_ids=hospital_ids,
         bronze_root=bronze_root,
         quarantine_root=quarantine_root,
         registry_path=registry_path,
@@ -84,25 +84,26 @@ def _registry_kwargs(registry_path: Path | None) -> dict[str, Path]:
 
 
 def _load_hospitals_for_target(
-    hospital_id: str | None,
-    registry_path: Path | None,
     log,
+    hospital_ids: list[str] | str | None = None,
+    registry_path: Path | None = None,
 ) -> list[HospitalSource] | None:
+    if isinstance(hospital_ids, str):
+        hospital_ids = convert_string_to_list(hospital_ids)
+    if hospital_ids is None:
+        try:
+            return load_registry(**_registry_kwargs(registry_path))
+        except RegistryError as exc:
+            log.error("registry_error", extra={"error": str(exc)})
+            return None
     try:
-        if hospital_id:
-            hospital = get_hospital(hospital_id, **_registry_kwargs(registry_path))
-            log.info(
-                "target_selected",
-                extra={
-                    "hospital_id": hospital.hospital_id,
-                    "mode": "single",
-                },
-            )
-            return [hospital]
-        hospitals = load_registry(**_registry_kwargs(registry_path))
+        hospitals = get_hospitals(hospital_ids, **_registry_kwargs(registry_path))
         log.info(
-            "targets_loaded",
-            extra={"mode": "all", "hospital_count": len(hospitals)},
+            "target_selected",
+            extra={
+                "hospital_ids": hospital_ids,
+                "mode": "selected",
+            },
         )
         return hospitals
     except (KeyError, RegistryError) as exc:
@@ -111,18 +112,16 @@ def _load_hospitals_for_target(
 
 
 def ingest_logic(
-    hospital_id: str | None,
-    ingest_all: bool,
-    bronze_root: Path | None,
-    quarantine_root: Path | None,
-    registry_path: Path | None,
-    log_level: int,
+    hospital_ids: list[str] | str | None = None,
+    bronze_root: Path | None = None,
+    quarantine_root: Path | None = None,
+    registry_path: Path | None = None,
+    log_level: str = "INFO",
 ) -> int:
     """Run ingest logic and return a process-style exit code."""
     try:
         cfg = IngestConfig.from_env(
-            hospital_id=hospital_id,
-            run_all=ingest_all,
+            hospital_ids=hospital_ids,
             bronze_root=bronze_root,
             quarantine_root=quarantine_root,
             registry_path=registry_path,
@@ -130,13 +129,13 @@ def ingest_logic(
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    configure_logging()
+    configure_logging(log_level=log_level)
     log = get_logger("cli.ingest")
     log.info(
         "ingest_run_start",
         extra={
-            "mode": "single" if cfg.hospital_id else "all",
-            "hospital_id": cfg.hospital_id,
+            "mode": "all" if cfg.hospital_ids is None else "selected",
+            "hospital_ids": cfg.hospital_ids,
             "registry_path": str(cfg.registry_path) if cfg.registry_path else None,
             "raw_base_uri": cfg.storage.raw_base_uri,
             "bronze_root": str(cfg.storage.bronze_root),
@@ -146,8 +145,7 @@ def ingest_logic(
     log.debug(
         "ingest_config",
         extra={
-            "run_all": cfg.run_all,
-            "hospital_id": cfg.hospital_id,
+            "hospital_ids": cfg.hospital_ids,
             "storage": {
                 "raw_base_uri": cfg.storage.raw_base_uri,
                 "bronze_root": str(cfg.storage.bronze_root),
@@ -162,10 +160,11 @@ def ingest_logic(
         snapshots = SnapshotManager(storage)
 
         hospitals = _load_hospitals_for_target(
-            cfg.hospital_id,
-            cfg.registry_path,
             log,
+            cfg.hospital_ids,
+            cfg.registry_path,
         )
+        log.info("hospitals: %s", [h.hospital_id for h in hospitals])
         if hospitals is None:
             return 2
         log.info("ingest_targets_ready", extra={"hospital_count": len(hospitals)})
@@ -231,15 +230,10 @@ def ingest_logic(
 
 @cli.command()
 def download(
-    hospital_id: str | None = typer.Option(
+    hospital_ids: str | None = typer.Option(
         None,
-        "--hospital-id",
-        help="Download a single hospital by ID.",
-    ),
-    run_all: bool = typer.Option(
-        False,
-        "--all",
-        help="Download every hospital in the registry.",
+        "--hospital-ids",
+        help="Comma-separated hospital IDs to download. Omit to download all hospitals.",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -262,17 +256,16 @@ def download(
         ),
         show_default=False,
     ),
-    log_level: int = typer.Option(
+    log_level: str = typer.Option(
         "INFO",
         "--log-level",
         help="Set the logging level.",
     )
 ) -> None:
     """Download source MRF files."""
-    
+
     exit_code = download_logic(
-        hospital_id=hospital_id,
-        run_all=run_all,
+        hospital_ids=hospital_ids,
         dry_run=dry_run,
         force=force,
         registry_path=registry_path,
@@ -283,23 +276,20 @@ def download(
 
 
 def download_logic(
-    hospital_id: str | None,
-    run_all: bool,
-    dry_run: bool,
-    force: bool,
-    registry_path: Path | None,
-    log_level: int,
+    hospital_ids: list[str] | str | None = None,
+    dry_run: bool = False,
+    force: bool = False,
+    registry_path: Path | None = None,
+    log_level: str = "INFO",
 ) -> int:
     """Run download logic and return a process-style exit code."""
     try:
         cfg = DownloadConfig.from_env(
-            hospital_id=hospital_id,
-            run_all=run_all,
+            hospital_ids=hospital_ids,
             dry_run=dry_run,
             force=force,
             registry_path=registry_path,
         )
-        exit_code = download_logic(cfg)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
@@ -308,9 +298,8 @@ def download_logic(
     log.info(
         "download_run_start",
         extra={
-            "mode": "single" if cfg.hospital_id else "all",
-            "hospital_id": cfg.hospital_id,
-            "run_all": cfg.run_all,
+            "mode": "all" if cfg.hospital_ids is None else "selected",
+            "hospital_ids": cfg.hospital_ids,
             "dry_run": cfg.dry_run,
             "force": cfg.force,
             "registry_path": str(cfg.registry_path) if cfg.registry_path else None,
@@ -338,9 +327,9 @@ def download_logic(
         snapshots = SnapshotManager(storage)
 
         hospitals = _load_hospitals_for_target(
-            cfg.hospital_id,
-            cfg.registry_path,
             log,
+            cfg.hospital_ids,
+            cfg.registry_path,
         )
         if hospitals is None:
             return 2

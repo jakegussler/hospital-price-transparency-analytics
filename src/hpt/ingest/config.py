@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from hpt.utils.string_utils import convert_string_to_list
+
 
 def _env_float(name: str, default: str) -> float:
     return float(os.environ.get(name, default))
@@ -22,13 +24,14 @@ def _registry_path_from_env(path: Path | None = None) -> Path | None:
     return Path(env_path) if env_path else None
 
 
-def _normalize_target(hospital_id: str | None, run_all: bool) -> str | None:
-    hospital_id = hospital_id.strip() if hospital_id else None
-    if hospital_id and run_all:
-        raise ValueError("Provide only one of --hospital-id <id> or --all.")
-    if not hospital_id and not run_all:
-        raise ValueError("Provide --hospital-id <id> or --all.")
-    return hospital_id
+def _normalize_hospital_ids(
+    hospital_ids: list[str] | str | None,
+) -> list[str] | None:
+    if hospital_ids is None:
+        return None
+    if isinstance(hospital_ids, str):
+        return convert_string_to_list(hospital_ids)
+    return [hospital_id.strip().lower() for hospital_id in hospital_ids if hospital_id.strip()]
 
 
 @dataclass(frozen=True)
@@ -80,8 +83,7 @@ class StorageConfig:
 class DownloadConfig:
     """Configuration for a complete download run."""
 
-    hospital_id: str | None = None
-    run_all: bool = False
+    hospital_ids: list[str] | str | None = None
     storage: StorageConfig = field(default_factory=StorageConfig.from_env)
     registry_path: Path | None = field(default_factory=_registry_path_from_env)
     client: ClientConfig = field(default_factory=ClientConfig.from_env)
@@ -89,22 +91,23 @@ class DownloadConfig:
     force: bool = False
 
     def __post_init__(self) -> None:
-        hospital_id = _normalize_target(self.hospital_id, self.run_all)
-        object.__setattr__(self, "hospital_id", hospital_id)
+        object.__setattr__(
+            self,
+            "hospital_ids",
+            _normalize_hospital_ids(self.hospital_ids),
+        )
 
     @classmethod
     def from_env(
         cls,
         *,
-        hospital_id: str | None = None,
-        run_all: bool = False,
+        hospital_ids: list[str] | str | None = None,
         dry_run: bool = False,
         force: bool = False,
         registry_path: Path | None = None,
     ) -> DownloadConfig:
         return cls(
-            hospital_id=hospital_id,
-            run_all=run_all,
+            hospital_ids=hospital_ids,
             storage=StorageConfig.from_env(),
             registry_path=_registry_path_from_env(registry_path),
             client=ClientConfig.from_env(),
@@ -117,28 +120,28 @@ class DownloadConfig:
 class IngestConfig:
     """Configuration for a complete parse-to-Bronze ingest run."""
 
-    hospital_id: str | None = None
-    run_all: bool = False
+    hospital_ids: list[str] | str | None = None
     storage: StorageConfig = field(default_factory=StorageConfig.from_env)
     registry_path: Path | None = field(default_factory=_registry_path_from_env)
 
     def __post_init__(self) -> None:
-        hospital_id = _normalize_target(self.hospital_id, self.run_all)
-        object.__setattr__(self, "hospital_id", hospital_id)
+        object.__setattr__(
+            self,
+            "hospital_ids",
+            _normalize_hospital_ids(self.hospital_ids),
+        )
 
     @classmethod
     def from_env(
         cls,
         *,
-        hospital_id: str | None = None,
-        run_all: bool = False,
+        hospital_ids: list[str] | str | None = None,
         bronze_root: Path | None = None,
         quarantine_root: Path | None = None,
         registry_path: Path | None = None,
     ) -> IngestConfig:
         return cls(
-            hospital_id=hospital_id,
-            run_all=run_all,
+            hospital_ids=hospital_ids,
             storage=StorageConfig.from_env(
                 bronze_root=bronze_root,
                 quarantine_root=quarantine_root,
