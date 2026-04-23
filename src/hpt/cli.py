@@ -7,13 +7,14 @@ from pathlib import Path
 
 import typer
 
-from hpt.ingest.config import IngestConfig
-from hpt.ingest.download import Outcome, download_all, download_hospital, _build_client
+from hpt.ingest.config import DownloadConfig, IngestConfig
+from hpt.ingest.download import Outcome, download_all
 from hpt.ingest.snapshot import SnapshotManager
 from hpt.ingest.storage import BronzeStorage
 from hpt.log import configure_logging, get_logger
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospital, load_registry
+from hpt.registry.models import HospitalSource
 
 
 cli = typer.Typer(help="Hospital Price Transparency pipeline CLI.", no_args_is_help=True)
@@ -31,71 +32,90 @@ def ingest(
         "--all",
         help="Ingest the current snapshot for every hospital in the registry.",
     ),
-    bronze_root: Path = typer.Option(
-        Path("data/bronze"),
+    bronze_root: Path | None = typer.Option(
+        None,
         "--bronze-root",
         file_okay=False,
         dir_okay=True,
-        help="Directory where Bronze Parquet partitions are written.",
-        show_default=True,
+        help=(
+            "Directory where parsed Bronze Parquet partitions are written. "
+            "Defaults to HPT_PARSED_BRONZE_ROOT or data/bronze."
+        ),
+        show_default=False,
     ),
-    quarantine_root: Path = typer.Option(
-        Path("data/quarantine"),
+    quarantine_root: Path | None = typer.Option(
+        None,
         "--quarantine-root",
         file_okay=False,
         dir_okay=True,
-        help="Directory where records that fail Pydantic validation are written.",
-        show_default=True,
+        help=(
+            "Directory where records that fail Pydantic validation are written. "
+            "Defaults to HPT_QUARANTINE_ROOT or data/quarantine."
+        ),
+        show_default=False,
+    ),
+    registry_path: Path | None = typer.Option(
+        None,
+        "--registry-path",
+        file_okay=True,
+        dir_okay=False,
+        help=(
+            "Override the hospital registry file. Defaults to HPT_REGISTRY_PATH "
+            "or bundled registry."
+        ),
+        show_default=False,
     ),
 ) -> None:
     """Parse downloaded MRF files into Bronze Parquet."""
     try:
-        exit_code = ingest_logic(
+        cfg = IngestConfig.from_env(
             hospital_id=hospital_id,
-            ingest_all=ingest_all,
+            run_all=ingest_all,
             bronze_root=bronze_root,
             quarantine_root=quarantine_root,
+            registry_path=registry_path,
         )
+        exit_code = ingest_logic(cfg)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
     raise typer.Exit(code=exit_code)
 
 
-def _require_target_selection(hospital_id: str | None, run_all: bool) -> None:
-    if not hospital_id and not run_all:
-        raise ValueError("Provide --hospital-id <id> or --all.")
+def _registry_kwargs(registry_path: Path | None) -> dict[str, Path]:
+    return {"path": registry_path} if registry_path is not None else {}
 
 
-def ingest_logic(
+def _load_hospitals_for_target(
     hospital_id: str | None,
-    ingest_all: bool,
-    bronze_root: Path,
-    quarantine_root: Path,
-) -> int:
-    """Run ingest logic and return a process-style exit code."""
-    _require_target_selection(hospital_id, ingest_all)
+    registry_path: Path | None,
+    log,
+) -> list[HospitalSource] | None:
+    try:
+        if hospital_id:
+            return [get_hospital(hospital_id, **_registry_kwargs(registry_path))]
+        return load_registry(**_registry_kwargs(registry_path))
+    except (KeyError, RegistryError) as exc:
+        log.error("registry_error", extra={"error": str(exc)})
+        return None
 
+
+def ingest_logic(cfg: IngestConfig) -> int:
+    """Run ingest logic and return a process-style exit code."""
     configure_logging()
     log = get_logger("cli.ingest")
 
     try:
-        cfg = IngestConfig.from_env()
-        storage = BronzeStorage(cfg.bronze_base_uri)
+        storage = BronzeStorage(cfg.storage.raw_base_uri)
         snapshots = SnapshotManager(storage)
 
-        if hospital_id:
-            try:
-                hospitals = [get_hospital(hospital_id)]
-            except (KeyError, RegistryError) as exc:
-                log.error("registry_error", extra={"error": str(exc)})
-                return 2
-        else:
-            try:
-                hospitals = load_registry()
-            except RegistryError as exc:
-                log.error("registry_error", extra={"error": str(exc)})
-                return 2
+        hospitals = _load_hospitals_for_target(
+            cfg.hospital_id,
+            cfg.registry_path,
+            log,
+        )
+        if hospitals is None:
+            return 2
 
         failures = 0
         for hospital in hospitals:
@@ -114,8 +134,8 @@ def ingest_logic(
                     snapshot=snapshot,
                     hospital_config=hospital.model_dump(),
                     storage=storage,
-                    bronze_root=bronze_root,
-                    quarantine_root=quarantine_root,
+                    bronze_root=cfg.storage.bronze_root,
+                    quarantine_root=cfg.storage.quarantine_root,
                 )
                 log.info("ingested", extra=summary)
             except NotImplementedError as exc:
@@ -173,62 +193,52 @@ def download(
         "--force",
         help="Re-download even if registry is unchanged.",
     ),
+    registry_path: Path | None = typer.Option(
+        None,
+        "--registry-path",
+        file_okay=True,
+        dir_okay=False,
+        help=(
+            "Override the hospital registry file. Defaults to HPT_REGISTRY_PATH "
+            "or bundled registry."
+        ),
+        show_default=False,
+    ),
 ) -> None:
     """Download source MRF files."""
     try:
-        exit_code = download_logic(
+        cfg = DownloadConfig.from_env(
             hospital_id=hospital_id,
             run_all=run_all,
             dry_run=dry_run,
             force=force,
+            registry_path=registry_path,
         )
+        exit_code = download_logic(cfg)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
     raise typer.Exit(code=exit_code)
 
 
-def download_logic(
-    hospital_id: str | None,
-    run_all: bool,
-    dry_run: bool,
-    force: bool,
-) -> int:
+def download_logic(cfg: DownloadConfig) -> int:
     """Run download logic and return a process-style exit code."""
-    _require_target_selection(hospital_id, run_all)
-
     configure_logging()
     log = get_logger("cli.download")
 
     try:
-        cfg = IngestConfig.from_env()
-        storage = BronzeStorage(cfg.bronze_base_uri)
+        storage = BronzeStorage(cfg.storage.raw_base_uri)
         snapshots = SnapshotManager(storage)
 
-        if hospital_id:
-            try:
-                hospital = get_hospital(hospital_id)
-            except (KeyError, RegistryError) as exc:
-                log.error("registry_error", extra={"error": str(exc)})
-                return 2
+        hospitals = _load_hospitals_for_target(
+            cfg.hospital_id,
+            cfg.registry_path,
+            log,
+        )
+        if hospitals is None:
+            return 2
 
-            client = _build_client(cfg)
-            try:
-                result = download_hospital(
-                    hospital, storage, snapshots, client, dry_run=dry_run, force=force
-                )
-            finally:
-                client.close()
-            results = [result]
-        else:
-            try:
-                hospitals = load_registry()
-            except RegistryError as exc:
-                log.error("registry_error", extra={"error": str(exc)})
-                return 2
-            results = download_all(
-                hospitals, storage, snapshots, cfg, dry_run=dry_run, force=force
-            )
+        results = download_all(hospitals, storage, snapshots, cfg)
 
         counts = Counter(r.outcome for r in results)
         summary = {o.value: counts.get(o, 0) for o in Outcome}

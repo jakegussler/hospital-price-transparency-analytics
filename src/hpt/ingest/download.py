@@ -16,7 +16,7 @@ import httpx
 
 from hpt.ingest.client import build_httpx_client
 from hpt.ingest.compression import decompress_file
-from hpt.ingest.config import IngestConfig
+from hpt.ingest.config import DownloadConfig
 from hpt.ingest.detect import Compression, detect_format
 from hpt.ingest.snapshot import SnapshotManager, SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
@@ -271,18 +271,20 @@ def download_all(
     hospitals: list[HospitalSource],
     storage: BronzeStorage,
     snapshots: SnapshotManager,
-    cfg: IngestConfig,
-    *,
-    dry_run: bool = False,
-    force: bool = False,
+    cfg: DownloadConfig,
 ) -> list[DownloadResult]:
     """Iterate the full registry and download each hospital's MRF."""
-    client = _build_client(cfg)
+    client = _build_client(cfg.client)
     results: list[DownloadResult] = []
     try:
         for hospital in hospitals:
             result = download_hospital(
-                hospital, storage, snapshots, client, dry_run=dry_run, force=force
+                hospital,
+                storage,
+                snapshots,
+                client,
+                dry_run=cfg.dry_run,
+                force=cfg.force,
             )
             results.append(result)
     finally:

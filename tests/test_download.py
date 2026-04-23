@@ -7,7 +7,11 @@ import hashlib
 import httpx
 import pytest
 
-from hpt.ingest.config import IngestConfig
+from hpt.ingest.config import (
+    ClientConfig,
+    DownloadConfig,
+    StorageConfig,
+)
 from hpt.ingest.download import (
     Outcome,
     download_all,
@@ -20,14 +24,22 @@ from hpt.registry.models import HospitalSource, MrfSource
 
 
 @pytest.fixture()
-def cfg():
-    return IngestConfig(
-        bronze_base_uri="file:///unused",
-        http_connect_timeout=5,
-        http_read_timeout=30,
-        http_retries=0,
+def client_cfg():
+    return ClientConfig(
+        connect_timeout_s=5,
+        read_timeout_s=30,
+        retries=0,
         user_agent="hpt-test/0.1",
-        http_timeout=60,
+        timeout_s=60,
+    )
+
+
+@pytest.fixture()
+def download_cfg(client_cfg):
+    return DownloadConfig(
+        run_all=True,
+        storage=StorageConfig(raw_base_uri="file:///unused"),
+        client=client_cfg,
     )
 
 
@@ -58,10 +70,10 @@ MRF_BYTES_V2 = b"code,description,price\nCPT001,Test,200.00\nCPT002,Other,300.00
 
 
 class TestFirstFetch:
-    def test_downloads_and_creates_snapshot(self, httpx_mock, storage, snapshots, cfg):
+    def test_downloads_and_creates_snapshot(self, httpx_mock, storage, snapshots, client_cfg):
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V1)
         hospital = _make_hospital()
-        client = _build_client(cfg)
+        client = _build_client(client_cfg)
 
         result = download_hospital(hospital, storage, snapshots, client)
         client.close()
@@ -72,10 +84,10 @@ class TestFirstFetch:
         assert result.snapshot is not None
         assert result.snapshot.is_current_snapshot is True
 
-    def test_raw_file_exists_on_disk(self, httpx_mock, storage, snapshots, cfg):
+    def test_raw_file_exists_on_disk(self, httpx_mock, storage, snapshots, client_cfg):
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V1)
         hospital = _make_hospital()
-        client = _build_client(cfg)
+        client = _build_client(client_cfg)
         download_hospital(hospital, storage, snapshots, client)
         client.close()
 
@@ -84,11 +96,11 @@ class TestFirstFetch:
 
 
 class TestUnchangedFetch:
-    def test_second_identical_fetch_is_unchanged(self, httpx_mock, storage, snapshots, cfg):
+    def test_second_identical_fetch_is_unchanged(self, httpx_mock, storage, snapshots, client_cfg):
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V1)
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V1)
         hospital = _make_hospital()
-        client = _build_client(cfg)
+        client = _build_client(client_cfg)
 
         r1 = download_hospital(hospital, storage, snapshots, client)
         r2 = download_hospital(hospital, storage, snapshots, client)
@@ -101,11 +113,13 @@ class TestUnchangedFetch:
 
 
 class TestChangedFetch:
-    def test_different_content_writes_new_snapshot(self, httpx_mock, storage, snapshots, cfg):
+    def test_different_content_writes_new_snapshot(
+        self, httpx_mock, storage, snapshots, client_cfg
+    ):
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V1)
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V2)
         hospital = _make_hospital()
-        client = _build_client(cfg)
+        client = _build_client(client_cfg)
 
         r1 = download_hospital(hospital, storage, snapshots, client)
         r2 = download_hospital(hospital, storage, snapshots, client)
@@ -121,9 +135,9 @@ class TestChangedFetch:
 
 
 class TestDryRun:
-    def test_dry_run_no_download(self, storage, snapshots, cfg):
+    def test_dry_run_no_download(self, storage, snapshots, client_cfg):
         hospital = _make_hospital()
-        client = _build_client(cfg)
+        client = _build_client(client_cfg)
         result = download_hospital(hospital, storage, snapshots, client, dry_run=True)
         client.close()
 
@@ -133,10 +147,10 @@ class TestDryRun:
 
 
 class TestFailure:
-    def test_http_error_returns_failed(self, httpx_mock, storage, snapshots, cfg):
+    def test_http_error_returns_failed(self, httpx_mock, storage, snapshots, client_cfg):
         httpx_mock.add_response(url="https://example.com/charges.csv", status_code=500)
         hospital = _make_hospital()
-        client = _build_client(cfg)
+        client = _build_client(client_cfg)
 
         result = download_hospital(hospital, storage, snapshots, client)
         client.close()
@@ -145,11 +159,11 @@ class TestFailure:
         assert result.error is not None
         assert snapshots.current_hash("test-hosp") is None
 
-    def test_failure_does_not_corrupt_existing(self, httpx_mock, storage, snapshots, cfg):
+    def test_failure_does_not_corrupt_existing(self, httpx_mock, storage, snapshots, client_cfg):
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V1)
         httpx_mock.add_response(url="https://example.com/charges.csv", status_code=503)
         hospital = _make_hospital()
-        client = _build_client(cfg)
+        client = _build_client(client_cfg)
 
         r1 = download_hospital(hospital, storage, snapshots, client)
         r2 = download_hospital(hospital, storage, snapshots, client)
@@ -161,7 +175,7 @@ class TestFailure:
 
 
 class TestDownloadAll:
-    def test_iterates_registry(self, httpx_mock, storage, snapshots, cfg):
+    def test_iterates_registry(self, httpx_mock, storage, snapshots, download_cfg):
         httpx_mock.add_response(url="https://example.com/a.csv", content=MRF_BYTES_V1)
         httpx_mock.add_response(url="https://example.com/b.csv", content=MRF_BYTES_V2)
 
@@ -169,12 +183,12 @@ class TestDownloadAll:
             _make_hospital("https://example.com/a.csv", hospital_id="h-a"),
             _make_hospital("https://example.com/b.csv", hospital_id="h-b"),
         ]
-        results = download_all(hospitals, storage, snapshots, cfg)
+        results = download_all(hospitals, storage, snapshots, download_cfg)
 
         assert len(results) == 2
         assert all(r.outcome == Outcome.DOWNLOADED for r in results)
 
-    def test_one_failure_does_not_abort(self, httpx_mock, storage, snapshots, cfg):
+    def test_one_failure_does_not_abort(self, httpx_mock, storage, snapshots, download_cfg):
         httpx_mock.add_response(url="https://example.com/a.csv", status_code=500)
         httpx_mock.add_response(url="https://example.com/b.csv", content=MRF_BYTES_V1)
 
@@ -182,7 +196,7 @@ class TestDownloadAll:
             _make_hospital("https://example.com/a.csv", hospital_id="h-a"),
             _make_hospital("https://example.com/b.csv", hospital_id="h-b"),
         ]
-        results = download_all(hospitals, storage, snapshots, cfg)
+        results = download_all(hospitals, storage, snapshots, download_cfg)
 
         outcomes = {r.hospital_id: r.outcome for r in results}
         assert outcomes["h-a"] == Outcome.FAILED
