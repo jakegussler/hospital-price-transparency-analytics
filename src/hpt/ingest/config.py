@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from hpt.utils.paths import get_default_data_root, to_storage_uri
 from hpt.utils.string_utils import convert_string_to_list
 
 
@@ -59,23 +60,30 @@ class ClientConfig:
 class StorageConfig:
     """Storage roots for raw source files, parsed Bronze, and quarantine."""
 
-    raw_base_uri: str = "file://./data"
-    bronze_root: Path = Path("data/bronze")
-    quarantine_root: Path = Path("data/quarantine")
+    raw_base_uri: str = field(default_factory=lambda: to_storage_uri(get_default_data_root()))
+    bronze_root: Path = field(default_factory=lambda: get_default_data_root() / "bronze")
+    quarantine_root: Path = field(default_factory=lambda: get_default_data_root() / "quarantine")
 
     @classmethod
     def from_env(
         cls,
         *,
+        raw_base_uri: str | Path | None = None,
         bronze_root: Path | None = None,
         quarantine_root: Path | None = None,
     ) -> StorageConfig:
+        data_root = get_default_data_root()
+        env_raw_base_uri = os.environ.get("HPT_RAW_STORAGE_BASE_URI")
         return cls(
-            raw_base_uri=os.environ.get("HPT_RAW_STORAGE_BASE_URI", "file://./data"),
+            raw_base_uri=to_storage_uri(
+                raw_base_uri
+                if raw_base_uri is not None
+                else (env_raw_base_uri if env_raw_base_uri is not None else data_root)
+            ),
             bronze_root=bronze_root
-            or Path(os.environ.get("HPT_PARSED_BRONZE_ROOT", "data/bronze")),
+            or Path(os.environ.get("HPT_PARSED_BRONZE_ROOT", data_root / "bronze")),
             quarantine_root=quarantine_root
-            or Path(os.environ.get("HPT_QUARANTINE_ROOT", "data/quarantine")),
+            or Path(os.environ.get("HPT_QUARANTINE_ROOT", data_root / "quarantine")),
         )
 
 
@@ -102,13 +110,14 @@ class DownloadConfig:
         cls,
         *,
         hospital_ids: list[str] | str | None = None,
+        raw_base_uri: str | Path | None = None,
         dry_run: bool = False,
         force: bool = False,
         registry_path: Path | None = None,
     ) -> DownloadConfig:
         return cls(
             hospital_ids=hospital_ids,
-            storage=StorageConfig.from_env(),
+            storage=StorageConfig.from_env(raw_base_uri=raw_base_uri),
             registry_path=_registry_path_from_env(registry_path),
             client=ClientConfig.from_env(),
             dry_run=dry_run,
@@ -136,6 +145,7 @@ class IngestConfig:
         cls,
         *,
         hospital_ids: list[str] | str | None = None,
+        raw_base_uri: str | Path | None = None,
         bronze_root: Path | None = None,
         quarantine_root: Path | None = None,
         registry_path: Path | None = None,
@@ -143,6 +153,7 @@ class IngestConfig:
         return cls(
             hospital_ids=hospital_ids,
             storage=StorageConfig.from_env(
+                raw_base_uri=raw_base_uri,
                 bronze_root=bronze_root,
                 quarantine_root=quarantine_root,
             ),

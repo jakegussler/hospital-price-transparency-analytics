@@ -12,6 +12,7 @@ from hpt.ingest.config import (
     IngestConfig,
     StorageConfig,
 )
+from hpt.utils.paths import get_default_data_root
 
 
 class TestTargetValidation:
@@ -52,6 +53,26 @@ class TestClientConfig:
 
 
 class TestStorageConfig:
+    def test_default_raw_uri_is_stable_across_working_directories(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("HPT_RAW_STORAGE_BASE_URI", raising=False)
+        monkeypatch.chdir(tmp_path)
+
+        cfg = StorageConfig.from_env()
+
+        assert cfg.raw_base_uri == get_default_data_root().as_uri()
+
+    def test_from_env_defaults_use_canonical_project_data_root(self, monkeypatch):
+        monkeypatch.delenv("HPT_RAW_STORAGE_BASE_URI", raising=False)
+        monkeypatch.delenv("HPT_PARSED_BRONZE_ROOT", raising=False)
+        monkeypatch.delenv("HPT_QUARANTINE_ROOT", raising=False)
+
+        cfg = StorageConfig.from_env()
+        data_root = get_default_data_root()
+
+        assert cfg.raw_base_uri == data_root.as_uri()
+        assert cfg.bronze_root == data_root / "bronze"
+        assert cfg.quarantine_root == data_root / "quarantine"
+
     def test_from_env(self, monkeypatch):
         monkeypatch.setenv("HPT_RAW_STORAGE_BASE_URI", "file:///raw")
         monkeypatch.setenv("HPT_PARSED_BRONZE_ROOT", "env/bronze")
@@ -74,6 +95,13 @@ class TestStorageConfig:
 
         assert cfg.bronze_root == Path("cli/bronze")
         assert cfg.quarantine_root == Path("cli/quarantine")
+
+    def test_explicit_raw_base_uri_override_wins(self, monkeypatch):
+        monkeypatch.setenv("HPT_RAW_STORAGE_BASE_URI", "file:///from-env")
+
+        cfg = StorageConfig.from_env(raw_base_uri=Path("data/custom-raw"))
+
+        assert cfg.raw_base_uri == Path("data/custom-raw").resolve().as_uri()
 
 
 class TestPhaseConfigs:

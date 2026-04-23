@@ -12,9 +12,9 @@ HPT keeps runtime configuration as small immutable dataclasses in
 
 | Variable | Config | Default | Notes |
 |---|---|---|---|
-| `HPT_RAW_STORAGE_BASE_URI` | `StorageConfig.raw_base_uri` | `file://./data` | fsspec URI for raw downloads and snapshot metadata. |
-| `HPT_PARSED_BRONZE_ROOT` | `StorageConfig.bronze_root` | `data/bronze` | Parsed Bronze Parquet output root. |
-| `HPT_QUARANTINE_ROOT` | `StorageConfig.quarantine_root` | `data/quarantine` | Parser validation failure output root. |
+| `HPT_RAW_STORAGE_BASE_URI` | `StorageConfig.raw_base_uri` | canonical project `data` root as absolute `file:///...` URI | fsspec URI for raw downloads and snapshot metadata. |
+| `HPT_PARSED_BRONZE_ROOT` | `StorageConfig.bronze_root` | `<project_root>/data/bronze` | Parsed Bronze Parquet output root. |
+| `HPT_QUARANTINE_ROOT` | `StorageConfig.quarantine_root` | `<project_root>/data/quarantine` | Parser validation failure output root. |
 | `HPT_REGISTRY_PATH` | `DownloadConfig.registry_path`, `IngestConfig.registry_path` | bundled registry | Optional registry file override. |
 | `HPT_HTTP_CONNECT_TIMEOUT` | `ClientConfig.connect_timeout_s` | `10` | HTTP connect timeout in seconds. |
 | `HPT_HTTP_READ_TIMEOUT` | `ClientConfig.read_timeout_s` | `300` | HTTP read timeout in seconds. |
@@ -27,3 +27,17 @@ HPT keeps runtime configuration as small immutable dataclasses in
 `StorageConfig.raw_base_uri` is for source files and snapshot metadata managed
 by `BronzeStorage`. `StorageConfig.bronze_root` is for normalized parsed Bronze
 tables written by `BronzeWriter`.
+
+## Storage Root Precedence
+
+For ingest/download config construction, storage roots are resolved with
+this precedence:
+
+1. Explicit function argument (for example CLI `--raw-base-uri`).
+2. Environment variable (`HPT_RAW_STORAGE_BASE_URI`, `HPT_PARSED_BRONZE_ROOT`,
+   `HPT_QUARANTINE_ROOT`).
+3. Canonical project defaults rooted at `<project_root>/data`.
+
+`HPT_RAW_STORAGE_BASE_URI` accepts any fsspec-compatible URI
+(`file:///...`, `s3://...`, `gs://...`), so cloud migration remains a config
+change instead of a code rewrite.

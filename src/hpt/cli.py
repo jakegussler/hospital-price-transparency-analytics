@@ -28,6 +28,16 @@ def ingest(
         "--hospital-ids",
         help="Comma-separated hospital IDs to ingest. Omit to ingest all hospitals.",
     ),
+    raw_base_uri: str | None = typer.Option(
+        None,
+        "--raw-base-uri",
+        help=(
+            "fsspec URI prefix for raw downloads and snapshot metadata "
+            "(for example file:///.../data or s3://bucket/prefix). "
+            "Defaults to HPT_RAW_STORAGE_BASE_URI or canonical project data root."
+        ),
+        show_default=False,
+    ),
     bronze_root: Path | None = typer.Option(
         None,
         "--bronze-root",
@@ -71,6 +81,7 @@ def ingest(
 
     exit_code = ingest_logic(
         hospital_ids=hospital_ids,
+        raw_base_uri=raw_base_uri,
         bronze_root=bronze_root,
         quarantine_root=quarantine_root,
         registry_path=registry_path,
@@ -113,6 +124,7 @@ def _load_hospitals_for_target(
 
 def ingest_logic(
     hospital_ids: list[str] | str | None = None,
+    raw_base_uri: str | Path | None = None,
     bronze_root: Path | None = None,
     quarantine_root: Path | None = None,
     registry_path: Path | None = None,
@@ -122,6 +134,7 @@ def ingest_logic(
     try:
         cfg = IngestConfig.from_env(
             hospital_ids=hospital_ids,
+            raw_base_uri=raw_base_uri,
             bronze_root=bronze_root,
             quarantine_root=quarantine_root,
             registry_path=registry_path,
@@ -157,7 +170,9 @@ def ingest_logic(
 
     try:
         storage = BronzeStorage(cfg.storage.raw_base_uri)
+        print("storage: %s", storage)
         snapshots = SnapshotManager(storage)
+        print("snapshots: %s", snapshots)
 
         hospitals = _load_hospitals_for_target(
             log,
@@ -235,6 +250,16 @@ def download(
         "--hospital-ids",
         help="Comma-separated hospital IDs to download. Omit to download all hospitals.",
     ),
+    raw_base_uri: str | None = typer.Option(
+        None,
+        "--raw-base-uri",
+        help=(
+            "fsspec URI prefix for raw downloads and snapshot metadata "
+            "(for example file:///.../data or s3://bucket/prefix). "
+            "Defaults to HPT_RAW_STORAGE_BASE_URI or canonical project data root."
+        ),
+        show_default=False,
+    ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -266,6 +291,7 @@ def download(
 
     exit_code = download_logic(
         hospital_ids=hospital_ids,
+        raw_base_uri=raw_base_uri,
         dry_run=dry_run,
         force=force,
         registry_path=registry_path,
@@ -277,6 +303,7 @@ def download(
 
 def download_logic(
     hospital_ids: list[str] | str | None = None,
+    raw_base_uri: str | Path | None = None,
     dry_run: bool = False,
     force: bool = False,
     registry_path: Path | None = None,
@@ -286,6 +313,7 @@ def download_logic(
     try:
         cfg = DownloadConfig.from_env(
             hospital_ids=hospital_ids,
+            raw_base_uri=raw_base_uri,
             dry_run=dry_run,
             force=force,
             registry_path=registry_path,

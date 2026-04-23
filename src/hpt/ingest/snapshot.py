@@ -67,7 +67,9 @@ class SnapshotManager:
     def get_current_snapshot(self, hospital_id: str) -> SnapshotRecord | None:
         """Return the current (is_current_snapshot=True) record, or None."""
         meta_dir = self._storage.metadata_path(hospital_id)
+        print("meta_dir: %s", meta_dir)
         files = self._storage.ls(meta_dir)
+        print("files: %s", files)
         logger.debug(
             "snapshot_scan_start",
             extra={

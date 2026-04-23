@@ -1,16 +1,17 @@
-from pathlib import Path
-
 from hpt.cli import ingest_logic
+from hpt.utils.paths import get_default_data_root
 
 
 def ingest_file() -> None:
-    bronze_root = Path(__file__).resolve().parents[3] / "data/bronze"
-    quarantine_root = Path(__file__).resolve().parents[3] / "data/quarantine"
+    data_root = get_default_data_root()
+    bronze_root = data_root / "bronze"
+    quarantine_root = data_root / "quarantine"
     ingest_logic(
         hospital_ids="vumc",
+        raw_base_uri=data_root,
         bronze_root=bronze_root,
         quarantine_root=quarantine_root,
-        log_level="INFO",
+        log_level="DEBUG",
     )
 
 
