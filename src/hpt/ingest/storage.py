@@ -22,6 +22,9 @@ class BronzeStorage:
     def __init__(self, base_uri: str) -> None:
         self._base_uri = base_uri.rstrip("/")
         self._fs, self._root = fsspec.core.url_to_fs(self._base_uri)
+    
+    def __repr__(self) -> str:
+        return f"BronzeStorage(base_uri={self._base_uri})"
 
     # -- public helpers --------------------------------------------------------
 
