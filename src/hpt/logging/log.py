@@ -21,29 +21,52 @@ import sys
 
 __all__ = ["configure_logging", "get_logger"]
 
-_EXTRA_FIELDS = ("file_hash", "bytes", "duration_s", "snapshot_id", "error", "url")
+_BASE_RECORD_KEYS = set(logging.makeLogRecord({}).__dict__.keys()) | {
+    "message",
+    "asctime",
+}
+
+
+def _build_payload(
+    formatter: logging.Formatter, record: logging.LogRecord
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "ts": formatter.formatTime(record),
+        "level": record.levelname,
+        "logger": record.name,
+        "msg": record.getMessage(),
+    }
+    for key, val in record.__dict__.items():
+        if key.startswith("_") or key in _BASE_RECORD_KEYS or val is None:
+            continue
+        payload[key] = val
+    if record.exc_info:
+        payload["exc_info"] = formatter.formatException(record.exc_info)
+    return payload
+
+
+def _render_stdout_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        if not value:
+            return '""'
+        if any(ch.isspace() or ch in {'"', "="} for ch in value):
+            return json.dumps(value)
+        return value
+    return json.dumps(value, default=str, sort_keys=True)
 
 
 class JsonFormatter(logging.Formatter):
     """Emit one JSON object per log line."""
 
     def format(self, record: logging.LogRecord) -> str:
-        payload: dict = {
-            "ts": self.formatTime(record),
-            "level": record.levelname,
-            "logger": record.name,
-            "msg": record.getMessage(),
-        }
-        if hasattr(record, "hospital_id"):
-            payload["hospital_id"] = record.hospital_id  # type: ignore[attr-defined]
-        for key in _EXTRA_FIELDS:
-            val = getattr(record, key, None)
-            if val is not None:
-                payload[key] = val
-        if record.exc_info:
-            payload["exc_info"] = self.formatException(record.exc_info)
-        return json.dumps(payload)
-    
+        payload = _build_payload(self, record)
+        return json.dumps(payload, default=str)
+
+
 class StandardOutputFormatter(logging.Formatter):
     """Human-friendly formatter for local CLI and pipeline runs."""
 
@@ -61,6 +84,27 @@ class StandardOutputFormatter(logging.Formatter):
             datefmt=datefmt or self._DEFAULT_DATEFMT,
             style=style,
         )
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = _build_payload(self, record)
+        structured_fields = {
+            key: val
+            for key, val in payload.items()
+            if key not in {"ts", "level", "logger", "msg", "exc_info"}
+        }
+        base = (
+            f"{payload['ts']} | {payload['level']:<8} | "
+            f"{payload['logger']} | {payload['msg']}"
+        )
+        if structured_fields:
+            fields = " ".join(
+                f"{key}={_render_stdout_value(structured_fields[key])}"
+                for key in sorted(structured_fields)
+            )
+            base = f"{base} | {fields}"
+        if "exc_info" in payload:
+            return f"{base}\n{payload['exc_info']}"
+        return base
 
 def get_log_level(log_level: str) -> int:
     """Get the log level from the string."""
