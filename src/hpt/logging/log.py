@@ -17,9 +17,25 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 
-__all__ = ["configure_logging", "get_logger"]
+from hpt.utils.paths import get_default_logs_root
+
+__all__ = ["LoggingRunPaths", "configure_logging", "get_logger"]
+
+
+@dataclass(frozen=True)
+class LoggingRunPaths:
+    """File paths created for one configured logging run."""
+
+    run_id: str
+    std_out_path: Path
+    json_path: Path
+    failures_dir: Path
 
 _BASE_RECORD_KEYS = set(logging.makeLogRecord({}).__dict__.keys()) | {
     "message",
@@ -114,8 +130,34 @@ def get_log_level(log_level: str) -> int:
         raise ValueError(f"Invalid log level: {log_level}")
 
 
-def configure_logging(log_level: str = "INFO") -> None:
-    """Attach a JSON handler to the root ``hpt`` logger.
+def _build_run_paths(logs_root: Path) -> LoggingRunPaths:
+    run_id = f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}_pid{os.getpid()}"
+    std_out_dir = logs_root / "std_out"
+    json_dir = logs_root / "json"
+    failures_dir = logs_root / "failures"
+    std_out_dir.mkdir(parents=True, exist_ok=True)
+    json_dir.mkdir(parents=True, exist_ok=True)
+    failures_dir.mkdir(parents=True, exist_ok=True)
+    return LoggingRunPaths(
+        run_id=run_id,
+        std_out_path=std_out_dir / f"{run_id}.log",
+        json_path=json_dir / f"{run_id}.jsonl",
+        failures_dir=failures_dir,
+    )
+
+
+def _set_handler_levels(root: logging.Logger, level: int) -> None:
+    root.setLevel(level)
+    for handler in root.handlers:
+        handler.setLevel(level)
+
+
+def configure_logging(
+    log_level: str = "INFO",
+    *,
+    logs_root: Path | None = None,
+) -> LoggingRunPaths:
+    """Attach stdout and file handlers to the root ``hpt`` logger.
 
     Safe to call multiple times; subsequent calls are no-ops so that
     library callers that import ``hpt`` sub-modules do not unexpectedly
@@ -124,13 +166,33 @@ def configure_logging(log_level: str = "INFO") -> None:
     level = get_log_level(log_level)
     root = logging.getLogger("hpt")
     if root.handlers:
-        root.setLevel(level)
-        return
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(StandardOutputFormatter())
-    root.addHandler(handler)
+        _set_handler_levels(root, level)
+        existing_paths = getattr(root, "_hpt_log_paths", None)
+        if isinstance(existing_paths, LoggingRunPaths):
+            return existing_paths
+
+    run_paths = _build_run_paths((logs_root or get_default_logs_root()).resolve())
+
+    stdout_formatter = StandardOutputFormatter()
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(stdout_formatter)
+    stream_handler.setLevel(level)
+    root.addHandler(stream_handler)
+
+    std_out_handler = logging.FileHandler(run_paths.std_out_path, encoding="utf-8")
+    std_out_handler.setFormatter(StandardOutputFormatter())
+    std_out_handler.setLevel(level)
+    root.addHandler(std_out_handler)
+
+    json_handler = logging.FileHandler(run_paths.json_path, encoding="utf-8")
+    json_handler.setFormatter(JsonFormatter())
+    json_handler.setLevel(level)
+    root.addHandler(json_handler)
+
     root.setLevel(level)
     root.propagate = False
+    root._hpt_log_paths = run_paths  # type: ignore[attr-defined]
+    return run_paths
 
 
 def get_logger(name: str) -> logging.Logger:

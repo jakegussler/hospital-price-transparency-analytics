@@ -259,3 +259,7 @@ infra/terraform/*.tfplan
 # Mac OS
 .DS_Store
 */.DS_Store
+
+
+# Local logs
+logs/

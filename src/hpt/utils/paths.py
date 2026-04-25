@@ -24,6 +24,11 @@ def get_default_data_root(project_root: Path | None = None) -> Path:
     return (project_root or get_project_root()).resolve() / "data"
 
 
+def get_default_logs_root(project_root: Path | None = None) -> Path:
+    """Return the canonical local logs root for this project."""
+    return (project_root or get_project_root()).resolve() / "logs"
+
+
 def to_storage_uri(path_or_uri: str | Path) -> str:
     """Normalize a local path/file URI to an absolute URI.
 

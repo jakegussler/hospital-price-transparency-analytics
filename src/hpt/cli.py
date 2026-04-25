@@ -2,23 +2,27 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import typer
 
 from hpt.ingest.config import DownloadConfig, IngestConfig
 from hpt.ingest.download import Outcome, download_all
-from hpt.ingest.snapshot import SnapshotManager
+from hpt.ingest.snapshot import SnapshotManager, SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
-from hpt.logging.log import configure_logging, get_logger
+from hpt.logging.log import LoggingRunPaths, configure_logging, get_logger
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospitals, load_registry
 from hpt.registry.models import HospitalSource
 from hpt.utils.string_utils import convert_string_to_list
 
-
 cli = typer.Typer(help="Hospital Price Transparency pipeline CLI.", no_args_is_help=True)
+
+FailureRecord = dict[str, Any]
 
 
 @cli.command()
@@ -110,7 +114,7 @@ def _load_hospitals_for_target(
     try:
         hospitals = get_hospitals(hospital_ids, **_registry_kwargs(registry_path))
         log.info(
-            "target_selected",
+            "targets_selected",
             extra={
                 "hospital_ids": hospital_ids,
                 "mode": "selected",
@@ -120,6 +124,103 @@ def _load_hospitals_for_target(
     except (KeyError, RegistryError) as exc:
         log.error("registry_error", extra={"error": str(exc)})
         return None
+
+
+def _build_ingest_failure(
+    hospital: HospitalSource,
+    failure_type: str,
+    message: str,
+    *,
+    snapshot: SnapshotRecord | None = None,
+    exc: Exception | None = None,
+) -> FailureRecord:
+    record: FailureRecord = {
+        "hospital_id": hospital.hospital_id,
+        "hospital_name": hospital.canonical_hospital_name,
+        "failure_type": failure_type,
+        "message": message,
+        "expected_format": hospital.mrf_source.expected_format,
+        "registry_source_url": str(hospital.mrf_source.url),
+    }
+    if snapshot is not None:
+        record.update(
+            {
+                "snapshot_id": snapshot.snapshot_id,
+                "source_file_name": snapshot.source_file_name,
+                "source_url": snapshot.source_url,
+                "file_hash": snapshot.file_hash,
+                "ingested_at": snapshot.ingested_at.isoformat(),
+            }
+        )
+    if exc is not None:
+        record["exception_type"] = type(exc).__name__
+    return record
+
+
+def _failure_log_extra(failure: FailureRecord) -> dict[str, Any]:
+    extra = {key: value for key, value in failure.items() if key != "message"}
+    extra["error"] = failure["message"]
+    extra["failure_message"] = failure["message"]
+    return extra
+
+
+def _write_ingest_failure_artifacts(
+    log_paths: LoggingRunPaths,
+    failures: list[FailureRecord],
+    *,
+    hospital_count: int,
+) -> dict[str, str]:
+    failure_count = len(failures)
+    text_path = log_paths.failures_dir / f"{log_paths.run_id}_ingest_failures.log"
+    jsonl_path = log_paths.failures_dir / f"{log_paths.run_id}_ingest_failures.jsonl"
+    generated_at = datetime.now(UTC).isoformat()
+
+    lines = [
+        "Ingest failure summary",
+        f"run_id: {log_paths.run_id}",
+        f"generated_at: {generated_at}",
+        f"hospital_count: {hospital_count}",
+        f"failure_count: {failure_count}",
+        f"std_out_log: {log_paths.std_out_path}",
+        f"json_log: {log_paths.json_path}",
+        "",
+    ]
+    for index, failure in enumerate(failures, start=1):
+        lines.extend(
+            [
+                f"{index}. {failure['hospital_id']} - {failure['failure_type']}",
+                f"   message: {failure['message']}",
+            ]
+        )
+        for key in (
+            "hospital_name",
+            "snapshot_id",
+            "source_file_name",
+            "source_url",
+            "registry_source_url",
+            "expected_format",
+            "exception_type",
+        ):
+            if key in failure:
+                lines.append(f"   {key}: {failure[key]}")
+        lines.append("")
+
+    text_path.write_text("\n".join(lines), encoding="utf-8")
+    with jsonl_path.open("w", encoding="utf-8") as fh:
+        for failure in failures:
+            payload = {
+                "run_id": log_paths.run_id,
+                "generated_at": generated_at,
+                "hospital_count": hospital_count,
+                "failure_count": failure_count,
+                **failure,
+            }
+            fh.write(json.dumps(payload, default=str, sort_keys=True) + "\n")
+
+    return {
+        "failure_summary_path": str(text_path),
+        "failure_jsonl_path": str(jsonl_path),
+    }
 
 
 def ingest_logic(
@@ -142,7 +243,7 @@ def ingest_logic(
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    configure_logging(log_level=log_level)
+    log_paths = configure_logging(log_level=log_level)
     log = get_logger("cli.ingest")
     log.info(
         "ingest_run_start",
@@ -153,6 +254,9 @@ def ingest_logic(
             "raw_base_uri": cfg.storage.raw_base_uri,
             "bronze_root": str(cfg.storage.bronze_root),
             "quarantine_root": str(cfg.storage.quarantine_root),
+            "std_out_log": str(log_paths.std_out_path),
+            "json_log": str(log_paths.json_path),
+            "failures_dir": str(log_paths.failures_dir),
         },
     )
     log.debug(
@@ -170,31 +274,35 @@ def ingest_logic(
 
     try:
         storage = BronzeStorage(cfg.storage.raw_base_uri)
-        print("storage: %s", storage)
         snapshots = SnapshotManager(storage)
-        print("snapshots: %s", snapshots)
 
         hospitals = _load_hospitals_for_target(
             log,
             cfg.hospital_ids,
             cfg.registry_path,
         )
-        log.info("hospitals: %s", [h.hospital_id for h in hospitals])
         if hospitals is None:
             return 2
+        log.info("hospitals: %s", [h.hospital_id for h in hospitals])
         log.info("ingest_targets_ready", extra={"hospital_count": len(hospitals)})
 
-        failures = 0
+        failures: list[FailureRecord] = []
         for hospital in hospitals:
             hid = hospital.hospital_id
             log.info("ingest_hospital_start", extra={"hospital_id": hid})
             snapshot = snapshots.get_current_snapshot(hid)
             if snapshot is None:
-                log.warning(
+                failure = _build_ingest_failure(
+                    hospital,
                     "no_snapshot",
-                    extra={"hospital_id": hid, "error": "no current snapshot"},
+                    (
+                        f"No current snapshot metadata found for hospital {hid}. "
+                        "Run download before ingesting this hospital or check raw "
+                        "storage metadata."
+                    ),
                 )
-                failures += 1
+                log.warning("no_snapshot", extra=_failure_log_extra(failure))
+                failures.append(failure)
                 continue
 
             try:
@@ -207,32 +315,61 @@ def ingest_logic(
                 )
                 log.info("ingested", extra=summary)
             except NotImplementedError as exc:
-                log.error(
+                failure = _build_ingest_failure(
+                    hospital,
                     "unsupported_format",
-                    extra={
-                        "hospital_id": hid,
-                        "snapshot_id": snapshot.snapshot_id,
-                        "error": str(exc),
-                    },
+                    (
+                        f"Snapshot {snapshot.snapshot_id} for hospital {hid} uses "
+                        f"a source format this ingest path does not support: {exc}"
+                    ),
+                    snapshot=snapshot,
+                    exc=exc,
                 )
-                failures += 1
+                log.error("unsupported_format", extra=_failure_log_extra(failure))
+                failures.append(failure)
             except Exception as exc:  # noqa: BLE001
-                log.exception(
-                    "ingest_failed: %s",
-                    exc,
-                    extra={
-                        "hospital_id": hid,
-                        "snapshot_id": snapshot.snapshot_id,
-                        "error": str(exc),
-                    },
+                failure = _build_ingest_failure(
+                    hospital,
+                    "ingest_failed",
+                    (
+                        f"Ingest failed for snapshot {snapshot.snapshot_id} "
+                        f"for hospital {hid}: {exc}"
+                    ),
+                    snapshot=snapshot,
+                    exc=exc,
                 )
-                failures += 1
+                log.exception(
+                    "ingest_failed",
+                    extra=_failure_log_extra(failure),
+                )
+                failures.append(failure)
 
+        failure_artifacts: dict[str, str] = {}
+        if failures:
+            failure_artifacts = _write_ingest_failure_artifacts(
+                log_paths,
+                failures,
+                hospital_count=len(hospitals),
+            )
+            log.error(
+                "ingest_failures_summary",
+                extra={
+                    "hospital_count": len(hospitals),
+                    "failure_count": len(failures),
+                    "failures": failures,
+                    **failure_artifacts,
+                },
+            )
         log.info(
             "ingest_run_complete",
-            extra={"hospital_count": len(hospitals), "failures": failures},
+            extra={
+                "hospital_count": len(hospitals),
+                "failure_count": len(failures),
+                "failures": failures,
+                **failure_artifacts,
+            },
         )
-        if failures and failures == len(hospitals):
+        if failures and len(failures) == len(hospitals):
             return 2
         if failures:
             return 1

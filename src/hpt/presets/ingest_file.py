@@ -7,11 +7,11 @@ def ingest_file() -> None:
     bronze_root = data_root / "bronze"
     quarantine_root = data_root / "quarantine"
     ingest_logic(
-        #hospital_ids="vumc",
+        hospital_ids="ballad-jcmc",
         raw_base_uri=data_root,
         bronze_root=bronze_root,
         quarantine_root=quarantine_root,
-        log_level="DEBUG",
+        log_level="INFO",
     )
 
 
