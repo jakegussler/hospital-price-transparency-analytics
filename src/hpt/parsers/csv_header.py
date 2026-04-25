@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import codecs
 import csv
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -13,6 +15,8 @@ from hpt.parsers.helpers import _df, _iso
 from hpt.parsers.schemas import BRONZE_SCHEMAS
 
 ATTESTATION_PREFIX = "To the best of its knowledge and belief"
+CSV_ENCODINGS = ("utf-8-sig", "cp1252")
+_ENCODING_DETECT_CHUNK_SIZE = 256 * 1024
 
 TALL_COLUMN_MAP: dict[str, str] = {
     "description": "description",
@@ -71,7 +75,7 @@ def parse_csv_header(
     snapshot_meta: dict[str, Any],
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     """Parse rows 1-2 and return snapshot + child-table rows."""
-    with open(file_path, newline="", encoding="utf-8-sig") as f:
+    with open_csv_text(file_path) as f:
         reader = csv.reader(f)
         try:
             row1 = next(reader)
@@ -95,7 +99,7 @@ def parse_csv_header(
 
 def get_charge_reader(file_path: Path) -> tuple[csv.reader, list[str], TextIO]:
     """Return a csv.reader positioned at row 4 and the row-3 headers."""
-    f = open(file_path, newline="", encoding="utf-8-sig")
+    f = open_csv_text(file_path)
     reader = csv.reader(f)
     try:
         next(reader)  # row 1
@@ -106,6 +110,40 @@ def get_charge_reader(file_path: Path) -> tuple[csv.reader, list[str], TextIO]:
         msg = f"CSV file has fewer than 3 rows: {file_path}"
         raise ValueError(msg) from exc
     return reader, charge_headers, f
+
+
+def open_csv_text(file_path: Path) -> TextIO:
+    """Open a publisher CSV with a conservative UTF-8 then CP-1252 fallback."""
+    return open(file_path, newline="", encoding=detect_csv_encoding(file_path))
+
+
+def detect_csv_encoding(file_path: Path) -> str:
+    """Return the encoding to use for CSV text reads.
+
+    Most CMS files are UTF-8, but some publisher CSVs contain Windows-1252
+    bytes deep in the charge rows. We validate the full stream before returning
+    a reader so decoding does not fail halfway through ingestion.
+    """
+    stat = file_path.stat()
+    return _detect_csv_encoding_cached(
+        str(file_path),
+        stat.st_mtime_ns,
+        stat.st_size,
+    )
+
+
+@lru_cache(maxsize=128)
+def _detect_csv_encoding_cached(path: str, mtime_ns: int, size: int) -> str:
+    del mtime_ns, size  # Included in the cache key to invalidate changed files.
+    decoder = codecs.getincrementaldecoder("utf-8-sig")()
+    try:
+        with open(path, "rb") as f:
+            while chunk := f.read(_ENCODING_DETECT_CHUNK_SIZE):
+                decoder.decode(chunk)
+            decoder.decode(b"", final=True)
+    except UnicodeDecodeError:
+        return "cp1252"
+    return "utf-8-sig"
 
 
 def build_snapshot_record(

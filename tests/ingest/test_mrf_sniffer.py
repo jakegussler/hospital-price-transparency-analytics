@@ -86,6 +86,26 @@ def test_sniff_gzipped_csv(tmp_path: Path, local_fs: fsspec.AbstractFileSystem) 
     )
 
 
+def test_sniff_csv_falls_back_to_cp1252(
+    tmp_path: Path, local_fs: fsspec.AbstractFileSystem
+) -> None:
+    dest = tmp_path / "mrf.csv"
+    dest.write_bytes(
+        b"\n".join(
+            [
+                b"hospital_name,last_updated_on,version",
+                b"General Hospital-\xe1,2025-01-01,3.0.0",
+                b"description,payer_name,plan_name",
+                b"X-Ray,Aetna,PPO",
+            ]
+        )
+    )
+
+    assert sniff_schema(str(dest), local_fs) == SchemaInfo(
+        layout=Layout.CSV_TALL, version="3.0.0"
+    )
+
+
 def test_short_csv_returns_unknown(
     tmp_path: Path, local_fs: fsspec.AbstractFileSystem
 ) -> None:

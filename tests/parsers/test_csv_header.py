@@ -91,6 +91,29 @@ def test_get_charge_reader_positions_at_row_4(tmp_path):
         handle.close()
 
 
+def test_get_charge_reader_falls_back_to_cp1252(tmp_path):
+    path = tmp_path / "cp1252.csv"
+    path.write_bytes(
+        b"\n".join(
+            [
+                b"hospital_name,last_updated_on",
+                b"General Hospital,2025-01-01",
+                b"description,payer_name,plan_name",
+                b"NEEDLE-\xe1,Aetna,PPO",
+            ]
+        )
+    )
+
+    reader, headers, handle = get_charge_reader(path)
+    try:
+        assert headers == ["description", "payer_name", "plan_name"]
+        first_row = next(reader)
+        assert first_row[0].encode("cp1252") == b"NEEDLE-\xe1"
+        assert first_row[1:] == ["Aetna", "PPO"]
+    finally:
+        handle.close()
+
+
 def test_discover_code_columns_and_tall_map():
     headers = [
         "description",

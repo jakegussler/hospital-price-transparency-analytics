@@ -154,13 +154,16 @@ def _sniff_csv(
     path: str, fs: fsspec.AbstractFileSystem, compression: Compression
 ) -> SchemaInfo:
     """Parse the first three rows of the CSV MRF to infer layout and version."""
-    with _open_stream(path, fs, compression) as stream:
-        text = io.TextIOWrapper(stream, encoding="utf-8-sig", newline="")
-        reader = csv.reader(text)
+    for encoding in ("utf-8-sig", "cp1252"):
         try:
-            meta_headers = next(reader)
-            meta_values = next(reader)
-            data_headers = next(reader)
+            meta_headers, meta_values, data_headers = _read_csv_sniff_rows(
+                path, fs, compression, encoding=encoding
+            )
+            break
+        except UnicodeDecodeError:
+            if encoding == "cp1252":
+                raise
+            continue
         except StopIteration:
             logger.warning("CSV %s has fewer than 3 rows; cannot sniff schema", path)
             return SchemaInfo(layout=Layout.UNKNOWN, version=None)
@@ -177,6 +180,19 @@ def _sniff_csv(
         },
     )
     return SchemaInfo(layout=layout, version=version)
+
+
+def _read_csv_sniff_rows(
+    path: str,
+    fs: fsspec.AbstractFileSystem,
+    compression: Compression,
+    *,
+    encoding: str,
+) -> tuple[list[str], list[str], list[str]]:
+    with _open_stream(path, fs, compression) as stream:
+        text = io.TextIOWrapper(stream, encoding=encoding, newline="")
+        reader = csv.reader(text)
+        return next(reader), next(reader), next(reader)
 
 
 def _extract_csv_version(headers: list[str], values: list[str]) -> str | None:
