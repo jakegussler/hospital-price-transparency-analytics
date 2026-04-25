@@ -12,6 +12,8 @@ import pytest
 from hpt.ingest.mrf_sniffer import Layout
 from hpt.ingest.snapshot import SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
+from hpt.parsers.csv_tall import CsvTallParser
+from hpt.parsers.csv_wide import CsvWideParser
 from hpt.parsers.json_mrf import JsonMrfParser
 from hpt.pipeline.ingest_snapshot import (
     _build_parser,
@@ -183,13 +185,13 @@ class TestBuildParser:
         parser = _build_parser(Layout.JSON, **self._kwargs(tmp_path))
         assert isinstance(parser, JsonMrfParser)
 
-    def test_csv_tall_raises(self, tmp_path):
-        with pytest.raises(NotImplementedError):
-            _build_parser(Layout.CSV_TALL, **self._kwargs(tmp_path))
+    def test_csv_tall_returns_csv_tall_parser(self, tmp_path):
+        parser = _build_parser(Layout.CSV_TALL, **self._kwargs(tmp_path))
+        assert isinstance(parser, CsvTallParser)
 
-    def test_csv_wide_raises(self, tmp_path):
-        with pytest.raises(NotImplementedError):
-            _build_parser(Layout.CSV_WIDE, **self._kwargs(tmp_path))
+    def test_csv_wide_returns_csv_wide_parser(self, tmp_path):
+        parser = _build_parser(Layout.CSV_WIDE, **self._kwargs(tmp_path))
+        assert isinstance(parser, CsvWideParser)
 
 
 # ---------------------------------------------------------------------------

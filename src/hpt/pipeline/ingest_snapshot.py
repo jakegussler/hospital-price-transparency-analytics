@@ -24,6 +24,8 @@ from hpt.ingest.storage import BronzeStorage
 from hpt.loaders.parquet import BronzeWriter
 from hpt.logging.log_helpers import log_ingest_phase, log_schema_sniff
 from hpt.parsers.base import BaseParser
+from hpt.parsers.csv_tall import CsvTallParser
+from hpt.parsers.csv_wide import CsvWideParser
 from hpt.parsers.json_mrf import JsonMrfParser
 
 logger = logging.getLogger(__name__)
@@ -217,8 +219,16 @@ def _build_parser(
             snapshot_meta=snapshot_meta,
             quarantine_root=quarantine_root,
         )
-    if layout in (Layout.CSV_TALL, Layout.CSV_WIDE):
-        raise NotImplementedError(
-            f"{layout.value} ingestion has not been implemented yet"
+    if layout == Layout.CSV_TALL:
+        return CsvTallParser(
+            hospital_config=hospital_config,
+            snapshot_meta=snapshot_meta,
+            quarantine_root=quarantine_root,
+        )
+    if layout == Layout.CSV_WIDE:
+        return CsvWideParser(
+            hospital_config=hospital_config,
+            snapshot_meta=snapshot_meta,
+            quarantine_root=quarantine_root,
         )
     raise ValueError(f"Unsupported layout: {layout!r}")

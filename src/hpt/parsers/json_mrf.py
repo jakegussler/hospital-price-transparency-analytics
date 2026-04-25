@@ -37,6 +37,7 @@ from hpt.ingest.cms_json_models import (
     StandardChargeInformation,
 )
 from hpt.parsers.base import BaseParser
+from hpt.parsers.helpers import _df, _iso
 from hpt.parsers.schemas import BRONZE_SCHEMAS
 
 logger = logging.getLogger(__name__)
@@ -507,27 +508,6 @@ def _accumulator_to_batch(
         table_name: _df(rows, BRONZE_SCHEMAS[table_name])
         for table_name, rows in accumulator.items()
     }
-
-
-def _df(
-    rows: list[dict[str, Any]],
-    schema: dict[str, pl.DataType],
-) -> pl.DataFrame:
-    """Build a Polars DataFrame with a fixed schema, handling empty row sets."""
-    if not rows:
-        return pl.DataFrame(schema=schema)
-    return pl.DataFrame(rows, schema=schema)
-
-
-def _iso(value: Any) -> str | None:
-    """Render datetime-ish values as ISO-8601 strings; pass through strings."""
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    if hasattr(value, "isoformat"):
-        return value.isoformat()
-    return str(value)
 
 
 @contextmanager

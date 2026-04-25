@@ -116,9 +116,59 @@ JSON_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
     },
 }
 
-# CSV Bronze schema is defined during the CSV implementation phase. The
-# ``code_N`` / ``code_N_type`` columns are discovered dynamically per file
-# because the number of code columns varies between hospitals.
+CSV_CHARGE_ROWS_BASE: dict[str, pl.DataType] = {
+    "snapshot_id": pl.Utf8,
+    "row_ordinal": pl.Int64,
+    "description": pl.Utf8,
+    # code_N/code_N_type fields are inserted dynamically per file.
+    "setting": pl.Utf8,
+    "billing_class": pl.Utf8,
+    "drug_unit_of_measurement": pl.Float64,
+    "drug_type_of_measurement": pl.Utf8,
+    "standard_charge_gross": pl.Float64,
+    "standard_charge_discounted_cash": pl.Float64,
+    "standard_charge_min": pl.Float64,
+    "standard_charge_max": pl.Float64,
+    "modifiers": pl.Utf8,
+    "payer_name": pl.Utf8,
+    "plan_name": pl.Utf8,
+    "standard_charge_negotiated_dollar": pl.Float64,
+    "standard_charge_negotiated_percentage": pl.Float64,
+    "standard_charge_negotiated_algorithm": pl.Utf8,
+    "methodology": pl.Utf8,
+    "median_amount": pl.Float64,
+    "tenth_percentile": pl.Float64,
+    "ninetieth_percentile": pl.Float64,
+    "count": pl.Utf8,
+    "additional_generic_notes": pl.Utf8,
+    "additional_payer_notes": pl.Utf8,
+    "source_format": pl.Utf8,
+}
+
+
+def build_csv_charge_rows_schema(max_codes: int) -> dict[str, pl.DataType]:
+    """Build ``csv_charge_rows`` schema with dynamic ``code_N`` columns."""
+    if max_codes < 0:
+        msg = "max_codes must be >= 0"
+        raise ValueError(msg)
+
+    schema: dict[str, pl.DataType] = {
+        "snapshot_id": pl.Utf8,
+        "row_ordinal": pl.Int64,
+        "description": pl.Utf8,
+    }
+    for i in range(1, max_codes + 1):
+        schema[f"code_{i}"] = pl.Utf8
+        schema[f"code_{i}_type"] = pl.Utf8
+
+    for column, dtype in CSV_CHARGE_ROWS_BASE.items():
+        if column in {"snapshot_id", "row_ordinal", "description"}:
+            continue
+        schema[column] = dtype
+
+    return schema
+
+
 CSV_SCHEMAS: dict[str, dict[str, pl.DataType]] = {}
 
 BRONZE_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
@@ -130,7 +180,9 @@ BRONZE_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
 
 __all__ = [
     "BRONZE_SCHEMAS",
+    "CSV_CHARGE_ROWS_BASE",
     "CSV_SCHEMAS",
     "JSON_SCHEMAS",
     "SHARED_SCHEMAS",
+    "build_csv_charge_rows_schema",
 ]
