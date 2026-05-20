@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import zipfile
 
-import httpx
 import pytest
 
 from hpt.ingest.config import (
@@ -14,9 +15,9 @@ from hpt.ingest.config import (
 )
 from hpt.ingest.download import (
     Outcome,
+    _build_client,
     download_all,
     download_hospital,
-    _build_client,
 )
 from hpt.ingest.snapshot import SnapshotManager
 from hpt.ingest.storage import BronzeStorage
@@ -37,7 +38,6 @@ def client_cfg():
 @pytest.fixture()
 def download_cfg(client_cfg):
     return DownloadConfig(
-        run_all=True,
         storage=StorageConfig(raw_base_uri="file:///unused"),
         client=client_cfg,
     )
@@ -69,6 +69,14 @@ MRF_BYTES_V1 = b"code,description,price\nCPT001,Test,100.00\n"
 MRF_BYTES_V2 = b"code,description,price\nCPT001,Test,200.00\nCPT002,Other,300.00\n"
 
 
+def _zip_bytes(members: dict[str, bytes]) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for name, data in members.items():
+            zf.writestr(name, data)
+    return buf.getvalue()
+
+
 class TestFirstFetch:
     def test_downloads_and_creates_snapshot(self, httpx_mock, storage, snapshots, client_cfg):
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V1)
@@ -93,6 +101,28 @@ class TestFirstFetch:
 
         files = storage.ls(storage.raw_path("test-hosp", "charges.csv").rsplit("/", 1)[0])
         assert len(files) >= 1
+
+    def test_zip_download_remains_zipped_in_raw(
+        self, httpx_mock, storage, snapshots, client_cfg
+    ):
+        archive = _zip_bytes({"charges.csv": MRF_BYTES_V1})
+        httpx_mock.add_response(
+            url="https://example.com/charges.zip",
+            content=archive,
+            headers={"content-type": "application/zip"},
+        )
+        hospital = _make_hospital("https://example.com/charges.zip")
+        client = _build_client(client_cfg)
+
+        result = download_hospital(hospital, storage, snapshots, client)
+        client.close()
+
+        assert result.outcome == Outcome.DOWNLOADED
+        assert result.final_path is not None
+        assert result.final_path.endswith("charges.zip")
+        assert storage.exists(result.final_path)
+        with storage.open(result.final_path, "rb") as fh:
+            assert fh.read() == archive
 
 
 class TestUnchangedFetch:

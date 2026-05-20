@@ -18,6 +18,8 @@ import posixpath
 from pathlib import Path
 from typing import Any
 
+from hpt.ingest.compression import materialize_for_parse
+from hpt.ingest.detect import Compression, detect_format
 from hpt.ingest.mrf_sniffer import Layout, sniff_schema
 from hpt.ingest.snapshot import SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
@@ -48,67 +50,81 @@ def ingest_snapshot(
 
     Returns a small summary dict for logging by the caller.
     """
-    local_path = resolve_local_path(snapshot, storage)
+    raw_path = resolve_local_path(snapshot, storage)
     log_ingest_phase(
         logger,
         "ingest_start",
         snapshot.snapshot_id,
         snapshot.hospital_id,
-        local_path=local_path.name,
+        raw_file=raw_path.name,
     )
 
-    schema_info = sniff_schema(str(local_path), storage.fs)
-    log_schema_sniff(
-        logger,
-        local_path.name,
-        schema_info.layout.value,
-        schema_info.version,
-        level=logging.INFO,
-    )
-
-    source_format = _LAYOUT_TO_SOURCE_FORMAT.get(schema_info.layout)
-    if source_format is None:
-        raise ValueError(
-            f"Cannot ingest snapshot {snapshot.snapshot_id}: unknown layout "
-            f"{schema_info.layout!r} for {local_path}"
+    parser_path, cleanup_paths = _prepare_parser_path(raw_path, snapshot, storage)
+    try:
+        schema_info = sniff_schema(str(parser_path), storage.fs)
+        log_schema_sniff(
+            logger,
+            parser_path.name,
+            schema_info.layout.value,
+            schema_info.version,
+            level=logging.INFO,
         )
 
-    snapshot_meta = _snapshot_meta(snapshot, source_format, schema_info.version)
-    parser = _build_parser(
-        schema_info.layout,
-        hospital_config=hospital_config,
-        snapshot_meta=snapshot_meta,
-        quarantine_root=quarantine_root,
-    )
-    log_ingest_phase(
-        logger,
-        "parser_selected",
-        snapshot.snapshot_id,
-        snapshot.hospital_id,
-        source_format=source_format,
-        parser=type(parser).__name__,
-        level=logging.DEBUG,
-    )
+        source_format = _LAYOUT_TO_SOURCE_FORMAT.get(schema_info.layout)
+        if source_format is None:
+            raise ValueError(
+                f"Cannot ingest snapshot {snapshot.snapshot_id}: unknown layout "
+                f"{schema_info.layout!r} for {parser_path}"
+            )
 
-    with BronzeWriter(bronze_root, snapshot.snapshot_id) as writer:
-        for batch in parser.parse(local_path):
-            writer.write_batch(batch)
+        snapshot_meta = _snapshot_meta(snapshot, source_format, schema_info.version)
+        parser = _build_parser(
+            schema_info.layout,
+            hospital_config=hospital_config,
+            snapshot_meta=snapshot_meta,
+            quarantine_root=quarantine_root,
+        )
+        log_ingest_phase(
+            logger,
+            "parser_selected",
+            snapshot.snapshot_id,
+            snapshot.hospital_id,
+            source_format=source_format,
+            parser=type(parser).__name__,
+            level=logging.DEBUG,
+        )
 
-    log_ingest_phase(
-        logger,
-        "ingest_complete",
-        snapshot.snapshot_id,
-        snapshot.hospital_id,
-        source_format=source_format,
-        schema_version=schema_info.version,
-    )
-    return {
-        "snapshot_id": snapshot.snapshot_id,
-        "hospital_id": snapshot.hospital_id,
-        "source_format": source_format,
-        "schema_version": schema_info.version,
-        "local_path": str(local_path),
-    }
+        with BronzeWriter(bronze_root, snapshot.snapshot_id) as writer:
+            for batch in parser.parse(parser_path):
+                writer.write_batch(batch)
+
+        log_ingest_phase(
+            logger,
+            "ingest_complete",
+            snapshot.snapshot_id,
+            snapshot.hospital_id,
+            source_format=source_format,
+            schema_version=schema_info.version,
+        )
+        return {
+            "snapshot_id": snapshot.snapshot_id,
+            "hospital_id": snapshot.hospital_id,
+            "source_format": source_format,
+            "schema_version": schema_info.version,
+            "local_path": str(raw_path),
+            "parser_path": str(parser_path),
+        }
+    finally:
+        for path in cleanup_paths:
+            storage.rm(path)
+            logger.debug(
+                "parser_temp_removed",
+                extra={
+                    "snapshot_id": snapshot.snapshot_id,
+                    "hospital_id": snapshot.hospital_id,
+                    "temp_path": posixpath.basename(path),
+                },
+            )
 
 
 def resolve_local_path(
@@ -116,11 +132,11 @@ def resolve_local_path(
 ) -> Path:
     """Locate the downloaded MRF file for *snapshot* under the raw partition.
 
-    :class:`~hpt.ingest.snapshot.SnapshotRecord` does not persist the on-disk
-    path because decompression may rename the file after the record was
-    written. We resolve it now by listing the partition directory and
-    matching either by filename stem or by the short hash suffix injected
-    by :meth:`BronzeStorage._collision_safe_name`.
+    :class:`~hpt.ingest.snapshot.SnapshotRecord` does not persist the raw
+    object path. We resolve it by listing the partition directory and matching
+    either by exact filename or by the short hash suffix injected by
+    :meth:`BronzeStorage._collision_safe_name`. Stem and single-file fallbacks
+    remain for older raw partitions created before archive preservation.
     """
     date_str = snapshot.ingested_at.strftime("%Y-%m-%d")
     partition_dir = posixpath.join(
@@ -183,6 +199,36 @@ def resolve_local_path(
         },
     )
     return chosen
+
+
+def _prepare_parser_path(
+    raw_path: Path,
+    snapshot: SnapshotRecord,
+    storage: BronzeStorage,
+) -> tuple[Path, list[str]]:
+    """Return a parser-ready path and temp paths to remove after ingest."""
+    format_info = detect_format(str(raw_path), storage.fs)
+    if format_info.compression == Compression.NONE:
+        return raw_path, []
+
+    temp_base = storage.temp_path(snapshot.hospital_id)
+    parser_path = materialize_for_parse(
+        str(raw_path),
+        storage.fs,
+        format_info.compression,
+        temp_base,
+    )
+    logger.info(
+        "parser_input_materialized",
+        extra={
+            "snapshot_id": snapshot.snapshot_id,
+            "hospital_id": snapshot.hospital_id,
+            "compression": format_info.compression.value,
+            "raw_file": raw_path.name,
+            "parser_file": posixpath.basename(parser_path),
+        },
+    )
+    return Path(parser_path), [parser_path]
 
 
 def _snapshot_meta(

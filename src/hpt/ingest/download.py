@@ -15,9 +15,8 @@ from urllib.parse import urlparse
 import httpx
 
 from hpt.ingest.client import build_httpx_client
-from hpt.ingest.compression import decompress_file
 from hpt.ingest.config import DownloadConfig
-from hpt.ingest.detect import Compression, detect_format
+from hpt.ingest.detect import detect_format
 from hpt.ingest.snapshot import SnapshotManager, SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
 from hpt.logging.log_helpers import (
@@ -203,7 +202,6 @@ def download_hospital(
         )
         storage.mv(tmp, dest)
 
-        final_path = dest
         fmt = detect_format(dest, storage.fs)
         logger.debug(
             "format_detected",
@@ -213,17 +211,6 @@ def download_hospital(
                 "content_format": fmt.content_format.value,
             },
         )
-        if fmt.compression != Compression.NONE:
-            final_path = decompress_file(dest, storage.fs, fmt.compression)
-            logger.info(
-                "decompressed",
-                extra={
-                    "hospital_id": hid,
-                    "compression": fmt.compression.value,
-                    "src": posixpath.basename(dest),
-                    "dest": posixpath.basename(final_path),
-                },
-            )
 
         snapshot = snapshots.write_snapshot(
             hospital_id=hid,
@@ -241,7 +228,7 @@ def download_hospital(
             file_hash=file_hash,
             event="downloaded",
             snapshot_id=snapshot.snapshot_id,
-            final_path=posixpath.basename(final_path),
+            final_path=posixpath.basename(dest),
         )
         return DownloadResult(
             hospital_id=hid,
@@ -250,7 +237,7 @@ def download_hospital(
             bytes_transferred=nbytes,
             duration_s=duration,
             snapshot=snapshot,
-            final_path=final_path,
+            final_path=dest,
         )
 
     except httpx.HTTPStatusError as exc:

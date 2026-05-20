@@ -10,9 +10,12 @@ from pathlib import Path
 import fsspec
 import pytest
 
-from hpt.ingest.compression import _pick_mrf_member, decompress_file
+from hpt.ingest.compression import (
+    _pick_mrf_member,
+    decompress_file,
+    materialize_for_parse,
+)
 from hpt.ingest.detect import Compression
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -75,6 +78,23 @@ class TestDecompressGzip:
         result = decompress_file(str(src), _local_fs(), Compression.GZIP)
 
         assert result.endswith("mrf.csv")
+
+
+class TestMaterializeGzipForParse:
+    def test_preserves_original_gzip(self, tmp_path):
+        src = tmp_path / "mrf.csv.gz"
+        _write_gz(src, b"col1,col2\nval1,val2\n")
+
+        result = materialize_for_parse(
+            str(src),
+            _local_fs(),
+            Compression.GZIP,
+            str(tmp_path / ".tmp" / "parser_input"),
+        )
+
+        assert src.exists()
+        assert Path(result).name == "parser_input.csv"
+        assert Path(result).read_bytes() == b"col1,col2\nval1,val2\n"
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +164,42 @@ class TestDecompressZip:
 
         with pytest.raises(ValueError, match="cannot determine"):
             decompress_file(str(src), _local_fs(), Compression.ZIP)
+
+
+class TestMaterializeZipForParse:
+    def test_preserves_original_zip(self, tmp_path):
+        src = tmp_path / "archive.zip"
+        original = b'{"hospital_name": "Test"}'
+        _write_zip(src, {"nested/mrf.json": original})
+
+        result = materialize_for_parse(
+            str(src),
+            _local_fs(),
+            Compression.ZIP,
+            str(tmp_path / ".tmp" / "parser_input"),
+        )
+
+        assert src.exists()
+        assert Path(result).name == "parser_input.json"
+        assert Path(result).read_bytes() == original
+
+    def test_gunzips_zip_member_for_parser(self, tmp_path):
+        src = tmp_path / "archive.zip"
+        gz_payload = io.BytesIO()
+        with gzip.GzipFile(fileobj=gz_payload, mode="wb") as fh:
+            fh.write(b"col1,col2\nval1,val2\n")
+        _write_zip(src, {"mrf.csv.gz": gz_payload.getvalue()})
+
+        result = materialize_for_parse(
+            str(src),
+            _local_fs(),
+            Compression.ZIP,
+            str(tmp_path / ".tmp" / "parser_input"),
+        )
+
+        assert src.exists()
+        assert Path(result).name == "parser_input.csv"
+        assert Path(result).read_bytes() == b"col1,col2\nval1,val2\n"
 
 
 # ---------------------------------------------------------------------------

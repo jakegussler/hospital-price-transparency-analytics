@@ -1,9 +1,11 @@
-"""Tests for hpt.pipeline.ingest_snapshot — resolve_local_path, _build_parser, _snapshot_meta, e2e."""
+"""Tests for hpt.pipeline.ingest_snapshot."""
 
 from __future__ import annotations
 
 import json
+import zipfile
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +23,6 @@ from hpt.pipeline.ingest_snapshot import (
     ingest_snapshot,
     resolve_local_path,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -60,6 +61,14 @@ def _place_file(tmp_path: Path, filename: str, hospital_id: str = "h1") -> Path:
     p = d / filename
     p.write_bytes(b"{}")
     return p
+
+
+def _write_zip(path: Path, members: dict[str, bytes]) -> None:
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for name, data in members.items():
+            zf.writestr(name, data)
+    path.write_bytes(buf.getvalue())
 
 
 def _minimal_mrf_json() -> dict[str, Any]:
@@ -255,3 +264,32 @@ class TestIngestSnapshotE2E:
             (bronze_root / "hospital_mrf_snapshots").rglob("*.parquet")
         )
         assert len(snap_parts) >= 1
+
+    def test_ingests_zip_without_expanding_raw(self, tmp_path):
+        mrf_data = json.dumps(_minimal_mrf_json()).encode()
+        partition = _partition_dir(tmp_path)
+        partition.mkdir(parents=True, exist_ok=True)
+        raw_zip = partition / "charges.zip"
+        _write_zip(raw_zip, {"nested/charges.json": mrf_data})
+
+        storage = BronzeStorage(f"file://{tmp_path}")
+        snap = _make_snapshot(source_file_name="charges.zip")
+        bronze_root = tmp_path / "bronze"
+        quarantine_root = tmp_path / "quarantine"
+
+        result = ingest_snapshot(
+            snapshot=snap,
+            hospital_config={"hospital_id": "h1"},
+            storage=storage,
+            bronze_root=bronze_root,
+            quarantine_root=quarantine_root,
+        )
+
+        assert result["snapshot_id"] == "snap-001"
+        assert result["source_format"] == "json"
+        assert result["local_path"].endswith("charges.zip")
+        assert result["parser_path"].endswith(".json")
+        assert raw_zip.exists()
+        assert not (partition / "charges.json").exists()
+        tmp_files = list((tmp_path / ".tmp").glob("*")) if (tmp_path / ".tmp").exists() else []
+        assert tmp_files == []
