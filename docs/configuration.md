@@ -21,6 +21,8 @@ HPT keeps runtime configuration as small immutable dataclasses in
 | `HPT_HTTP_TIMEOUT` | `ClientConfig.timeout_s` | `60` | Default HTTP timeout in seconds. |
 | `HPT_HTTP_RETRIES` | `ClientConfig.retries` | `3` | HTTP transport retry count. |
 | `HPT_USER_AGENT` | `ClientConfig.user_agent` | `hpt-pipeline/0.1` | User-Agent sent to publishers. |
+| `HPT_DUCKDB_PATH` | dbt `profiles.yml` | `../data/hpt.duckdb` from `transform/` | DuckDB database path used by dbt. |
+| `HPT_BRONZE_ROOT` | dbt Bronze source definitions | `../data/bronze` from `transform/` | Parsed Bronze Parquet root read by dbt external sources. |
 
 ## Important Distinction
 
@@ -41,3 +43,11 @@ this precedence:
 `HPT_RAW_STORAGE_BASE_URI` accepts any fsspec-compatible URI
 (`file:///...`, `s3://...`, `gs://...`), so cloud migration remains a config
 change instead of a code rewrite.
+
+## dbt And DuckDB
+
+The dbt project in `transform/` uses `transform/profiles.yml`. It reads
+`HPT_DUCKDB_PATH` for the local DuckDB database and `HPT_BRONZE_ROOT` for
+external Bronze Parquet sources. These names differ from the Python ingest
+setting `HPT_PARSED_BRONZE_ROOT`; keep them pointed at the same Bronze directory
+for local development.
