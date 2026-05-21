@@ -1,4 +1,4 @@
-.PHONY: install install-dev test lint format parse download dbt-run dbt-test dbt-seed docker-up docker-down clean
+.PHONY: install install-dev test lint format download ingest dbt-run dbt-test dbt-seed dbt-build dbt-clean clean
 
 # --- Python ----------------------------------------------------------------
 
@@ -22,8 +22,8 @@ format:
 download:
 	hpt download
 
-parse:
-	hpt parse
+ingest:
+	hpt ingest
 
 # --- dbt -------------------------------------------------------------------
 
@@ -41,14 +41,6 @@ dbt-build:
 
 dbt-clean:
 	cd transform && dbt clean
-
-# --- Docker ----------------------------------------------------------------
-
-docker-up:
-	docker compose up -d
-
-docker-down:
-	docker compose down
 
 # --- Cleanup ---------------------------------------------------------------
 
