@@ -1,0 +1,22 @@
+version: 2
+
+seeds:
+  - name: hospitals
+    description: "Registry-backed hospital metadata used to enrich Silver foundation snapshot rows."
+    columns:
+      - name: hospital_id
+        description: "Stable project hospital identifier."
+        tests:
+          - not_null
+          - unique
+      - name: canonical_hospital_name
+        description: "Reviewed hospital display name from the bundled registry."
+        tests:
+          - not_null
+      - name: canonical_state
+        description: "Two-letter state abbreviation from the registry."
+      - name: expected_format
+        description: "Expected source format used by the ingest pipeline."
+        tests:
+          - accepted_values:
+              values: ["json", "csv_tall", "csv_wide"]
