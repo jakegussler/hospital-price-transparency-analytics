@@ -1,0 +1,89 @@
+version: 2
+
+models:
+  - name: stg_bronze__hospital_mrf_snapshots
+    description: "Typed, lightly cleaned staging view over Bronze snapshot metadata."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+          - unique
+      - name: hospital_id
+        tests:
+          - not_null
+      - name: source_format
+        tests:
+          - accepted_values:
+              values: ["json", "csv_tall", "csv_wide"]
+
+  - name: stg_bronze__hospital_locations
+    description: "Staging view for source-reported hospital locations."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: location_ordinal
+        tests:
+          - not_null
+
+  - name: stg_bronze__type2_npi
+    description: "Staging view for source-reported type-2 NPIs."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: npi_ordinal
+        tests:
+          - not_null
+
+  - name: stg_bronze__standard_charge_info
+    description: "Staging view for JSON standard charge item parents."
+    columns:
+      - name: charge_item_id
+        tests:
+          - not_null
+          - unique
+      - name: snapshot_id
+        tests:
+          - not_null
+
+  - name: stg_bronze__code_information
+    description: "Staging view for JSON billing codes attached to charge items."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: charge_item_id
+        tests:
+          - not_null
+
+  - name: stg_bronze__standard_charges
+    description: "Staging view for JSON standard charge rows."
+    columns:
+      - name: standard_charge_id
+        tests:
+          - not_null
+          - unique
+      - name: snapshot_id
+        tests:
+          - not_null
+
+  - name: stg_bronze__payers_information
+    description: "Staging view for JSON payer-specific rate rows."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: standard_charge_id
+        tests:
+          - not_null
+
+  - name: stg_bronze__csv_charge_rows
+    description: "Staging view for CSV Tall/Wide charge rows with source lineage and dynamic code columns preserved."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: row_ordinal
+        tests:
+          - not_null

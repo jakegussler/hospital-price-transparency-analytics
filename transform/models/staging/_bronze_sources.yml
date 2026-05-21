@@ -11,7 +11,7 @@ sources:
   - name: bronze
     description: "Raw, source-faithful Parquet tables produced by the HPT ingest pipeline."
     meta:
-      external_location: "read_parquet('{{ env_var('HPT_BRONZE_ROOT', '../data/bronze') }}/{name}/**/*.parquet', hive_partitioning=true)"
+      external_location: "read_parquet('{{ env_var('HPT_BRONZE_ROOT', '../data/bronze') }}/{name}/**/*.parquet', hive_partitioning=true, union_by_name=true)"
     tables:
       # ---- Shared across all formats ------------------------------------
       - name: hospital_mrf_snapshots
