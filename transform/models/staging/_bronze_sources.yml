@@ -141,3 +141,19 @@ sources:
             description: "FK to hospital_mrf_snapshots."
             tests:
               - not_null
+
+      # ---- CSV-only tables ---------------------------------------------
+      - name: csv_charge_rows
+        description: >
+          One row per source CSV charge row after CSV Tall parsing or CSV Wide
+          payer-column unpivoting. Code columns are dynamic per source file and
+          are emitted as code_N / code_N_type pairs.
+        columns:
+          - name: snapshot_id
+            description: "FK to hospital_mrf_snapshots."
+            tests:
+              - not_null
+          - name: row_ordinal
+            description: "0-based source CSV row position within the file."
+            tests:
+              - not_null
