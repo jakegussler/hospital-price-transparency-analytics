@@ -1,0 +1,15 @@
+---
+description: Python pipeline conventions for HPT ingest, storage, and tests
+globs: src/hpt/**/*.py,tests/**/*.py
+alwaysApply: false
+---
+
+# Python Pipeline Style
+
+- Keep CLI behavior in `src/hpt/cli.py` aligned with docs; current commands are `download` and `ingest`.
+- Preserve `fsspec` compatibility for raw files and snapshot metadata; avoid hard-coding local filesystem-only behavior for `HPT_RAW_STORAGE_BASE_URI`.
+- Maintain snapshot lineage fields: `snapshot_id`, `hospital_id`, `source_url`, `source_file_name`, `file_hash`, `ingested_at`, `valid_from`, `valid_to`, and `is_current_snapshot`.
+- Keep raw downloads intact. Materialize parser-ready temporary files for compressed inputs instead of destructively replacing source artifacts.
+- Parser outputs should be schema-stable Polars DataFrames keyed by Bronze table name.
+- Add focused pytest coverage for config precedence, registry validation, storage paths, snapshot behavior, parser edge cases, pipeline orchestration, and Bronze writer changes.
+- Read `docs/architecture/pipeline-overview.md`, `docs/architecture/storage-layout.md`, and `docs/development/testing-strategy.md` for deeper context.

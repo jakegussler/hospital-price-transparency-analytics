@@ -1,0 +1,16 @@
+---
+description: dbt and DuckDB modeling conventions for HPT transforms
+globs: transform/**/*.sql,transform/**/*.yml,transform/**/*.yaml
+alwaysApply: false
+---
+
+# dbt DuckDB Modeling
+
+- Treat DuckDB as the current local analytical database and dbt as the owner of Silver and Gold transformations.
+- Bronze sources are external Parquet tables rooted at `HPT_BRONZE_ROOT`; keep source definitions aligned with actual Bronze writer output.
+- Keep staging close to Bronze. Do not hide source-grain or lineage changes in staging views.
+- Silver models should normalize hospitals, charge items, codes, payers, plans, modifiers, dates, and source-specific quirks.
+- Gold models should be analytics-ready and retain traceability back to Silver and Bronze identifiers such as `snapshot_id`.
+- Add dbt tests for model grain, required keys, and accepted values where practical.
+- Do not imply Silver or Gold is implemented until model files exist.
+- Read `docs/architecture/medallion-layers.md` and `docs/decisions/0001-use-polars-and-duckdb.md` before adding models.

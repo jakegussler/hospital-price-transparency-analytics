@@ -1,0 +1,17 @@
+---
+description: Documentation maintenance rules for HPT project docs
+globs: **/*.md
+alwaysApply: false
+---
+
+# Documentation Maintenance
+
+- Keep `README.md` current when setup, core commands, project status, or documentation entry points change.
+- Keep `AGENTS.md` and `docs/ai/` aligned with the rule set; they are source material for future agents and Cursor rules.
+- Preserve a clear distinction between implemented behavior and planned work for Silver, Gold, Airflow, Docker, Terraform, and analytics dashboards.
+- Use `hpt ingest` for parsing docs. Record stale `hpt parse` references in `docs/cleanup.md` unless fixing them.
+- Update `docs/configuration.md` when environment variables, defaults, or config precedence changes.
+- Update `docs/architecture/` when pipeline boundaries, storage layout, or medallion responsibilities change.
+- Update `docs/domain/` when CMS MRF schema handling, registry rules, or terminology changes.
+- Treat `docs/notes/` as historical planning and research, not authoritative onboarding.
+- For unresolved implementation/doc drift, update `docs/cleanup.md` instead of burying the mismatch.

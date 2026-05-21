@@ -1,0 +1,16 @@
+---
+description: CMS MRF and Bronze-domain invariants for HPT parser work
+globs: src/hpt/parsers/**/*.py,src/hpt/ingest/cms_json_models.py,docs/domain/**/*.md,docs/bronze_layer.md,docs/header_parsing.md
+alwaysApply: false
+---
+
+# HPT Domain Rules
+
+- Bronze is source-faithful. Do not add payer matching, hospital identity resolution, code rollups, charge grouping, or business normalization in Bronze parsers.
+- Python handles structural parsing: JSON streaming, CSV header extraction, CSV Wide unpivoting, and pipe-delimited header fields.
+- dbt Silver should handle semantic normalization: code explosion, charge-item grouping, payer/plan matching, modifier resolution, and date typing.
+- Stream large JSON MRFs with `ijson`; do not load full source files into memory for normal parser paths.
+- For CSV, rows 1-2 are header key/value rows, row 3 is charge headers, and rows 4+ are charge rows.
+- Detect CSV attestation by text prefix and license state from `license_number|STATE`, not by fragile fixed positions.
+- Preserve raw payer, plan, modifier, code, null, duplicate, and odd source values unless a documented Bronze schema rule says otherwise.
+- Read `docs/domain/cms-mrf-schema-notes.md`, `docs/bronze_layer.md`, and `docs/header_parsing.md` before changing parser behavior.
