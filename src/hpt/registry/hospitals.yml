@@ -48,5 +48,14 @@ hospitals:
     mrf_source:
       url: https://finance.vumc.org/assets/pub/pt/352528741_vanderbilt-university-medical-center_standardcharges.json
       expected_format: json
+  
+  - hospital_id: lincoln-health-system
+    canonical_hospital_name: Lincoln Health System
+    canonical_state: TN
+    hospital_type: community
+    health_system: Lincoln Health System
+    mrf_source:
+      url: "https://hhlincolnhealth.org/wp-content/uploads/882472117_hh-health-system-lincoln-inc_standardcharges.csv"
+      expected_format: csv_wide
 
   # --- Add FL and NC hospitals below -------------------------------------------
