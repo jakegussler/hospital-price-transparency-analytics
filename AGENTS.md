@@ -44,8 +44,8 @@ is changed to provide it.
 
 - Treat `data/` as local runtime output; it is ignored by git.
 - Raw files and snapshot metadata are rooted at `HPT_RAW_STORAGE_BASE_URI`.
-- Parsed Bronze Parquet is rooted at `HPT_PARSED_BRONZE_ROOT` for the Python
-  pipeline and `HPT_BRONZE_ROOT` for dbt external sources.
+- Parsed Bronze Parquet is rooted at `HPT_BRONZE_ROOT` for both Python ingest
+  output and dbt external sources.
 - Quarantine records are rooted at `HPT_QUARANTINE_ROOT`.
 - DuckDB defaults to `data/hpt.duckdb` through `HPT_DUCKDB_PATH`.
 - `fsspec` support is intentional; avoid hard-coding local-only storage paths in

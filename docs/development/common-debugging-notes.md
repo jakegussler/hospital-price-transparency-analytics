@@ -23,10 +23,11 @@ There are two separate storage concepts:
 
 - `HPT_RAW_STORAGE_BASE_URI` stores raw files and snapshot metadata through
   `BronzeStorage`.
-- `HPT_PARSED_BRONZE_ROOT` stores parsed Bronze Parquet written by
-  `BronzeWriter`.
+- `HPT_BRONZE_ROOT` stores parsed Bronze Parquet written by `BronzeWriter` and
+  read by dbt external sources.
 
-dbt uses `HPT_BRONZE_ROOT` to read the parsed Bronze Parquet.
+Use `--bronze-root` when a one-off ingest run needs a different parsed Bronze
+output directory.
 
 ## Compressed Files Fail During Ingest
 
@@ -87,7 +88,3 @@ export HPT_REGISTRY_PATH=path/to/hospitals.yml
 
 Confirm the file follows the active registry model in `src/hpt/registry/models.py`.
 
-## Makefile Command Mismatch
-
-The current CLI supports `hpt download` and `hpt ingest`. If a Makefile target or
-old note references `hpt parse`, treat that as stale unless the CLI is updated.

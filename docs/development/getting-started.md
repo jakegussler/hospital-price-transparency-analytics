@@ -39,10 +39,9 @@ Common environment variables:
 
 ```bash
 export HPT_RAW_STORAGE_BASE_URI=file:///absolute/path/to/project/data
-export HPT_PARSED_BRONZE_ROOT=/absolute/path/to/project/data/bronze
+export HPT_BRONZE_ROOT=/absolute/path/to/project/data/bronze
 export HPT_QUARANTINE_ROOT=/absolute/path/to/project/data/quarantine
 export HPT_DUCKDB_PATH=/absolute/path/to/project/data/hpt.duckdb
-export HPT_BRONZE_ROOT=/absolute/path/to/project/data/bronze
 ```
 
 Most local development can use defaults and omit these exports.

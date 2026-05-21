@@ -61,7 +61,7 @@ created when downloaded file bytes differ from the current snapshot hash.
 ## Bronze Parquet
 
 Parsed Bronze Parquet is written by `BronzeWriter` under
-`HPT_PARSED_BRONZE_ROOT`.
+`HPT_BRONZE_ROOT`.
 
 Path pattern:
 

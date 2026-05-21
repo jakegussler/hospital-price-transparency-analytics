@@ -49,7 +49,7 @@ def ingest(
         dir_okay=True,
         help=(
             "Directory where parsed Bronze Parquet partitions are written. "
-            "Defaults to HPT_PARSED_BRONZE_ROOT or data/bronze."
+            "Defaults to HPT_BRONZE_ROOT or data/bronze."
         ),
         show_default=False,
     ),

@@ -13,7 +13,7 @@ HPT keeps runtime configuration as small immutable dataclasses in
 | Variable | Config | Default | Notes |
 |---|---|---|---|
 | `HPT_RAW_STORAGE_BASE_URI` | `StorageConfig.raw_base_uri` | canonical project `data` root as absolute `file:///...` URI | fsspec URI for raw downloads and snapshot metadata. |
-| `HPT_PARSED_BRONZE_ROOT` | `StorageConfig.bronze_root` | `<project_root>/data/bronze` | Parsed Bronze Parquet output root. |
+| `HPT_BRONZE_ROOT` | `StorageConfig.bronze_root` and dbt Bronze source definitions | `<project_root>/data/bronze` for Python, `../data/bronze` from `transform/` for dbt | Parsed Bronze Parquet root written by ingest and read by dbt external sources. |
 | `HPT_QUARANTINE_ROOT` | `StorageConfig.quarantine_root` | `<project_root>/data/quarantine` | Parser validation failure output root. |
 | `HPT_REGISTRY_PATH` | `DownloadConfig.registry_path`, `IngestConfig.registry_path` | bundled registry | Optional registry file override. |
 | `HPT_HTTP_CONNECT_TIMEOUT` | `ClientConfig.connect_timeout_s` | `10` | HTTP connect timeout in seconds. |
@@ -22,7 +22,6 @@ HPT keeps runtime configuration as small immutable dataclasses in
 | `HPT_HTTP_RETRIES` | `ClientConfig.retries` | `3` | HTTP transport retry count. |
 | `HPT_USER_AGENT` | `ClientConfig.user_agent` | `hpt-pipeline/0.1` | User-Agent sent to publishers. |
 | `HPT_DUCKDB_PATH` | dbt `profiles.yml` | `../data/hpt.duckdb` from `transform/` | DuckDB database path used by dbt. |
-| `HPT_BRONZE_ROOT` | dbt Bronze source definitions | `../data/bronze` from `transform/` | Parsed Bronze Parquet root read by dbt external sources. |
 
 ## Important Distinction
 
@@ -36,7 +35,7 @@ For ingest/download config construction, storage roots are resolved with
 this precedence:
 
 1. Explicit function argument (for example CLI `--raw-base-uri`).
-2. Environment variable (`HPT_RAW_STORAGE_BASE_URI`, `HPT_PARSED_BRONZE_ROOT`,
+2. Environment variable (`HPT_RAW_STORAGE_BASE_URI`, `HPT_BRONZE_ROOT`,
    `HPT_QUARANTINE_ROOT`).
 3. Canonical project defaults rooted at `<project_root>/data`.
 
@@ -48,6 +47,6 @@ change instead of a code rewrite.
 
 The dbt project in `transform/` uses `transform/profiles.yml`. It reads
 `HPT_DUCKDB_PATH` for the local DuckDB database and `HPT_BRONZE_ROOT` for
-external Bronze Parquet sources. These names differ from the Python ingest
-setting `HPT_PARSED_BRONZE_ROOT`; keep them pointed at the same Bronze directory
-for local development.
+external Bronze Parquet sources. Python ingest uses the same `HPT_BRONZE_ROOT`
+name, so a single override points both ingest output and dbt reads at the same
+Bronze directory for local development.

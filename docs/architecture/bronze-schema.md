@@ -193,8 +193,6 @@ CSV Bronze table:
 
 ## Important Notes
 
-- `csv_charge_rows` is produced by CSV parsers, but it is not yet declared in
-  `transform/models/staging/_bronze_sources.yml`.
 - `code_N` and `code_N_type` columns in `csv_charge_rows` are dynamic per file.
 - Bronze stores `modifier_code` strings on `standard_charge_modifiers`; it does
   not resolve them to `modifier_code_id`.

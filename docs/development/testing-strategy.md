@@ -95,12 +95,9 @@ Good fixtures should:
 
 Known gaps as of this documentation pass:
 
-- No dedicated tests for `src/hpt/quality/`.
 - No end-to-end test that downloads, ingests, reads Bronze through dbt, and
   validates DuckDB output.
 - No implemented Silver/Gold model tests because those models are not built yet.
-- `csv_charge_rows` should be represented in dbt sources when CSV Bronze is part
-  of the transform contract.
 
 ## Docs-Only Changes
 

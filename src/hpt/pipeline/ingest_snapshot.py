@@ -6,8 +6,7 @@ MRF file into the Bronze layer. It:
 1. Resolves the local file for a snapshot record.
 2. Runs :func:`hpt.ingest.mrf_sniffer.sniff_schema` to identify layout and
    version.
-3. Dispatches to the format-specific parser (only JSON is implemented
-   today; CSV parsers raise :class:`NotImplementedError`).
+3. Dispatches to the JSON, CSV Tall, or CSV Wide parser for the sniffed layout.
 4. Streams parser batches through :class:`hpt.loaders.parquet.BronzeWriter`.
 """
 

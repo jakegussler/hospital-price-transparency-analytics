@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from hpt.ingest.config import (
     ClientConfig,
     DownloadConfig,
@@ -17,22 +15,16 @@ from hpt.utils.paths import get_default_data_root
 
 class TestTargetValidation:
     def test_single_hospital_target(self):
-        cfg = DownloadConfig(hospital_id="  vumc  ")
-        assert cfg.hospital_id == "vumc"
-        assert cfg.run_all is False
+        cfg = DownloadConfig(hospital_ids="  VUMC  ")
+        assert cfg.hospital_ids == ["vumc"]
+
+    def test_multiple_hospital_targets_from_string(self):
+        cfg = IngestConfig(hospital_ids="vumc, ballad-jcmc")
+        assert cfg.hospital_ids == ["vumc", "ballad-jcmc"]
 
     def test_all_target(self):
-        cfg = IngestConfig(run_all=True)
-        assert cfg.hospital_id is None
-        assert cfg.run_all is True
-
-    def test_missing_target_rejected(self):
-        with pytest.raises(ValueError, match="Provide --hospital-id"):
-            DownloadConfig()
-
-    def test_ambiguous_target_rejected(self):
-        with pytest.raises(ValueError, match="only one"):
-            IngestConfig(hospital_id="vumc", run_all=True)
+        cfg = IngestConfig()
+        assert cfg.hospital_ids is None
 
 
 class TestClientConfig:
@@ -63,7 +55,7 @@ class TestStorageConfig:
 
     def test_from_env_defaults_use_canonical_project_data_root(self, monkeypatch):
         monkeypatch.delenv("HPT_RAW_STORAGE_BASE_URI", raising=False)
-        monkeypatch.delenv("HPT_PARSED_BRONZE_ROOT", raising=False)
+        monkeypatch.delenv("HPT_BRONZE_ROOT", raising=False)
         monkeypatch.delenv("HPT_QUARANTINE_ROOT", raising=False)
 
         cfg = StorageConfig.from_env()
@@ -75,7 +67,7 @@ class TestStorageConfig:
 
     def test_from_env(self, monkeypatch):
         monkeypatch.setenv("HPT_RAW_STORAGE_BASE_URI", "file:///raw")
-        monkeypatch.setenv("HPT_PARSED_BRONZE_ROOT", "env/bronze")
+        monkeypatch.setenv("HPT_BRONZE_ROOT", "env/bronze")
         monkeypatch.setenv("HPT_QUARANTINE_ROOT", "env/quarantine")
 
         cfg = StorageConfig.from_env()
@@ -85,7 +77,7 @@ class TestStorageConfig:
         assert cfg.quarantine_root == Path("env/quarantine")
 
     def test_cli_output_values_override_env(self, monkeypatch):
-        monkeypatch.setenv("HPT_PARSED_BRONZE_ROOT", "env/bronze")
+        monkeypatch.setenv("HPT_BRONZE_ROOT", "env/bronze")
         monkeypatch.setenv("HPT_QUARANTINE_ROOT", "env/quarantine")
 
         cfg = StorageConfig.from_env(
@@ -109,8 +101,13 @@ class TestPhaseConfigs:
         monkeypatch.setenv("HPT_RAW_STORAGE_BASE_URI", "file:///raw")
         monkeypatch.setenv("HPT_REGISTRY_PATH", "registry/test.yml")
 
-        cfg = DownloadConfig.from_env(run_all=True, dry_run=True, force=True)
+        cfg = DownloadConfig.from_env(
+            hospital_ids="vumc, ballad-jcmc",
+            dry_run=True,
+            force=True,
+        )
 
+        assert cfg.hospital_ids == ["vumc", "ballad-jcmc"]
         assert cfg.storage.raw_base_uri == "file:///raw"
         assert cfg.registry_path == Path("registry/test.yml")
         assert cfg.dry_run is True
@@ -118,13 +115,13 @@ class TestPhaseConfigs:
 
     def test_ingest_config_from_env_with_overrides(self):
         cfg = IngestConfig.from_env(
-            hospital_id="vumc",
+            hospital_ids="vumc",
             bronze_root=Path("data/test-bronze"),
             quarantine_root=Path("data/test-quarantine"),
             registry_path=Path("registry/test.yml"),
         )
 
-        assert cfg.hospital_id == "vumc"
+        assert cfg.hospital_ids == ["vumc"]
         assert cfg.registry_path == Path("registry/test.yml")
         assert cfg.storage.bronze_root == Path("data/test-bronze")
         assert cfg.storage.quarantine_root == Path("data/test-quarantine")

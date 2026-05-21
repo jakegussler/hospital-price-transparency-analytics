@@ -81,7 +81,7 @@ class StorageConfig:
                 else (env_raw_base_uri if env_raw_base_uri is not None else data_root)
             ),
             bronze_root=bronze_root
-            or Path(os.environ.get("HPT_PARSED_BRONZE_ROOT", data_root / "bronze")),
+            or Path(os.environ.get("HPT_BRONZE_ROOT", data_root / "bronze")),
             quarantine_root=quarantine_root
             or Path(os.environ.get("HPT_QUARANTINE_ROOT", data_root / "quarantine")),
         )

@@ -88,6 +88,8 @@ make install-dev
 make test
 make lint
 make format
+make download
+make ingest
 hpt download --help
 hpt ingest --help
 ```
