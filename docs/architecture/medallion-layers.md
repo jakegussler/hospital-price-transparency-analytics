@@ -34,6 +34,8 @@ Bronze should not:
   would lose source fidelity.
 
 See `docs/bronze_layer.md` for the Bronze data dictionary.
+See `docs/architecture/bronze-schema.md` for the implemented Bronze schema
+diagram.
 
 ## Silver
 
@@ -55,6 +57,8 @@ Expected responsibilities:
 
 Silver should remain close enough to source data that issues can be traced back
 to a specific `snapshot_id`, source file, and row or ordinal.
+
+See `docs/architecture/silver-schema.md` for the target Silver schema diagram.
 
 ## Gold
 

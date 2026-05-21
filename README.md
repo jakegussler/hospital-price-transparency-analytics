@@ -104,6 +104,8 @@ Start here:
   responsibilities.
 - `docs/architecture/storage-layout.md` describes raw, metadata, Bronze,
   quarantine, and DuckDB paths.
+- `docs/architecture/bronze-schema.md` diagrams the implemented Bronze schema.
+- `docs/architecture/silver-schema.md` diagrams the target Silver schema.
 - `docs/domain/hpt-glossary.md` defines project and CMS terms.
 - `docs/domain/cms-mrf-schema-notes.md` summarizes JSON, CSV Tall, and CSV Wide
   MRF layouts.
