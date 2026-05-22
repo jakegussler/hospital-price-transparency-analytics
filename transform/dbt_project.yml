@@ -20,8 +20,59 @@ models:
   hospital_price_transparency:
     staging:
       +materialized: view
+      +tags: ["staging"]
+      stg_bronze__hospital_mrf_snapshots:
+        +tags: ["pipeline_snapshot_metadata", "pipeline_charge_data"]
+      stg_bronze__hospital_locations:
+        +tags: ["pipeline_snapshot_metadata"]
+      stg_bronze__type2_npi:
+        +tags: ["pipeline_snapshot_metadata"]
+      stg_bronze__standard_charge_info:
+        +tags: ["pipeline_charge_data"]
+      stg_bronze__code_information:
+        +tags: ["pipeline_charge_data"]
+      stg_bronze__drug_information:
+        +tags: ["pipeline_charge_data"]
+      stg_bronze__standard_charges:
+        +tags: ["pipeline_charge_data"]
+      stg_bronze__standard_charge_modifiers:
+        +tags: ["pipeline_charge_data"]
+      stg_bronze__payers_information:
+        +tags: ["pipeline_charge_data"]
+      stg_bronze__modifiers:
+        +tags: ["pipeline_charge_data"]
+      stg_bronze__modifier_payer_info:
+        +tags: ["pipeline_charge_data"]
+      stg_bronze__csv_charge_rows:
+        +tags: ["pipeline_charge_data"]
     silver:
       +materialized: table
+      base:
+        +tags: ["silver_base", "silver"]
+        slv_base__hospitals:
+          +tags: ["pipeline_snapshot_metadata", "pipeline_charge_data"]
+        slv_base__hospital_snapshots:
+          +tags: ["pipeline_snapshot_metadata", "pipeline_charge_data"]
+        slv_base__hospital_locations:
+          +tags: ["pipeline_snapshot_metadata"]
+        slv_base__type2_npis:
+          +tags: ["pipeline_snapshot_metadata"]
+        slv_base__csv_charge_row_items:
+          +tags: ["pipeline_charge_data"]
+        slv_base__charge_items:
+          +tags: ["pipeline_charge_data"]
+        slv_base__standard_charges:
+          +tags: ["pipeline_charge_data"]
+        slv_base__charge_item_codes:
+          +tags: ["pipeline_charge_data"]
+        slv_base__payer_rates:
+          +tags: ["pipeline_charge_data"]
+        slv_base__modifiers:
+          +tags: ["pipeline_charge_data"]
+        slv_base__charge_modifiers:
+          +tags: ["pipeline_charge_data"]
+      core:
+        +tags: ["silver_core", "silver"]
     gold:
       +materialized: table
 

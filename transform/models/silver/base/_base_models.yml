@@ -54,7 +54,7 @@ models:
               field: snapshot_id
 
   - name: slv_base__csv_charge_row_items
-    description: "Bridge from each CSV source row to its synthesized snapshot-scoped charge item."
+    description: "Helper bridge from each CSV source row to its synthesized snapshot-scoped charge item."
     columns:
       - name: snapshot_id
         tests:
@@ -67,7 +67,7 @@ models:
           - not_null
 
   - name: slv_base__charge_items
-    description: "Format-neutral charge item parent table for JSON and CSV sources."
+    description: "Format-neutral item/service parent table for JSON and CSV sources."
     columns:
       - name: silver_charge_item_id
         tests:
@@ -83,6 +83,30 @@ models:
         tests:
           - not_null
 
+  - name: slv_base__standard_charges
+    description: "Format-neutral charge context table with setting, billing class, generic amounts, and source lineage."
+    columns:
+      - name: silver_standard_charge_id
+        tests:
+          - not_null
+          - unique
+      - name: silver_charge_item_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__charge_items')
+              field: silver_charge_item_id
+      - name: snapshot_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__hospital_snapshots')
+              field: snapshot_id
+      - name: source_format
+        tests:
+          - accepted_values:
+              values: ["json", "csv_tall", "csv_wide"]
+
   - name: slv_base__charge_item_codes
     description: "Exploded billing codes attached to Silver charge items."
     columns:
@@ -97,21 +121,23 @@ models:
               field: silver_charge_item_id
 
   - name: slv_base__payer_rates
-    description: "Format-neutral payer, plan, and generic charge-rate fact rows."
+    description: "Format-neutral payer and plan negotiated rate rows linked to Silver standard charges."
     columns:
       - name: silver_payer_rate_id
         tests:
           - not_null
           - unique
+      - name: silver_standard_charge_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__standard_charges')
+              field: silver_standard_charge_id
       - name: silver_charge_item_id
         tests:
           - relationships:
               to: ref('slv_base__charge_items')
               field: silver_charge_item_id
-      - name: rate_record_type
-        tests:
-          - accepted_values:
-              values: ["generic_standard_charge", "payer_specific_rate", "csv_charge_row"]
 
   - name: slv_base__modifiers
     description: "JSON modifier definitions and modifier payer metadata when available."
@@ -127,12 +153,18 @@ models:
               field: snapshot_id
 
   - name: slv_base__charge_modifiers
-    description: "Modifier codes attached to Silver payer-rate or charge contexts."
+    description: "Modifier codes attached to Silver standard-charge contexts, with payer-rate linkage where source grain provides it."
     columns:
       - name: silver_charge_modifier_id
         tests:
           - not_null
           - unique
+      - name: silver_standard_charge_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__standard_charges')
+              field: silver_standard_charge_id
       - name: silver_payer_rate_id
         tests:
           - relationships:

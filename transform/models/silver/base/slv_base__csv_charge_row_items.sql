@@ -36,8 +36,6 @@ signed_rows as (
             'snapshot_id',
             'clean_description',
             'code_set_signature',
-            'clean_setting',
-            'clean_billing_class',
             'drug_unit',
             'clean_drug_unit_type'
         ]) }} as charge_item_signature
@@ -53,10 +51,6 @@ select
     raw_description,
     clean_description,
     code_set_signature,
-    raw_setting,
-    clean_setting,
-    raw_billing_class,
-    clean_billing_class,
     drug_unit,
     raw_drug_unit_type,
     clean_drug_unit_type

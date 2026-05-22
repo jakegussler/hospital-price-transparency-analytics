@@ -1,0 +1,36 @@
+selectors:
+  - name: staging
+    description: "Staging models over Bronze source tables."
+    definition:
+      method: tag
+      value: staging
+
+  - name: silver_base
+    description: "Silver base models."
+    definition:
+      method: tag
+      value: silver_base
+
+  - name: silver_core
+    description: "Silver core models."
+    definition:
+      method: tag
+      value: silver_core
+
+  - name: silver
+    description: "All Silver base and Silver core models."
+    definition:
+      method: tag
+      value: silver
+
+  - name: pipeline_snapshot_metadata
+    description: "Snapshot metadata models across staging and Silver."
+    definition:
+      method: tag
+      value: pipeline_snapshot_metadata
+
+  - name: pipeline_charge_data
+    description: "Charge-data models across staging and Silver."
+    definition:
+      method: tag
+      value: pipeline_charge_data

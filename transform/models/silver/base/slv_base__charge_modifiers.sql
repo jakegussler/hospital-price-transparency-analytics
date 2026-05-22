@@ -9,12 +9,13 @@ with modifier_definitions as (
 
 json_modifiers as (
     select
-        pr.silver_payer_rate_id,
-        pr.silver_charge_item_id,
+        standard_charges.silver_standard_charge_id,
+        cast(null as varchar) as silver_payer_rate_id,
+        standard_charges.silver_charge_item_id,
         scm.snapshot_id,
-        pr.hospital_id,
-        pr.source_format,
-        scm.standard_charge_id as source_standard_charge_id,
+        standard_charges.hospital_id,
+        standard_charges.source_format,
+        standard_charges.source_standard_charge_id,
         cast(null as integer) as source_row_ordinal,
         scm.modifier_ordinal,
         scm.raw_modifier_code,
@@ -25,9 +26,9 @@ json_modifiers as (
             else 'resolved'
         end as modifier_definition_match_status
     from {{ ref('stg_bronze__standard_charge_modifiers') }} scm
-    inner join {{ ref('slv_base__payer_rates') }} pr
-        on scm.snapshot_id = pr.snapshot_id
-        and scm.standard_charge_id = pr.source_standard_charge_id
+    inner join {{ ref('slv_base__standard_charges') }} standard_charges
+        on scm.snapshot_id = standard_charges.snapshot_id
+        and scm.standard_charge_id = standard_charges.source_standard_charge_id
     left join modifier_definitions m
         on scm.snapshot_id = m.snapshot_id
         and scm.clean_modifier_code = m.clean_modifier_code
@@ -47,11 +48,12 @@ csv_modifier_tokens as (
 
 csv_modifiers as (
     select
+        standard_charges.silver_standard_charge_id,
         pr.silver_payer_rate_id,
-        pr.silver_charge_item_id,
+        standard_charges.silver_charge_item_id,
         c.snapshot_id,
-        pr.hospital_id,
-        pr.source_format,
+        standard_charges.hospital_id,
+        standard_charges.source_format,
         cast(null as varchar) as source_standard_charge_id,
         c.row_ordinal as source_row_ordinal,
         c.modifier_ordinal,
@@ -60,6 +62,9 @@ csv_modifiers as (
         cast(null as varchar) as source_modifier_code_id,
         'not_available_for_csv' as modifier_definition_match_status
     from csv_modifier_tokens c
+    inner join {{ ref('slv_base__standard_charges') }} standard_charges
+        on c.snapshot_id = standard_charges.snapshot_id
+        and c.row_ordinal = standard_charges.source_row_ordinal
     inner join {{ ref('slv_base__payer_rates') }} pr
         on c.snapshot_id = pr.snapshot_id
         and c.row_ordinal = pr.source_row_ordinal
@@ -67,6 +72,7 @@ csv_modifiers as (
 
 select
     {{ hpt_surrogate_key([
+        'silver_standard_charge_id',
         'silver_payer_rate_id',
         'modifier_ordinal',
         'clean_modifier_code'
@@ -78,6 +84,7 @@ union all
 
 select
     {{ hpt_surrogate_key([
+        'silver_standard_charge_id',
         'silver_payer_rate_id',
         'modifier_ordinal',
         'clean_modifier_code'
