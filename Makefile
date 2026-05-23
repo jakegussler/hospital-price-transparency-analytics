@@ -1,4 +1,8 @@
-.PHONY: install install-dev test lint format download ingest dbt-run dbt-test dbt-seed dbt-build dbt-clean clean
+.PHONY: install install-dev test lint format download ingest \
+	dbt-deps dbt-run dbt-run-selector dbt-test dbt-test-selector \
+	dbt-seed dbt-seed-selector dbt-build dbt-build-selector \
+	dbt-ls dbt-ls-selector dbt-compile dbt-compile-selector dbt-clean \
+	require-dbt-selector clean
 
 # --- Python ----------------------------------------------------------------
 
@@ -27,20 +31,52 @@ ingest:
 
 # --- dbt -------------------------------------------------------------------
 
+DBT_SELECTOR ?=
+
+dbt-deps:
+	cd transform && dbt deps --profiles-dir .
+
 dbt-run:
-	cd transform && dbt run
+	cd transform && dbt run --profiles-dir .
+
+dbt-run-selector: require-dbt-selector
+	cd transform && dbt run --selector "$(DBT_SELECTOR)" --profiles-dir .
 
 dbt-test:
-	cd transform && dbt test
+	cd transform && dbt test --profiles-dir .
+
+dbt-test-selector: require-dbt-selector
+	cd transform && dbt test --selector "$(DBT_SELECTOR)" --profiles-dir .
 
 dbt-seed:
-	cd transform && dbt seed
+	cd transform && dbt seed --profiles-dir .
+
+dbt-seed-selector: require-dbt-selector
+	cd transform && dbt seed --selector "$(DBT_SELECTOR)" --profiles-dir .
 
 dbt-build:
-	cd transform && dbt build
+	cd transform && dbt build --profiles-dir .
+
+dbt-build-selector: require-dbt-selector
+	cd transform && dbt build --selector "$(DBT_SELECTOR)" --profiles-dir .
+
+dbt-ls:
+	cd transform && dbt ls --profiles-dir .
+
+dbt-ls-selector: require-dbt-selector
+	cd transform && dbt ls --selector "$(DBT_SELECTOR)" --profiles-dir .
+
+dbt-compile:
+	cd transform && dbt compile --profiles-dir .
+
+dbt-compile-selector: require-dbt-selector
+	cd transform && dbt compile --selector "$(DBT_SELECTOR)" --profiles-dir .
 
 dbt-clean:
-	cd transform && dbt clean
+	cd transform && dbt clean --profiles-dir .
+
+require-dbt-selector:
+	@test -n "$(DBT_SELECTOR)" || (printf '%s\n' 'Set DBT_SELECTOR, for example: make dbt-run-selector DBT_SELECTOR=silver' >&2; exit 2)
 
 # --- Cleanup ---------------------------------------------------------------
 
