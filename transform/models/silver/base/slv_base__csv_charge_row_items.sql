@@ -42,7 +42,7 @@ signed_rows as (
     from csv_rows
 )
 
-select
+select distinct
     {{ hpt_surrogate_key(['snapshot_id', "'csv'", 'charge_item_signature']) }} as silver_charge_item_id,
     charge_item_signature,
     snapshot_id,

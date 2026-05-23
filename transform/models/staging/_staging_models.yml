@@ -78,6 +78,13 @@ models:
         tests:
           - not_null
 
+  - name: stg_bronze__standard_charge_modifiers
+    description: "Staging view for optional JSON charge-level modifier codes."
+    columns:
+      - name: standard_charge_id
+        tests:
+          - not_null
+
   - name: stg_bronze__csv_charge_rows
     description: "Staging view for CSV Tall/Wide charge rows with source lineage and dynamic code columns preserved."
     columns:
@@ -85,5 +92,8 @@ models:
         tests:
           - not_null
       - name: row_ordinal
+        tests:
+          - not_null
+      - name: source_rate_ordinal
         tests:
           - not_null

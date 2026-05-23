@@ -37,7 +37,12 @@ with json_rates as (
 
 csv_rates as (
     select
-        {{ hpt_surrogate_key(['r.snapshot_id', "'csv'", 'r.row_ordinal']) }} as silver_payer_rate_id,
+        {{ hpt_surrogate_key([
+            'r.snapshot_id',
+            "'csv'",
+            'r.row_ordinal',
+            'r.source_rate_ordinal'
+        ]) }} as silver_payer_rate_id,
         standard_charges.silver_standard_charge_id,
         standard_charges.silver_charge_item_id,
         r.snapshot_id,

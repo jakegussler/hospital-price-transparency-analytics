@@ -99,11 +99,6 @@ sources:
 
       - name: standard_charge_modifiers
         description: "Raw modifier code strings applied to a standard charge (not a resolved FK)."
-        columns:
-          - name: standard_charge_id
-            description: "FK to standard_charges."
-            tests:
-              - not_null
 
       - name: payers_information
         description: "Payer/plan rate records within a standard charge."

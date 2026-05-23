@@ -28,6 +28,22 @@ with json_standard_charges as (
 ),
 
 csv_standard_charges as (
+    with csv_charge_contexts as (
+        select distinct
+            snapshot_id,
+            row_ordinal,
+            raw_setting,
+            clean_setting,
+            raw_billing_class,
+            clean_billing_class,
+            gross_charge,
+            discounted_cash,
+            minimum,
+            maximum,
+            additional_generic_notes
+        from {{ ref('stg_bronze__csv_charge_rows') }}
+    )
+
     select
         {{ hpt_surrogate_key([
             'r.snapshot_id',
@@ -50,7 +66,7 @@ csv_standard_charges as (
         r.minimum,
         r.maximum,
         r.additional_generic_notes
-    from {{ ref('stg_bronze__csv_charge_rows') }} r
+    from csv_charge_contexts r
     inner join {{ ref('slv_base__csv_charge_row_items') }} row_items
         on r.snapshot_id = row_items.snapshot_id
         and r.row_ordinal = row_items.row_ordinal

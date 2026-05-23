@@ -35,7 +35,7 @@ json_modifiers as (
 ),
 
 csv_modifier_tokens as (
-    select
+    select distinct
         r.snapshot_id,
         r.row_ordinal,
         cast(u.modifier_ordinal as integer) - 1 as modifier_ordinal,
