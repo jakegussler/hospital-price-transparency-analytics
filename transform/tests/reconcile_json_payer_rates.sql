@@ -1,12 +1,9 @@
 with expected as (
     select
-        sc.snapshot_id,
+        pi.snapshot_id,
         count(*) as expected_rows
-    from {{ ref('stg_bronze__standard_charges') }} sc
-    left join {{ ref('stg_bronze__payers_information') }} pi
-        on sc.snapshot_id = pi.snapshot_id
-        and sc.standard_charge_id = pi.standard_charge_id
-    group by sc.snapshot_id
+    from {{ ref('stg_bronze__payers_information') }} pi
+    group by pi.snapshot_id
 ),
 
 actual as (
