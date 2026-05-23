@@ -20,7 +20,29 @@ json_codes as (
         c.raw_code_type,
         c.clean_code_type,
         case
-            when c.clean_code_type in ('cpt', 'hcpcs', 'ndc', 'drg', 'ms-drg', 'tris-drg') then c.clean_code_type
+            when c.clean_code_type in (
+                'cpt',
+                'hcpcs',
+                'icd',
+                'drg',
+                'ms-drg',
+                'r-drg',
+                's-drg',
+                'aps-drg',
+                'ap-drg',
+                'apr-drg',
+                'tris-drg',
+                'apc',
+                'ndc',
+                'hipps',
+                'local',
+                'eapg',
+                'cdt',
+                'rc',
+                'cdm',
+                'cmg',
+                'ms-ltc-drg'
+            ) then c.clean_code_type
             else null
         end as canonical_code_system,
         'json_code_information' as source_code_path
@@ -63,7 +85,29 @@ csv_codes_final as (
         c.raw_code_type,
         c.clean_code_type,
         case
-            when c.clean_code_type in ('cpt', 'hcpcs', 'ndc', 'drg', 'ms-drg', 'tris-drg') then c.clean_code_type
+            when c.clean_code_type in (
+                'cpt',
+                'hcpcs',
+                'icd',
+                'drg',
+                'ms-drg',
+                'r-drg',
+                's-drg',
+                'aps-drg',
+                'ap-drg',
+                'apr-drg',
+                'tris-drg',
+                'apc',
+                'ndc',
+                'hipps',
+                'local',
+                'eapg',
+                'cdt',
+                'rc',
+                'cdm',
+                'cmg',
+                'ms-ltc-drg'
+            ) then c.clean_code_type
             else null
         end as canonical_code_system,
         'csv_charge_rows' as source_code_path

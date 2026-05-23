@@ -119,6 +119,32 @@ models:
           - relationships:
               to: ref('slv_base__charge_items')
               field: silver_charge_item_id
+      - name: canonical_code_system
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - cpt
+                  - hcpcs
+                  - icd
+                  - drg
+                  - ms-drg
+                  - r-drg
+                  - s-drg
+                  - aps-drg
+                  - ap-drg
+                  - apr-drg
+                  - tris-drg
+                  - apc
+                  - ndc
+                  - hipps
+                  - local
+                  - eapg
+                  - cdt
+                  - rc
+                  - cdm
+                  - cmg
+                  - ms-ltc-drg
 
   - name: slv_base__payer_rates
     description: "Format-neutral payer and plan negotiated rate rows linked to Silver standard charges."
