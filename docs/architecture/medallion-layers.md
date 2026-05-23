@@ -39,16 +39,19 @@ diagram.
 
 ## Silver
 
-Status: planned. The dbt project has a `models/silver/` directory, but no
-implemented models yet.
+Status: foundation implemented. The dbt project has `models/silver/base/`
+models that normalize Bronze snapshots, hospitals, charge items, standard charge
+contexts, payer rates, codes, NPIs, locations, and modifiers. Conformed Silver
+models for reviewed payer, plan, and cross-snapshot item identity are still
+planned.
 
-Silver will convert source-faithful Bronze data into normalized analytical
+Silver converts source-faithful Bronze data into normalized analytical
 entities.
 
 Expected responsibilities:
 
 - Normalize hospital identity from registry and source metadata.
-- Normalize charge items across JSON and CSV inputs.
+- Normalize charge items and standard charge contexts across JSON and CSV inputs.
 - Split and type billing codes from JSON and CSV sources.
 - Standardize payer and plan strings where rules are defensible.
 - Normalize modifiers and modifier relationships.
@@ -58,7 +61,9 @@ Expected responsibilities:
 Silver should remain close enough to source data that issues can be traced back
 to a specific `snapshot_id`, source file, and row or ordinal.
 
-See `docs/architecture/silver-schema.md` for the target Silver schema diagram.
+See `docs/architecture/silver-schema.md` for the implemented Silver base schema,
+including the full pipeline DAG, column schemas, and a comparison against the
+2026-05-20 reference image.
 
 ## Gold
 

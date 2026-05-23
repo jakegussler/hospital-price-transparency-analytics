@@ -20,8 +20,8 @@ for dbt/DuckDB normalization and analysis.
 - `src/hpt/pipeline/ingest_snapshot.py` connects snapshot resolution, parser
   selection, quarantine handling, and Bronze writing.
 - `src/hpt/registry/` owns the active bundled hospital registry schema.
-- `transform/` is a dbt project targeting DuckDB. It currently defines Bronze
-  sources; Silver and Gold models are planned.
+- `transform/` is a dbt project targeting DuckDB. It defines Bronze sources and
+  Silver foundation models; Gold models are planned.
 - `infra/`, `orchestration/`, and `scripts/` are placeholders unless files are
   added later.
 

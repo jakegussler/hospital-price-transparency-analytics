@@ -94,15 +94,28 @@ hpt ingest \
 From the repository root:
 
 ```bash
-cd transform
-dbt run --profiles-dir .
-dbt test --profiles-dir .
+make dbt-seed
+make dbt-run
+make dbt-test
+make dbt-build-selector DBT_SELECTOR=silver
+make dbt-build-selector DBT_SELECTOR=pipeline_charge_data
 ```
 
 The profile reads:
 
 - `HPT_DUCKDB_PATH`, defaulting to `../data/hpt.duckdb`.
 - `HPT_BRONZE_ROOT`, defaulting to `../data/bronze`.
+
+The Makefile exposes dbt commands for dependency install, seed, run, test,
+build, list, compile, and clean. Selector targets take `DBT_SELECTOR`; the dbt
+project currently defines layer selectors for `staging`, `silver_base`,
+`silver_core`, and `silver`, plus pipeline selectors for
+`pipeline_snapshot_metadata` and `pipeline_charge_data`, in
+`transform/selectors.yml`.
+
+Layer tags live in `transform/dbt_project.yml`. Pipeline selectors reuse the
+pipeline tags there so a single selector can span staging and Silver models for
+the selected pipeline.
 
 ## Ad Hoc Scripts
 

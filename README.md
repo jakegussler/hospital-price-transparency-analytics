@@ -73,9 +73,11 @@ hpt ingest
 Run dbt against the DuckDB project:
 
 ```bash
-cd transform
-dbt run --profiles-dir .
-dbt test --profiles-dir .
+make dbt-seed
+make dbt-run
+make dbt-test
+make dbt-build-selector DBT_SELECTOR=silver
+make dbt-build-selector DBT_SELECTOR=pipeline_charge_data
 ```
 
 By default, local raw files, snapshot metadata, Bronze Parquet, quarantine
@@ -90,12 +92,19 @@ make lint
 make format
 make download
 make ingest
+make dbt-seed
+make dbt-run-selector DBT_SELECTOR=staging
 hpt download --help
 hpt ingest --help
 ```
 
 The CLI commands are the source of truth for pipeline execution. Use
 `hpt ingest` for parsing downloaded snapshots into Bronze Parquet.
+
+The dbt project defines layer selectors for `staging`, `silver_base`,
+`silver_core`, and `silver`. Pipeline tags and selectors currently group
+snapshot metadata models under `pipeline_snapshot_metadata` and charge-data
+models under `pipeline_charge_data`.
 
 ## Documentation
 
