@@ -54,7 +54,7 @@ class TestLoadRegistry:
             load_registry(FIXTURES / "missing_field.yml")
 
     def test_missing_file_raises(self):
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(RegistryError, match="Registry file not found"):
             load_registry(FIXTURES / "nonexistent.yml")
 
     def test_empty_yaml_raises(self, tmp_path):
@@ -75,6 +75,12 @@ class TestGetHospital:
 
 
 class TestHospitalIdValidation:
+    def test_expanded_state_registry_loads(self):
+        hospitals = load_registry()
+        states = {h.canonical_state for h in hospitals}
+
+        assert {"CA", "GA", "ID", "IL", "MI", "MN", "WI"}.issubset(states)
+
     def test_empty_id_rejected(self, tmp_path):
         p = tmp_path / "bad_id.yml"
         p.write_text(

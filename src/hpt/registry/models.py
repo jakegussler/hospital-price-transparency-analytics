@@ -20,7 +20,7 @@ class HospitalSource(BaseModel):
 
     hospital_id: str
     canonical_hospital_name: str
-    canonical_state: Literal["FL", "TN", "NC"]
+    canonical_state: Literal["CA", "FL", "GA", "ID", "IL", "MI", "MN", "NC", "TN", "WI"]
     hospital_type: Literal[
         "academic_medical_center",
         "community",

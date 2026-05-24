@@ -42,6 +42,10 @@ Each hospital source should provide:
 
 The registry should describe publisher sources, not parsed Bronze state.
 
+The current registry model accepts hospitals in CA, FL, GA, ID, IL, MI, MN, NC,
+TN, and WI. Expand the model deliberately when adding sources in new states so
+registry validation stays explicit.
+
 ## Hospital ID Rules
 
 Use hospital IDs as stable pipeline identifiers.
