@@ -14,6 +14,7 @@ with json_rates as (
         standard_charges.source_standard_charge_id,
         standard_charges.source_charge_ordinal,
         cast(null as integer) as source_row_ordinal,
+        cast(null as integer) as source_rate_ordinal,
         pi.payer_ordinal,
         pi.raw_payer_name,
         pi.clean_payer_name,
@@ -36,6 +37,30 @@ with json_rates as (
 ),
 
 csv_rates as (
+    with signed_rate_rows as (
+        select
+            r.*,
+            row_items.silver_charge_item_id,
+            {{ hpt_surrogate_key([
+                'r.snapshot_id',
+                'row_items.silver_charge_item_id',
+                'r.raw_setting',
+                'r.clean_setting',
+                'r.raw_billing_class',
+                'r.clean_billing_class',
+                'r.gross_charge',
+                'r.discounted_cash',
+                'r.minimum',
+                'r.maximum',
+                'r.raw_modifiers',
+                'r.additional_generic_notes'
+            ]) }} as standard_charge_signature
+        from {{ ref('stg_bronze__csv_charge_rows') }} r
+        inner join {{ ref('slv_base__csv_charge_row_items') }} row_items
+            on r.snapshot_id = row_items.snapshot_id
+            and r.row_ordinal = row_items.row_ordinal
+    )
+
     select
         {{ hpt_surrogate_key([
             'r.snapshot_id',
@@ -51,6 +76,7 @@ csv_rates as (
         cast(null as varchar) as source_standard_charge_id,
         cast(null as integer) as source_charge_ordinal,
         r.row_ordinal as source_row_ordinal,
+        r.source_rate_ordinal,
         cast(null as integer) as payer_ordinal,
         r.raw_payer_name,
         r.clean_payer_name,
@@ -66,10 +92,11 @@ csv_rates as (
         r.ninetieth_percentile,
         r.raw_count,
         r.additional_payer_notes
-    from {{ ref('stg_bronze__csv_charge_rows') }} r
+    from signed_rate_rows r
     inner join {{ ref('slv_base__standard_charges') }} standard_charges
         on r.snapshot_id = standard_charges.snapshot_id
-        and r.row_ordinal = standard_charges.source_row_ordinal
+        and r.silver_charge_item_id = standard_charges.silver_charge_item_id
+        and r.standard_charge_signature = standard_charges.standard_charge_signature
 )
 
 select * from json_rates

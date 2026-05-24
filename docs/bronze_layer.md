@@ -207,7 +207,7 @@ These tables are populated **only by the JSON parser**. They map directly to the
 **Role:** Child of `standard_charges`. Leaf table.
 
 > **Critical design note — raw string, not resolved FK:**  
-> In the CMS JSON source, `standard_charges[].modifiers` is an array of plain code strings (e.g., `["25", "59"]`), not references to the top-level `modifiers` array. Bronze stores the raw string exactly as found in the source. **Do not resolve `modifier_code` to `modifier_code_id` here** — that lookup join is a Silver-layer transformation.
+> In the CMS JSON source, `standard_charges[].modifier_code` is an array of plain code strings (e.g., `["25", "59"]`), not references to the top-level `modifier_information` array. Bronze stores the raw string exactly as found in the source. **Do not resolve `modifier_code` to `modifier_code_id` here** — that lookup join is a Silver-layer transformation.
 >
 > The Silver transformation will perform:
 > ```sql
@@ -221,7 +221,7 @@ These tables are populated **only by the JSON parser**. They map directly to the
 | `snapshot_id` | `Utf8` | FK | Pipeline-generated | → `hospital_mrf_snapshots.snapshot_id` |
 | `standard_charge_id` | `Utf8` | FK | Pipeline-generated | → `standard_charges.standard_charge_id` |
 | `modifier_code` | `Utf8` | | Source-derived | Raw code string from source (e.g., `"25"`); **not** a FK to `modifiers` |
-| `modifier_ordinal` | `Int64` | | Source-derived | Position within the charge's modifiers array |
+| `modifier_ordinal` | `Int64` | | Source-derived | Position within the charge's modifier_code array |
 
 ---
 
@@ -254,14 +254,14 @@ These tables are populated **only by the JSON parser**. They map directly to the
 
 ### `modifiers`
 
-**Grain:** One row per entry in the top-level `modifiers` array in the MRF file.  
+**Grain:** One row per entry in the top-level `modifier_information` array in the MRF file.  
 **Role:** Defines what modifier codes mean. Parent of `modifier_payer_info`.
 
-> **JSON-only:** The top-level `modifiers` array does not exist in CSV formats. CSV files carry modifier codes only as a pipe-delimited string in `csv_charge_rows.modifiers`, with no associated descriptions, settings, or payer rates. The `modifiers` and `modifier_payer_info` tables are never populated by CSV parsers.
+> **JSON-only:** The top-level `modifier_information` array does not exist in CSV formats. CSV files carry modifier codes only as a pipe-delimited string in `csv_charge_rows.modifiers`, with no associated descriptions, settings, or payer rates. The `modifiers` and `modifier_payer_info` tables are never populated by CSV parsers.
 >
 > **Two modifier structures in JSON source:**  
-> - `modifiers[]` (top-level array) — defines modifier codes with descriptions, settings, and payer rates. Ingested into this table.  
-> - `standard_charges[].modifiers[]` (charge-level array) — a list of raw code strings indicating which modifiers apply to a charge. Ingested into `standard_charge_modifiers`.  
+> - `modifier_information[]` (top-level array) — defines modifier codes with descriptions, settings, and payer rates. Ingested into this table.  
+> - `standard_charges[].modifier_code[]` (charge-level array) — a list of raw code strings indicating which modifiers apply to a charge. Ingested into `standard_charge_modifiers`.  
 >
 > These are linked at Silver by matching `standard_charge_modifiers.modifier_code = modifiers.code` within the same snapshot.
 

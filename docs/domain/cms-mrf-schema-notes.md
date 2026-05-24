@@ -37,6 +37,10 @@ Parser rules:
 - Stream with `ijson`; do not load large source files into memory.
 - Parse header fields from top-level keys.
 - Iterate `standard_charge_information` items as charge-item parents.
+- Read optional top-level `modifier_information` as modifier definitions; do not
+  expect a source root object named `standard_charge_modifiers`.
+- Read charge-level modifier references from
+  `standard_charges[].modifier_code`.
 - Preserve arrays as child tables when they are structural source arrays.
 - Validate charge records with Pydantic models where practical.
 - Write invalid charge records to quarantine rather than failing the full file

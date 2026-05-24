@@ -275,8 +275,10 @@ same `charge_item_signature`.
 `slv_base__hospital_snapshots`  
 **Purpose:** Format-neutral charge context. Holds setting, billing class, and
 the five generic amounts (`gross_charge`, `discounted_cash`, `minimum`,
-`maximum`, plus notes). Each JSON `standard_charge` row produces one record;
-each CSV `csv_charge_rows` row also produces one record.
+`maximum`, plus notes). Each JSON `standard_charge` row produces one record.
+CSV rows are grouped into one standard-charge context per synthesized charge
+item, generic charge fields, modifier string, and generic notes; payer-specific
+rows remain in `slv_base__payer_rates`.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -287,7 +289,11 @@ each CSV `csv_charge_rows` row also produces one record.
 | `source_format` | varchar | |
 | `source_standard_charge_id` | varchar | JSON only; null for CSV |
 | `source_charge_ordinal` | integer | JSON only; null for CSV |
-| `source_row_ordinal` | integer | CSV only; null for JSON |
+| `source_row_ordinal` | integer | Representative CSV row ordinal; null for JSON |
+| `first_source_row_ordinal` | integer | First CSV row represented by the grouped charge context; null for JSON |
+| `last_source_row_ordinal` | integer | Last CSV row represented by the grouped charge context; null for JSON |
+| `source_row_count` | integer | Count of distinct CSV source rows represented; `1` for JSON |
+| `standard_charge_signature` | varchar | Deterministic charge-context signature used when source IDs do not exist |
 | `raw_setting` | varchar | |
 | `clean_setting` | varchar | |
 | `raw_billing_class` | varchar | |
@@ -375,6 +381,7 @@ rates come directly from the charge row with payer/plan columns.
 | `source_standard_charge_id` | varchar | JSON only; null for CSV |
 | `source_charge_ordinal` | integer | JSON only; null for CSV |
 | `source_row_ordinal` | integer | CSV only; null for JSON |
+| `source_rate_ordinal` | integer | CSV rate ordinal within a source row; null for JSON |
 | `payer_ordinal` | integer | JSON only; null for CSV |
 | `raw_payer_name` | varchar | |
 | `clean_payer_name` | varchar | |
@@ -478,6 +485,8 @@ erDiagram
         varchar silver_standard_charge_id PK
         varchar silver_charge_item_id FK
         varchar snapshot_id FK
+        int source_row_count
+        varchar standard_charge_signature
         varchar clean_setting
         varchar clean_billing_class
         double gross_charge
@@ -504,6 +513,7 @@ erDiagram
         varchar silver_payer_rate_id PK
         varchar silver_standard_charge_id FK
         varchar silver_charge_item_id FK
+        int source_rate_ordinal
         varchar clean_payer_name
         varchar clean_plan_name
         varchar clean_methodology
@@ -545,7 +555,7 @@ the target design. Key differences to be aware of:
 | `hospital_locations` | `slv_base__hospital_locations` | Matches; raw/clean column pairs added |
 | `type2_npl` (sic) | `slv_base__type2_npis` | Matches |
 | `standard_charge_info` | `slv_base__charge_items` | Renamed for format-neutrality; CSV deduplication logic added |
-| `standard_charges` | `slv_base__standard_charges` | Matches; `source_row_ordinal` column added for CSV lineage |
+| `standard_charges` | `slv_base__standard_charges` | Matches for JSON; CSV rows are grouped into charge contexts with source-row aggregate lineage |
 | `code_information` | `slv_base__charge_item_codes` | Renamed; `canonical_code_system` and `source_code_path` added |
 | `modifiers` | `slv_base__modifiers` | Matches; payer-level metadata joined in |
 | `standard_charge_modifiers` | `slv_base__charge_modifiers` | Matches; `modifier_definition_match_status` and CSV path added |

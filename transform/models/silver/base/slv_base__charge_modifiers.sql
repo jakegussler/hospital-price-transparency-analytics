@@ -62,12 +62,11 @@ csv_modifiers as (
         cast(null as varchar) as source_modifier_code_id,
         'not_available_for_csv' as modifier_definition_match_status
     from csv_modifier_tokens c
-    inner join {{ ref('slv_base__standard_charges') }} standard_charges
-        on c.snapshot_id = standard_charges.snapshot_id
-        and c.row_ordinal = standard_charges.source_row_ordinal
     inner join {{ ref('slv_base__payer_rates') }} pr
         on c.snapshot_id = pr.snapshot_id
         and c.row_ordinal = pr.source_row_ordinal
+    inner join {{ ref('slv_base__standard_charges') }} standard_charges
+        on pr.silver_standard_charge_id = standard_charges.silver_standard_charge_id
 )
 
 select

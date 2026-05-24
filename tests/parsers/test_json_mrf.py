@@ -303,6 +303,26 @@ class TestModifierParsing:
         assert payer_df["payer_name"][0] == "Aetna"
         assert payer_df["plan_name"][0] == "PPO"
 
+    def test_parse_modifiers_uses_modifier_information_root(self, tmp_path):
+        mrf_path = tmp_path / "mrf.json"
+        mrf = _minimal_mrf(modifier_information=[_VALID_MODIFIER])
+        mrf["standard_charge_modifiers"] = [
+            {
+                "code": "WRONG",
+                "description": "Not a CMS root source for modifier definitions",
+                "modifier_payer_information": [],
+            }
+        ]
+        _write_mrf(mrf_path, mrf)
+        parser = _make_parser(tmp_path / "quarantine")
+
+        batches = list(parser.parse(mrf_path))
+        modifier_batch = batches[1]
+
+        mods_df = modifier_batch["modifiers"]
+        assert len(mods_df) == 1
+        assert mods_df["code"].to_list() == ["26"]
+
     def test_parse_modifiers_invalid_quarantined(self, tmp_path):
         quarantine_root = tmp_path / "quarantine"
         mrf_path = tmp_path / "mrf.json"
