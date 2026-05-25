@@ -24,6 +24,8 @@ select
     s.attestation,
     s.confirm_attestation,
     s.attester_name,
+    s.affirmation,
+    s.confirm_affirmation,
     s.reported_state,
     s.license_number
 from {{ ref('stg_bronze__hospital_mrf_snapshots') }} s
