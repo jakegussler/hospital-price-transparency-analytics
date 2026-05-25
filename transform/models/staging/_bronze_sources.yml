@@ -112,6 +112,9 @@ sources:
             tests:
               - not_null
 
+      - name: json_record_parse_diagnostics
+        description: "Fallback and quarantine diagnostics for JSON records that did not parse with the initially expected schema family."
+
       - name: modifiers
         description: "Top-level modifier dimension from JSON ``modifier_information``."
         columns:

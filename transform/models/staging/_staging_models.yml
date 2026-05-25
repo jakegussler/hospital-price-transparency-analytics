@@ -46,6 +46,14 @@ models:
       - name: snapshot_id
         tests:
           - not_null
+      - name: parser_schema_family
+        tests:
+          - accepted_values:
+              values: ["2.1", "2.2", "3.0"]
+      - name: reported_schema_family
+        tests:
+          - accepted_values:
+              values: ["2.1", "2.2", "3.0"]
 
   - name: stg_bronze__code_information
     description: "Staging view for JSON billing codes attached to charge items."
@@ -77,6 +85,21 @@ models:
       - name: standard_charge_id
         tests:
           - not_null
+
+  - name: stg_bronze__json_record_parse_diagnostics
+    description: "Staging view for JSON parse fallback and quarantine diagnostics."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: final_status
+        tests:
+          - accepted_values:
+              values: ["accepted", "quarantined"]
+      - name: accepted_schema_family
+        tests:
+          - accepted_values:
+              values: ["2.1", "2.2", "3.0"]
 
   - name: stg_bronze__standard_charge_modifiers
     description: "Staging view for optional JSON charge-level modifier codes."

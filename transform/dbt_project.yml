@@ -39,6 +39,8 @@ models:
         +tags: ["pipeline_charge_data"]
       stg_bronze__payers_information:
         +tags: ["pipeline_charge_data"]
+      stg_bronze__json_record_parse_diagnostics:
+        +tags: ["pipeline_charge_data"]
       stg_bronze__modifiers:
         +tags: ["pipeline_charge_data"]
       stg_bronze__modifier_payer_info:

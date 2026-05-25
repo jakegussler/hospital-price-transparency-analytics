@@ -82,6 +82,10 @@ models:
       - name: charge_item_signature
         tests:
           - not_null
+      - name: parser_schema_family
+        tests:
+          - accepted_values:
+              values: ["2.1", "2.2", "3.0"]
 
   - name: slv_base__standard_charges
     description: "Format-neutral charge context table with setting, billing class, generic amounts, grouped CSV context lineage, and source lineage."
@@ -167,6 +171,10 @@ models:
           - relationships:
               to: ref('slv_base__charge_items')
               field: silver_charge_item_id
+      - name: parser_schema_family
+        tests:
+          - accepted_values:
+              values: ["2.1", "2.2", "3.0"]
 
   - name: slv_base__modifiers
     description: "JSON modifier definitions and modifier payer metadata when available."
