@@ -11,6 +11,9 @@ select
     {{ hpt_safe_double('standard_charge_dollar') }} as standard_charge_dollar,
     {{ hpt_safe_double('standard_charge_percentage') }} as standard_charge_percentage,
     standard_charge_algorithm,
+    {{ hpt_safe_double(
+        hpt_bronze_column_or_null('payers_information', 'estimated_amount', 'double')
+    ) }} as estimated_amount,
     {{ hpt_safe_double('median_amount') }} as median_amount,
     {{ hpt_safe_double('tenth_percentile') }} as tenth_percentile,
     {{ hpt_safe_double('ninetieth_percentile') }} as ninetieth_percentile,
