@@ -14,3 +14,6 @@ alwaysApply: false
 - Add dbt tests for model grain, required keys, and accepted values where practical.
 - Do not imply Silver or Gold is implemented until model files exist.
 - Read `docs/architecture/medallion-layers.md` and `docs/decisions/0001-use-polars-and-duckdb.md` before adding models.
+- Read `docs/local/methodologies_algorithms.md` when modeling or querying the `methodology`, `negotiated_dollar`, `negotiated_percentage`, or `negotiated_algorithm` fields in `slv_base__payer_rates` or any downstream model that classifies, filters, or compares payer rates across methodology types. Dollar amounts on percent-of-charges contracts are pre-computed and not directly comparable to fee-schedule or case-rate dollar amounts.
+- Read `docs/local/industry_guide.md` when modeling charge semantics in Silver or Gold (charge types, code systems, price normalization, standard charge grain). Also read it when writing accepted-value tests or analytical logic where the meaning of a field — not just its name — determines correctness.
+- Read `docs/cms_reference/` when the exact CMS field names, allowed enum values, or schema version differences matter for a Bronze source definition or Silver staging layer.
