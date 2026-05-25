@@ -163,6 +163,8 @@ snapshot and casts raw date strings to typed columns.
 | `attestation` | varchar | |
 | `confirm_attestation` | varchar | |
 | `attester_name` | varchar | |
+| `affirmation` | varchar | v2 JSON source field |
+| `confirm_affirmation` | varchar | v2 JSON source field |
 | `reported_state` | varchar | |
 | `license_number` | varchar | |
 
@@ -259,6 +261,11 @@ same `charge_item_signature`.
 | `first_source_row_ordinal` | integer | CSV only; null for JSON |
 | `last_source_row_ordinal` | integer | CSV only; null for JSON |
 | `source_row_count` | integer | Always 1 for JSON |
+| `reported_schema_version` | varchar | JSON parser lineage; null for CSV |
+| `reported_schema_family` | varchar | JSON parser lineage; null for CSV |
+| `parser_schema_family` | varchar | JSON parser lineage; null for CSV |
+| `parser_schema_version` | varchar | JSON parser lineage; null for CSV |
+| `schema_version_mismatch` | boolean | True when JSON fallback accepted a non-reported schema family |
 | `raw_description` | varchar | |
 | `clean_description` | varchar | |
 | `drug_unit` | varchar | |
@@ -293,6 +300,11 @@ rows remain in `slv_base__payer_rates`.
 | `first_source_row_ordinal` | integer | First CSV row represented by the grouped charge context; null for JSON |
 | `last_source_row_ordinal` | integer | Last CSV row represented by the grouped charge context; null for JSON |
 | `source_row_count` | integer | Count of distinct CSV source rows represented; `1` for JSON |
+| `reported_schema_version` | varchar | JSON parser lineage; null for CSV |
+| `reported_schema_family` | varchar | JSON parser lineage; null for CSV |
+| `parser_schema_family` | varchar | JSON parser lineage; null for CSV |
+| `parser_schema_version` | varchar | JSON parser lineage; null for CSV |
+| `schema_version_mismatch` | boolean | True when JSON fallback accepted a non-reported schema family |
 | `standard_charge_signature` | varchar | Deterministic charge-context signature used when source IDs do not exist |
 | `raw_setting` | varchar | |
 | `clean_setting` | varchar | |
@@ -382,6 +394,11 @@ rates come directly from the charge row with payer/plan columns.
 | `source_charge_ordinal` | integer | JSON only; null for CSV |
 | `source_row_ordinal` | integer | CSV only; null for JSON |
 | `source_rate_ordinal` | integer | CSV rate ordinal within a source row; null for JSON |
+| `reported_schema_version` | varchar | JSON parser lineage; null for CSV |
+| `reported_schema_family` | varchar | JSON parser lineage; null for CSV |
+| `parser_schema_family` | varchar | JSON parser lineage; null for CSV |
+| `parser_schema_version` | varchar | JSON parser lineage; null for CSV |
+| `schema_version_mismatch` | boolean | True when JSON fallback accepted a non-reported schema family |
 | `payer_ordinal` | integer | JSON only; null for CSV |
 | `raw_payer_name` | varchar | |
 | `clean_payer_name` | varchar | |
@@ -392,6 +409,7 @@ rates come directly from the charge row with payer/plan columns.
 | `negotiated_dollar` | double | |
 | `negotiated_percentage` | double | |
 | `negotiated_algorithm` | varchar | |
+| `estimated_amount` | double | v2.2 JSON estimated amount for algorithm/percentage charges |
 | `median_amount` | double | |
 | `tenth_percentile` | double | |
 | `ninetieth_percentile` | double | |
@@ -450,6 +468,7 @@ erDiagram
         varchar source_format
         varchar file_hash
         boolean is_current_snapshot
+        varchar affirmation
         date published_last_updated_on
         date valid_from
         date valid_to
@@ -477,6 +496,8 @@ erDiagram
         varchar snapshot_id FK
         varchar hospital_id
         varchar source_format
+        varchar parser_schema_family
+        boolean schema_version_mismatch
         varchar clean_description
         varchar charge_item_signature
     }
@@ -486,6 +507,8 @@ erDiagram
         varchar silver_charge_item_id FK
         varchar snapshot_id FK
         int source_row_count
+        varchar parser_schema_family
+        boolean schema_version_mismatch
         varchar standard_charge_signature
         varchar clean_setting
         varchar clean_billing_class
@@ -519,6 +542,9 @@ erDiagram
         varchar clean_methodology
         double negotiated_dollar
         double negotiated_percentage
+        double estimated_amount
+        varchar parser_schema_family
+        boolean schema_version_mismatch
     }
 
     slv_base__charge_modifiers {

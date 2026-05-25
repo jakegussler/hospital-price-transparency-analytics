@@ -32,6 +32,8 @@ erDiagram
     string attestation
     string confirm_attestation
     string attester_name
+    string affirmation
+    string confirm_affirmation
     string reported_state
     string license_number
   }
@@ -54,6 +56,11 @@ erDiagram
     string snapshot_id FK
     string description
     int item_ordinal
+    string reported_schema_version
+    string reported_schema_family
+    string parser_schema_family
+    string parser_schema_version
+    boolean schema_version_mismatch
   }
 
   code_information {
@@ -102,11 +109,28 @@ erDiagram
     float standard_charge_dollar
     float standard_charge_percentage
     string standard_charge_algorithm
+    float estimated_amount
     float median_amount
     float tenth_percentile
     float ninetieth_percentile
     string count
     string additional_payer_notes
+  }
+
+  json_record_parse_diagnostics {
+    string snapshot_id FK
+    string section
+    int record_ordinal
+    string reported_schema_version
+    string reported_schema_family
+    string accepted_schema_family
+    string accepted_schema_version
+    boolean schema_version_mismatch
+    string attempted_schema_families
+    int failure_count
+    string error_summary
+    string final_status
+    string diagnosed_at
   }
 
   modifiers {
@@ -163,6 +187,7 @@ erDiagram
   standard_charge_info ||--o{ standard_charges : has
   standard_charges ||--o{ standard_charge_modifiers : has
   standard_charges ||--o{ payers_information : has
+  hospital_mrf_snapshots ||--o{ json_record_parse_diagnostics : has
   hospital_mrf_snapshots ||--o{ modifiers : has
   modifiers ||--o{ modifier_payer_info : has
   hospital_mrf_snapshots ||--o{ csv_charge_rows : has
@@ -184,6 +209,7 @@ JSON-only tables:
 - `standard_charges`
 - `standard_charge_modifiers`
 - `payers_information`
+- `json_record_parse_diagnostics`
 - `modifiers`
 - `modifier_payer_info`
 
@@ -196,5 +222,8 @@ CSV Bronze table:
 - `code_N` and `code_N_type` columns in `csv_charge_rows` are dynamic per file.
 - Bronze stores `modifier_code` strings on `standard_charge_modifiers`; it does
   not resolve them to `modifier_code_id`.
+- JSON `standard_charge_information` rows include reported and parser schema
+  family fields. When a row parses only under a non-reported schema family, the
+  row is retained and `json_record_parse_diagnostics` records the fallback.
 - Bronze preserves source values and parser lineage. Hospital, payer, plan,
   charge-item, code, and modifier normalization belongs in Silver.

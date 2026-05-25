@@ -4,6 +4,12 @@ This project currently targets CMS Hospital Price Transparency MRF structures,
 including JSON, CSV Tall, and CSV Wide layouts. The checked-in format templates
 under `docs/format_templates/` are the local reference files.
 
+JSON parsing supports CMS schema families `2.1`, `2.2`, and `3.0`. The parser
+starts with the source-reported `version` family and then attempts compatible
+fallback families per record when validation fails. Fallback-accepted records
+are ingested with parser lineage fields and a diagnostics row rather than being
+quarantined solely because the source version label and record structure differ.
+
 ## Shared Header Concepts
 
 All supported layouts contain hospital-level metadata and charge data.
@@ -22,8 +28,10 @@ Important header concepts:
 - Location names and addresses can contain multiple values.
 - Type-2 NPIs can contain multiple values.
 - License number can encode state in CSV header keys.
-- Attestation is structurally different in JSON and CSV, but maps to the same
-  Bronze snapshot fields.
+- JSON v2 uses `hospital_location` and `affirmation`; JSON v3 uses
+  `location_name`, `type_2_npi`, and `attestation`.
+- Attestation and affirmation fields are structurally different by format and
+  JSON version, and are preserved in source-specific Bronze snapshot fields.
 
 See `docs/header_parsing.md` for detailed extraction rules.
 
@@ -42,9 +50,15 @@ Parser rules:
 - Read charge-level modifier references from
   `standard_charges[].modifier_code`.
 - Preserve arrays as child tables when they are structural source arrays.
-- Validate charge records with Pydantic models where practical.
+- Validate charge records with Pydantic models using the applicable CMS schema
+  family where practical.
 - Write invalid charge records to quarantine rather than failing the full file
   when row-level validation can isolate the issue.
+- For `standard_charge_information`, attempt families in this order:
+  `3.0 -> 2.2 -> 2.1` for reported v3, `2.2 -> 3.0 -> 2.1` for reported v2.2,
+  `2.1 -> 2.2 -> 3.0` for reported v2.1, and newest-to-oldest for unknown.
+- v2.2 payer algorithm/percentage rows preserve `estimated_amount`; v3
+  algorithm/percentage rows preserve `count` and percentile fields.
 
 Bronze JSON table families:
 
@@ -54,6 +68,7 @@ Bronze JSON table families:
 - `standard_charges`
 - `standard_charge_modifiers`
 - `payers_information`
+- `json_record_parse_diagnostics`
 - `modifiers`
 - `modifier_payer_info`
 
