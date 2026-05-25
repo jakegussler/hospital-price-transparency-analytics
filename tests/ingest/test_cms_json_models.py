@@ -9,16 +9,12 @@ from pydantic import ValidationError
 
 from hpt.ingest.cms_json_models import (
     CMSMRFJson,
-    CodeInformation,
     DrugInformation,
     HospitalLicensure,
-    ModifierInformation,
-    ModifierPayerInformation,
     PayersInformation,
     StandardCharge,
     StandardChargeInformation,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -230,6 +226,43 @@ class TestPayersInformationModelValidators:
         with pytest.raises(ValidationError, match="count is required"):
             PayersInformation.model_validate(data)
 
+    def test_v2_2_algorithm_with_estimated_amount_valid_without_count(self):
+        data = {
+            "payer_name": "Aetna",
+            "plan_name": "PPO",
+            "methodology": "fee schedule",
+            "standard_charge_algorithm": "see contract",
+            "estimated_amount": 125.50,
+        }
+        payer = PayersInformation.model_validate(data, context={"schema_family": "2.2"})
+        assert payer.estimated_amount == Decimal("125.5")
+        assert payer.count is None
+
+    def test_v2_2_algorithm_without_estimated_amount_raises(self):
+        data = {
+            "payer_name": "Aetna",
+            "plan_name": "PPO",
+            "methodology": "fee schedule",
+            "standard_charge_algorithm": "see contract",
+        }
+        with pytest.raises(ValidationError, match="estimated_amount"):
+            PayersInformation.model_validate(data, context={"schema_family": "2.2"})
+
+    def test_v3_algorithm_with_count_and_percentiles_valid(self):
+        data = {
+            "payer_name": "Aetna",
+            "plan_name": "PPO",
+            "methodology": "fee schedule",
+            "standard_charge_algorithm": "see contract",
+            "count": "15",
+            "median_amount": 100.0,
+            "10th_percentile": 80.0,
+            "90th_percentile": 120.0,
+        }
+        payer = PayersInformation.model_validate(data, context={"schema_family": "3.0"})
+        assert payer.count == "15"
+        assert payer.median_amount == Decimal("100.0")
+
 
 # ---------------------------------------------------------------------------
 # StandardCharge — model validators
@@ -311,6 +344,24 @@ class TestStandardChargeInformation:
     def test_non_ndc_without_drug_information_valid(self):
         sci = StandardChargeInformation.model_validate(_valid_sci())
         assert sci.drug_information is None
+
+    def test_v2_1_ndc_without_drug_information_valid(self):
+        data = {
+            "description": "Drug",
+            "code_information": [{"code": "NDC001", "type": "NDC"}],
+            "standard_charges": [_valid_charge()],
+        }
+        sci = StandardChargeInformation.model_validate(data, context={"schema_family": "2.1"})
+        assert sci.drug_information is None
+
+    def test_v2_2_ndc_without_drug_information_raises(self):
+        data = {
+            "description": "Drug",
+            "code_information": [{"code": "NDC001", "type": "NDC"}],
+            "standard_charges": [_valid_charge()],
+        }
+        with pytest.raises(ValidationError, match="drug_information"):
+            StandardChargeInformation.model_validate(data, context={"schema_family": "2.2"})
 
 
 # ---------------------------------------------------------------------------
