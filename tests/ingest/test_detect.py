@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import gzip
-import io
-import struct
-import zipfile
 from pathlib import Path
 
 import fsspec
@@ -17,7 +13,6 @@ from hpt.ingest.detect import (
     FormatInfo,
     detect_format,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

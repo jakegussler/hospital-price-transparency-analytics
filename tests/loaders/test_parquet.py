@@ -5,12 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import polars as pl
-import pyarrow as pa
 import pyarrow.parquet as pq
-import pytest
 
 from hpt.loaders.parquet import BronzeWriter
-
 
 # ---------------------------------------------------------------------------
 # Helpers

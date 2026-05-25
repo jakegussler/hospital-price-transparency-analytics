@@ -46,7 +46,10 @@ def test_csv_wide_parse_unpivots_payer_columns(tmp_path):
                 "hospital_name,last_updated_on,version,location_name,hospital_address,"
                 f"license_number|TN,type_2_npi,{_ATTESTATION_TEXT},attester_name"
             ),
-            "General Hospital,2025-01-01,3.0.0,Main Campus,123 Main St,12345,1234567890,true,Jane Smith",
+            (
+                "General Hospital,2025-01-01,3.0.0,Main Campus,123 Main St,"
+                "12345,1234567890,true,Jane Smith"
+            ),
             (
                 "description,code|1,code|1|type,setting,standard_charge|gross,"
                 "standard_charge|Aetna|PPO|negotiated_dollar,"
@@ -74,4 +77,3 @@ def test_csv_wide_parse_unpivots_payer_columns(tmp_path):
     assert charge_df["methodology"][0] == "fee schedule"
     assert charge_df["additional_payer_notes"][1] == "Manual contract"
     assert charge_df["source_format"][0] == "csv_wide"
-

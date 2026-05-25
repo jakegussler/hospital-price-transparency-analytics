@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import pyarrow.parquet as pq
 import pytest
 
-from hpt.ingest.snapshot import SnapshotManager, SnapshotRecord
+from hpt.ingest.snapshot import SnapshotManager
 from hpt.ingest.storage import BronzeStorage
 
 
@@ -58,7 +58,7 @@ class TestType2Transition:
         t1 = datetime(2025, 6, 1, 12, 0, tzinfo=UTC)
         t2 = datetime(2025, 6, 2, 12, 0, tzinfo=UTC)
 
-        snap1 = manager.write_snapshot(
+        manager.write_snapshot(
             hospital_id="h1",
             source_url="https://example.com/a.csv",
             source_file_name="a.csv",
