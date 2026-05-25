@@ -1,0 +1,41 @@
+canonical_payer_id,canonical_payer_name,parent_organization,payer_category,active,notes
+aetna,Aetna,Aetna,commercial,true,Initial high-confidence payer identity.
+ambetter,Ambetter,Centene,exchange_marketplace,true,Initial high-confidence payer identity.
+amerigroup,Amerigroup,Elevance Health,medicaid_managed_care,true,Initial high-confidence payer identity.
+alliant,Alliant Health Plans,Alliant Health Plans,commercial,true,Initial high-confidence payer identity.
+allcare-medicare,AllCare Medicare,AllCare Health,medicare_advantage,true,Initial high-confidence payer identity.
+atrio-health,ATRIO Health Plans,ATRIO Health Plans,medicare_advantage,true,Initial high-confidence payer identity.
+bcbs-georgia,Blue Cross Blue Shield of Georgia,Elevance Health,commercial,true,State-specific Blues identity from observed alias.
+bcbs-tennessee,Blue Cross Blue Shield of Tennessee,Blue Cross Blue Shield of Tennessee,commercial,true,State-specific Blues identity from observed alias.
+bluecare-tennessee,BlueCare Tennessee,Blue Cross Blue Shield of Tennessee,medicaid_managed_care,true,Initial high-confidence payer identity.
+caresource,CareSource,CareSource,commercial,true,Initial broad CareSource identity.
+caresource-georgia,CareSource Georgia,CareSource,medicaid_managed_care,true,State-specific CareSource identity from observed alias.
+caresource-north-carolina,CareSource North Carolina,CareSource,medicaid_managed_care,true,State-specific CareSource identity from observed alias.
+caresource-tennessee,CareSource Tennessee,CareSource,medicaid_managed_care,true,State-specific CareSource identity from observed alias.
+cigna,Cigna,Cigna Group,commercial,true,Initial high-confidence payer identity.
+cigna-healthspring-medicare-advantage,Cigna HealthSpring Medicare Advantage,Cigna Group,medicare_advantage,true,Observed Medicare Advantage brand.
+clover-health,Clover Health,Clover Health,medicare_advantage,true,Initial high-confidence payer identity.
+delta-dental,Delta Dental,Delta Dental,commercial,true,Initial high-confidence dental payer identity.
+dentaquest,DentaQuest,Sun Life,commercial,true,Initial high-confidence dental payer identity.
+devoted-health,Devoted Health,Devoted Health,medicare_advantage,true,Initial high-confidence payer identity.
+first-health,First Health,First Health,commercial,true,Initial high-confidence payer identity.
+first-health-coventry,First Health Coventry,First Health,commercial,true,Observed payer-network identity.
+humana,Humana,Humana,commercial,true,Default Humana payer identity when no reviewed context override applies.
+humana-military-east,Humana Military East,Humana,tricare_va,true,Context override for Humana/TRICARE East plan text.
+magellan,Magellan Health,Magellan Health,commercial,true,Initial high-confidence payer identity.
+medcost,MedCost,MedCost,commercial,true,Initial high-confidence payer identity.
+metlife,MetLife,MetLife,commercial,true,Initial high-confidence payer identity.
+molina-healthcare,Molina Healthcare,Molina Healthcare,medicaid_managed_care,true,Initial high-confidence payer identity.
+nhc-advantage,NHC Advantage,NHC,medicare_advantage,true,Observed Medicare Advantage identity.
+optima-health,Optima Health,Sentara Health,commercial,true,Initial high-confidence payer identity.
+optum,Optum,UnitedHealth Group,commercial,true,Initial high-confidence payer identity.
+oscar-health,Oscar Health,Oscar Health,exchange_marketplace,true,Initial high-confidence payer identity.
+peach-state-health-plan,Peach State Health Plan,Centene,medicaid_managed_care,true,Initial high-confidence payer identity.
+phcs,PHCS,MultiPlan,commercial,true,Initial high-confidence network identity.
+simpra-advantage,Simpra Advantage,Simpra,medicare_advantage,true,Observed Medicare Advantage identity.
+united-healthcare,UnitedHealthcare,UnitedHealth Group,commercial,true,Initial high-confidence payer identity.
+wellcare,Wellcare,Centene,commercial,true,Initial broad Wellcare identity.
+wellcare-kentucky,Wellcare of Kentucky,Centene,medicaid_managed_care,true,State-specific Wellcare identity from observed alias.
+wellcare-medicare,Wellcare Medicare,Centene,medicare_advantage,true,Observed Medicare identity.
+wellcare-tennessee,Wellcare of Tennessee,Centene,medicaid_managed_care,true,State-specific Wellcare identity from observed alias.
+wellpoint,Wellpoint,Elevance Health,medicaid_managed_care,true,Initial high-confidence payer identity.
