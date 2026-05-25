@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 import polars as pl
-import pytest
 
 from hpt.parsers.json_mrf import (
     BATCH_SIZE,
@@ -20,7 +19,6 @@ from hpt.parsers.json_mrf import (
     _to_float,
 )
 from hpt.parsers.schemas import BRONZE_SCHEMAS
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -78,6 +76,7 @@ _VALID_MODIFIER = {
 def _minimal_mrf(
     *,
     hospital_name: str = "Test Hospital",
+    version: str = "3.0.0",
     location_names: list[str] | None = None,
     hospital_address: list[str] | None = None,
     type_2_npi: list[str] | None = None,
@@ -87,7 +86,7 @@ def _minimal_mrf(
     return {
         "hospital_name": hospital_name,
         "last_updated_on": "2025-01-01",
-        "version": "3.0.0",
+        "version": version,
         "license_information": {"state": "FL", "license_number": "FL123"},
         "attestation": {
             "attestation": "I attest",
@@ -98,7 +97,11 @@ def _minimal_mrf(
         "hospital_address": ["123 Main St"] if hospital_address is None else hospital_address,
         "type_2_npi": [] if type_2_npi is None else type_2_npi,
         "modifier_information": [] if modifier_information is None else modifier_information,
-        "standard_charge_information": [_VALID_SCI] if standard_charge_information is None else standard_charge_information,
+        "standard_charge_information": (
+            [_VALID_SCI]
+            if standard_charge_information is None
+            else standard_charge_information
+        ),
     }
 
 
@@ -110,12 +113,29 @@ def _write_mrf_with_bom(path: Path, data: dict[str, Any]) -> None:
     path.write_bytes(b"\xef\xbb\xbf" + json.dumps(data).encode("utf-8"))
 
 
-def _make_parser(quarantine_root: Path) -> JsonMrfParser:
+def _make_parser(
+    quarantine_root: Path,
+    snapshot_meta: dict[str, Any] | None = None,
+) -> JsonMrfParser:
     return JsonMrfParser(
         hospital_config=_HOSPITAL_CONFIG,
-        snapshot_meta=_SNAPSHOT_META,
+        snapshot_meta=_SNAPSHOT_META if snapshot_meta is None else snapshot_meta,
         quarantine_root=quarantine_root,
     )
+
+
+def _collect_table(
+    batches: list[dict[str, pl.DataFrame]],
+    table_name: str,
+) -> pl.DataFrame:
+    frames = [
+        batch[table_name]
+        for batch in batches
+        if table_name in batch and not batch[table_name].is_empty()
+    ]
+    if not frames:
+        return _df([], BRONZE_SCHEMAS[table_name])
+    return pl.concat(frames, how="diagonal")
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +228,37 @@ class TestHeaderBatch:
         assert snap_df["reported_hospital_name"][0] == "City General"
         assert snap_df["reported_state"][0] == "FL"
         assert snap_df["is_current_snapshot"][0] is True
+
+    def test_v2_header_fields_populate_affirmation_and_locations(self, tmp_path):
+        mrf_path = tmp_path / "mrf.json"
+        snapshot_meta = {**_SNAPSHOT_META, "schema_version": "2.2.0"}
+        v2_mrf = {
+            "hospital_name": "Legacy Hospital",
+            "last_updated_on": "2025-01-01",
+            "version": "2.2.0",
+            "license_information": {"state": "MI", "license_number": "MI123"},
+            "affirmation": {
+                "affirmation": "I affirm",
+                "confirm_affirmation": True,
+            },
+            "hospital_location": ["Legacy Campus"],
+            "hospital_address": ["100 Legacy Way"],
+            "standard_charge_information": [_VALID_SCI],
+        }
+        _write_mrf(mrf_path, v2_mrf)
+        parser = _make_parser(tmp_path / "quarantine", snapshot_meta=snapshot_meta)
+
+        batches = list(parser.parse(mrf_path))
+        snap_df = batches[0]["hospital_mrf_snapshots"]
+        location_df = batches[0]["hospital_locations"]
+        npi_df = batches[0]["type2_npi"]
+
+        assert snap_df["schema_version"][0] == "2.2.0"
+        assert snap_df["affirmation"][0] == "I affirm"
+        assert snap_df["confirm_affirmation"][0] == "true"
+        assert snap_df["attestation"][0] is None
+        assert location_df["location_name"][0] == "Legacy Campus"
+        assert npi_df.is_empty()
 
     def test_location_rows_aligned(self, tmp_path):
         mrf_path = tmp_path / "mrf.json"
@@ -447,6 +498,87 @@ class TestChargeParsing:
         assert payer_df["methodology"][0] == "fee schedule"
         assert payer_df["standard_charge_dollar"][0] == 150.0
 
+    def test_v2_2_algorithm_estimated_amount_ingests_without_mismatch(self, tmp_path):
+        quarantine_root = tmp_path / "quarantine"
+        mrf_path = tmp_path / "mrf.json"
+        snapshot_meta = {**_SNAPSHOT_META, "schema_version": "2.2.0"}
+        payer = {
+            "payer_name": "Blue Cross",
+            "plan_name": "PPO",
+            "methodology": "other",
+            "standard_charge_algorithm": "contract algorithm",
+            "estimated_amount": 33.51,
+            "additional_payer_notes": "algorithm available in contract",
+        }
+        sci = {
+            "description": "Algorithm item",
+            "code_information": [{"code": "10060", "type": "HCPCS"}],
+            "standard_charges": [
+                {
+                    "setting": "both",
+                    "minimum": 33.51,
+                    "maximum": 33.51,
+                    "payers_information": [payer],
+                }
+            ],
+        }
+        _write_mrf(
+            mrf_path,
+            _minimal_mrf(version="2.2.0", standard_charge_information=[sci]),
+        )
+        parser = _make_parser(quarantine_root, snapshot_meta=snapshot_meta)
+
+        batches = list(parser.parse(mrf_path))
+        charge_df = _collect_table(batches[2:], "standard_charge_info")
+        payer_df = _collect_table(batches[2:], "payers_information")
+        diagnostic_df = _collect_table(batches[2:], "json_record_parse_diagnostics")
+
+        assert charge_df["reported_schema_family"][0] == "2.2"
+        assert charge_df["parser_schema_family"][0] == "2.2"
+        assert charge_df["schema_version_mismatch"][0] is False
+        assert payer_df["estimated_amount"][0] == 33.51
+        assert diagnostic_df.is_empty()
+        assert not (quarantine_root / "snapshot_id=snap-001").exists()
+
+    def test_v3_reported_v2_2_shape_falls_back_and_flags_mismatch(self, tmp_path):
+        quarantine_root = tmp_path / "quarantine"
+        mrf_path = tmp_path / "mrf.json"
+        payer = {
+            "payer_name": "Blue Cross",
+            "plan_name": "PPO",
+            "methodology": "other",
+            "standard_charge_algorithm": "contract algorithm",
+            "estimated_amount": 33.51,
+            "additional_payer_notes": "algorithm available in contract",
+        }
+        sci = {
+            "description": "Algorithm item",
+            "code_information": [{"code": "10060", "type": "HCPCS"}],
+            "standard_charges": [
+                {
+                    "setting": "both",
+                    "minimum": 33.51,
+                    "maximum": 33.51,
+                    "payers_information": [payer],
+                }
+            ],
+        }
+        _write_mrf(mrf_path, _minimal_mrf(standard_charge_information=[sci]))
+        parser = _make_parser(quarantine_root)
+
+        batches = list(parser.parse(mrf_path))
+        charge_df = _collect_table(batches[2:], "standard_charge_info")
+        diagnostic_df = _collect_table(batches[2:], "json_record_parse_diagnostics")
+
+        assert charge_df["reported_schema_family"][0] == "3.0"
+        assert charge_df["parser_schema_family"][0] == "2.2"
+        assert charge_df["schema_version_mismatch"][0] is True
+        assert len(diagnostic_df) == 1
+        assert diagnostic_df["final_status"][0] == "accepted"
+        assert diagnostic_df["failure_count"][0] == 1
+        assert json.loads(diagnostic_df["attempted_schema_families"][0]) == ["3.0", "2.2"]
+        assert not (quarantine_root / "snapshot_id=snap-001").exists()
+
     def test_invalid_charge_quarantined_valid_still_emitted(self, tmp_path):
         quarantine_root = tmp_path / "quarantine"
         mrf_path = tmp_path / "mrf.json"
@@ -495,6 +627,29 @@ class TestChargeParsing:
         assert "ordinal" in record
         assert "error" in record
         assert "raw" in record
+
+    def test_all_schema_attempts_fail_emit_diagnostics(self, tmp_path):
+        quarantine_root = tmp_path / "quarantine"
+        mrf_path = tmp_path / "mrf.json"
+        bad_sci = {"description": "Bad"}
+        _write_mrf(
+            mrf_path,
+            _minimal_mrf(standard_charge_information=[bad_sci]),
+        )
+        parser = _make_parser(quarantine_root)
+
+        batches = list(parser.parse(mrf_path))
+        diagnostic_df = _collect_table(batches[2:], "json_record_parse_diagnostics")
+
+        assert len(diagnostic_df) == 1
+        assert diagnostic_df["final_status"][0] == "quarantined"
+        assert diagnostic_df["accepted_schema_family"][0] is None
+        assert diagnostic_df["failure_count"][0] == 3
+        assert json.loads(diagnostic_df["attempted_schema_families"][0]) == [
+            "3.0",
+            "2.2",
+            "2.1",
+        ]
 
 
 # ---------------------------------------------------------------------------
