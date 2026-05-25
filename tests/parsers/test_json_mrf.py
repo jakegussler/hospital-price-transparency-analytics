@@ -106,6 +106,10 @@ def _write_mrf(path: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data))
 
 
+def _write_mrf_with_bom(path: Path, data: dict[str, Any]) -> None:
+    path.write_bytes(b"\xef\xbb\xbf" + json.dumps(data).encode("utf-8"))
+
+
 def _make_parser(quarantine_root: Path) -> JsonMrfParser:
     return JsonMrfParser(
         hospital_config=_HOSPITAL_CONFIG,
@@ -180,6 +184,16 @@ class TestHeaderBatch:
         assert "hospital_mrf_snapshots" in first
         assert "hospital_locations" in first
         assert "type2_npi" in first
+
+    def test_parse_accepts_utf8_bom(self, tmp_path):
+        mrf_path = tmp_path / "mrf.json"
+        _write_mrf_with_bom(mrf_path, _minimal_mrf())
+        parser = _make_parser(tmp_path / "quarantine")
+
+        batches = list(parser.parse(mrf_path))
+
+        assert batches[0]["hospital_mrf_snapshots"]["snapshot_id"][0] == "snap-001"
+        assert len(batches[2]["standard_charge_info"]) == 1
 
     def test_snapshot_record_merges_meta_and_source(self, tmp_path):
         mrf_path = tmp_path / "mrf.json"

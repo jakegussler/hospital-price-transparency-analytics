@@ -522,7 +522,16 @@ def _open_maybe_gz(file_path: Path):
     path_str = str(file_path).lower()
     if path_str.endswith(".gz"):
         with gzip.open(file_path, "rb") as f:
+            _skip_utf8_bom(f)
             yield f
     else:
         with open(file_path, "rb") as f:
+            _skip_utf8_bom(f)
             yield f
+
+
+def _skip_utf8_bom(f: Any) -> None:
+    """Advance past a leading UTF-8 BOM when present."""
+    first_bytes = f.read(3)
+    if first_bytes != b"\xef\xbb\xbf":
+        f.seek(0)
