@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 from hpt.parsers.base import BaseParser
 from hpt.parsers.csv_header import (
     PayerColumnGroup,
-    WideColumnCatalog,
     build_header_batch,
     build_wide_column_catalog,
     get_charge_reader,

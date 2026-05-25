@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-import logging
 
 import pyarrow as pa
 import pyarrow.parquet as pq

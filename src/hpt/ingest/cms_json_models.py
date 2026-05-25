@@ -1,7 +1,9 @@
-"""Pydantic models for CMS Hospital Price Transparency JSON (v3.0).
+"""Pydantic models for CMS Hospital Price Transparency JSON.
 
-These models are intended for ingest-time validation of machine-readable files
-before records are persisted downstream.
+These models are intended for ingest-time structural validation of
+machine-readable files before records are persisted downstream. Validation is
+profiled by CMS JSON schema family so older source versions can be ingested
+without applying newer conditional rules.
 """
 
 from __future__ import annotations
@@ -10,7 +12,77 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
+
+JsonSchemaFamily = str
+
+SUPPORTED_JSON_SCHEMA_FAMILIES: tuple[JsonSchemaFamily, ...] = ("2.1", "2.2", "3.0")
+
+PARSER_PROFILE_VERSIONS: dict[JsonSchemaFamily, str] = {
+    "2.1": "2.1.0",
+    "2.2": "2.2.1",
+    "3.0": "3.0.0",
+}
+
+JSON_SCHEMA_ATTEMPT_ORDERS: dict[JsonSchemaFamily | None, list[JsonSchemaFamily]] = {
+    "3.0": ["3.0", "2.2", "2.1"],
+    "2.2": ["2.2", "3.0", "2.1"],
+    "2.1": ["2.1", "2.2", "3.0"],
+    None: ["3.0", "2.2", "2.1"],
+}
+
+
+def normalize_json_schema_family(version: str | None) -> JsonSchemaFamily | None:
+    """Normalize a CMS JSON version string to a parser schema family."""
+    if version is None:
+        return None
+
+    cleaned = str(version).strip().lower()
+    if not cleaned:
+        return None
+    if cleaned.startswith("v"):
+        cleaned = cleaned[1:]
+
+    if cleaned.startswith("3.0"):
+        return "3.0"
+    if cleaned.startswith("2.2"):
+        return "2.2"
+    if cleaned.startswith("2.1"):
+        return "2.1"
+    return None
+
+
+def parser_schema_version_for_family(
+    family: JsonSchemaFamily | None,
+) -> str | None:
+    """Return the canonical CMS schema version backing a parser family."""
+    if family is None:
+        return None
+    return PARSER_PROFILE_VERSIONS.get(family)
+
+
+def schema_family_from_context(context: Any) -> JsonSchemaFamily:
+    """Read validation schema family from Pydantic context.
+
+    Direct unit-model validation defaults to v3.0 to preserve the prior strict
+    behavior unless callers explicitly supply an older family.
+    """
+    if isinstance(context, dict):
+        family = context.get("schema_family")
+        if family in SUPPORTED_JSON_SCHEMA_FAMILIES:
+            return family
+        version = context.get("schema_version")
+        normalized = normalize_json_schema_family(version)
+        if normalized is not None:
+            return normalized
+    return "3.0"
 
 
 class CMSModel(BaseModel):
@@ -151,6 +223,7 @@ class PayersInformation(CMSModel):
     standard_charge_dollar: Decimal | None = None
     standard_charge_percentage: Decimal | None = None
     standard_charge_algorithm: str | None = None
+    estimated_amount: Decimal | None = None
     median_amount: Decimal | None = None
     tenth_percentile: Decimal | None = Field(default=None, alias="10th_percentile")
     ninetieth_percentile: Decimal | None = Field(default=None, alias="90th_percentile")
@@ -159,6 +232,7 @@ class PayersInformation(CMSModel):
     @field_validator(
         "standard_charge_dollar",
         "standard_charge_percentage",
+        "estimated_amount",
         "median_amount",
         "tenth_percentile",
         "ninetieth_percentile",
@@ -171,6 +245,7 @@ class PayersInformation(CMSModel):
     @field_validator(
         "standard_charge_dollar",
         "standard_charge_percentage",
+        "estimated_amount",
         "median_amount",
         "tenth_percentile",
         "ninetieth_percentile",
@@ -210,9 +285,11 @@ class PayersInformation(CMSModel):
 
     @field_validator("count")
     @classmethod
-    def validate_count(cls, value: str | None) -> str | None:
+    def validate_count(cls, value: str | None, info: ValidationInfo) -> str | None:
         if value is None:
             return None
+        if schema_family_from_context(info.context) != "3.0":
+            return value
         if value == "0" or value == "1 through 10":
             return value
         if value.isdigit():
@@ -223,7 +300,10 @@ class PayersInformation(CMSModel):
         raise ValueError("count must be '0', '1 through 10', or a whole number >= 11")
 
     @model_validator(mode="after")
-    def validate_conditional_requirements(self) -> PayersInformation:
+    def validate_conditional_requirements(
+        self, info: ValidationInfo
+    ) -> PayersInformation:
+        schema_family = schema_family_from_context(info.context)
         has_dollar = self.standard_charge_dollar is not None
         has_percentage = self.standard_charge_percentage is not None
         has_algorithm = self.standard_charge_algorithm is not None
@@ -237,7 +317,14 @@ class PayersInformation(CMSModel):
         if self.methodology == StandardChargeMethodology.OTHER and not self.additional_payer_notes:
             raise ValueError("additional_payer_notes is required when methodology is 'other'")
 
-        if has_percentage or has_algorithm:
+        if schema_family == "2.2" and (has_percentage or has_algorithm) and not has_dollar:
+            if self.estimated_amount is None:
+                raise ValueError(
+                    "estimated_amount is required when standard_charge_percentage or "
+                    "standard_charge_algorithm is present without standard_charge_dollar"
+                )
+
+        if schema_family == "3.0" and (has_percentage or has_algorithm):
             if self.count is None:
                 raise ValueError(
                     "count is required when standard_charge_percentage or "
@@ -291,7 +378,10 @@ class StandardCharge(CMSModel):
         return str(value)
 
     @model_validator(mode="after")
-    def validate_conditional_requirements(self) -> StandardCharge:
+    def validate_conditional_requirements(
+        self, info: ValidationInfo
+    ) -> StandardCharge:
+        schema_family = schema_family_from_context(info.context)
         payer_items = self.payers_information or []
         has_payer_specific_data = any(
             item.standard_charge_dollar is not None
@@ -321,7 +411,11 @@ class StandardCharge(CMSModel):
                 item.standard_charge_percentage is not None
                 or item.standard_charge_algorithm is not None
             )
-            if uses_percentage_or_algorithm and item.count == "0":
+            if (
+                schema_family == "3.0"
+                and uses_percentage_or_algorithm
+                and item.count == "0"
+            ):
                 if not (item.additional_payer_notes or self.additional_generic_notes):
                     raise ValueError(
                         "When count is '0' for percentage/algorithm charges, include an "
@@ -344,9 +438,12 @@ class StandardChargeInformation(CMSModel):
     standard_charges: list[StandardCharge]
 
     @model_validator(mode="after")
-    def validate_ndc_drug_requirements(self) -> StandardChargeInformation:
+    def validate_ndc_drug_requirements(
+        self, info: ValidationInfo
+    ) -> StandardChargeInformation:
+        schema_family = schema_family_from_context(info.context)
         has_ndc = any(item.type == CodeType.NDC for item in self.code_information)
-        if has_ndc and self.drug_information is None:
+        if schema_family in {"2.2", "3.0"} and has_ndc and self.drug_information is None:
             raise ValueError(
                 "drug_information is required when any code_information.type is 'NDC'"
             )

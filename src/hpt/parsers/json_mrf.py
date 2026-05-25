@@ -24,6 +24,8 @@ import logging
 from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -33,8 +35,11 @@ import polars as pl
 from pydantic import ValidationError
 
 from hpt.ingest.cms_json_models import (
+    JSON_SCHEMA_ATTEMPT_ORDERS,
     ModifierInformation,
     StandardChargeInformation,
+    normalize_json_schema_family,
+    parser_schema_version_for_family,
 )
 from hpt.parsers.base import BaseParser
 from hpt.parsers.helpers import _df, _iso
@@ -51,6 +56,7 @@ _CHARGE_TABLES: tuple[str, ...] = (
     "standard_charges",
     "standard_charge_modifiers",
     "payers_information",
+    "json_record_parse_diagnostics",
 )
 
 
@@ -61,6 +67,27 @@ def _to_float(value: Decimal | float | int | None) -> float | None:
     if isinstance(value, float):
         return value
     return float(value)
+
+
+@dataclass(frozen=True)
+class ParsedChargeItem:
+    model: StandardChargeInformation | None
+    reported_schema_version: str | None
+    reported_schema_family: str | None
+    parser_schema_family: str | None
+    parser_schema_version: str | None
+    attempted_schema_families: list[str]
+    errors_by_family: dict[str, dict[str, Any]]
+
+    @property
+    def schema_version_mismatch(self) -> bool:
+        if self.reported_schema_family is None or self.parser_schema_family is None:
+            return False
+        return self.reported_schema_family != self.parser_schema_family
+
+    @property
+    def used_fallback(self) -> bool:
+        return self.model is not None and len(self.errors_by_family) > 0
 
 
 class JsonMrfParser(BaseParser):
@@ -133,11 +160,17 @@ class JsonMrfParser(BaseParser):
                     h["confirm_attestation"] = str(value).lower()
                 elif prefix == "attestation.attester_name":
                     h["attester_name"] = value
+                elif prefix == "affirmation.affirmation":
+                    h["affirmation"] = value
+                elif prefix == "affirmation.confirm_affirmation":
+                    h["confirm_affirmation"] = str(value).lower()
                 elif prefix == "license_information.state":
                     h["state"] = value
                 elif prefix == "license_information.license_number":
                     h["license_number"] = value
                 elif prefix == "location_name.item":
+                    h.setdefault("location_names", []).append(value)
+                elif prefix == "hospital_location.item":
                     h.setdefault("location_names", []).append(value)
                 elif prefix == "hospital_address.item":
                     h.setdefault("hospital_addresses", []).append(value)
@@ -196,6 +229,8 @@ class JsonMrfParser(BaseParser):
             "attestation": h.get("attestation_text"),
             "confirm_attestation": h.get("confirm_attestation"),
             "attester_name": h.get("attester_name"),
+            "affirmation": h.get("affirmation"),
+            "confirm_affirmation": h.get("confirm_affirmation"),
             "reported_state": h.get("state"),
             "license_number": h.get("license_number"),
         }
@@ -283,13 +318,35 @@ class JsonMrfParser(BaseParser):
                     f, "standard_charge_information.item", use_float=True
                 )
             ):
-                try:
-                    sci = StandardChargeInformation.model_validate(raw_item)
-                except ValidationError as exc:
-                    self._quarantine(section, item_ordinal, raw_item, exc)
+                parsed = self._parse_charge_with_fallback(raw_item)
+                if parsed.model is None:
+                    diagnostic = self._diagnostic_record(
+                        section=section,
+                        ordinal=item_ordinal,
+                        parsed=parsed,
+                        final_status="quarantined",
+                    )
+                    accumulator["json_record_parse_diagnostics"].append(diagnostic)
+                    self._quarantine(
+                        section,
+                        item_ordinal,
+                        raw_item,
+                        parsed.errors_by_family,
+                        attempted_schema_families=parsed.attempted_schema_families,
+                    )
                     continue
 
-                flat = self._flatten_sci(sci, item_ordinal)
+                if parsed.used_fallback or parsed.schema_version_mismatch:
+                    accumulator["json_record_parse_diagnostics"].append(
+                        self._diagnostic_record(
+                            section=section,
+                            ordinal=item_ordinal,
+                            parsed=parsed,
+                            final_status="accepted",
+                        )
+                    )
+
+                flat = self._flatten_sci(parsed.model, item_ordinal, parsed)
                 for table_name, rows in flat.items():
                     accumulator[table_name].extend(rows)
 
@@ -338,10 +395,78 @@ class JsonMrfParser(BaseParser):
             },
         )
 
+    def _parse_charge_with_fallback(self, raw_item: Any) -> ParsedChargeItem:
+        reported_schema_version = self.snapshot_meta.get("schema_version")
+        if reported_schema_version is not None:
+            reported_schema_version = str(reported_schema_version)
+        reported_schema_family = normalize_json_schema_family(reported_schema_version)
+        attempt_order = JSON_SCHEMA_ATTEMPT_ORDERS[reported_schema_family]
+        errors_by_family: dict[str, dict[str, Any]] = {}
+
+        for schema_family in attempt_order:
+            try:
+                model = StandardChargeInformation.model_validate(
+                    raw_item,
+                    context={
+                        "schema_family": schema_family,
+                        "schema_version": parser_schema_version_for_family(schema_family),
+                    },
+                )
+            except ValidationError as exc:
+                errors_by_family[schema_family] = _validation_error_summary(exc)
+                continue
+
+            return ParsedChargeItem(
+                model=model,
+                reported_schema_version=reported_schema_version,
+                reported_schema_family=reported_schema_family,
+                parser_schema_family=schema_family,
+                parser_schema_version=parser_schema_version_for_family(schema_family),
+                attempted_schema_families=attempt_order[
+                    : attempt_order.index(schema_family) + 1
+                ],
+                errors_by_family=errors_by_family,
+            )
+
+        return ParsedChargeItem(
+            model=None,
+            reported_schema_version=reported_schema_version,
+            reported_schema_family=reported_schema_family,
+            parser_schema_family=None,
+            parser_schema_version=None,
+            attempted_schema_families=attempt_order,
+            errors_by_family=errors_by_family,
+        )
+
+    def _diagnostic_record(
+        self,
+        *,
+        section: str,
+        ordinal: int,
+        parsed: ParsedChargeItem,
+        final_status: str,
+    ) -> dict[str, Any]:
+        return {
+            "snapshot_id": self.snapshot_meta["snapshot_id"],
+            "section": section,
+            "record_ordinal": ordinal,
+            "reported_schema_version": parsed.reported_schema_version,
+            "reported_schema_family": parsed.reported_schema_family,
+            "accepted_schema_family": parsed.parser_schema_family,
+            "accepted_schema_version": parsed.parser_schema_version,
+            "schema_version_mismatch": parsed.schema_version_mismatch,
+            "attempted_schema_families": json.dumps(parsed.attempted_schema_families),
+            "failure_count": len(parsed.errors_by_family),
+            "error_summary": json.dumps(parsed.errors_by_family, default=str),
+            "final_status": final_status,
+            "diagnosed_at": datetime.now(UTC).isoformat(),
+        }
+
     def _flatten_sci(
         self,
         sci: StandardChargeInformation,
         item_ordinal: int,
+        parsed: ParsedChargeItem,
     ) -> dict[str, list[dict[str, Any]]]:
         """Explode a single standard_charge_information item into Bronze rows."""
         snapshot_id = self.snapshot_meta["snapshot_id"]
@@ -357,6 +482,11 @@ class JsonMrfParser(BaseParser):
                 "snapshot_id": snapshot_id,
                 "description": sci.description,
                 "item_ordinal": item_ordinal,
+                "reported_schema_version": parsed.reported_schema_version,
+                "reported_schema_family": parsed.reported_schema_family,
+                "parser_schema_family": parsed.parser_schema_family,
+                "parser_schema_version": parsed.parser_schema_version,
+                "schema_version_mismatch": parsed.schema_version_mismatch,
             }
         )
 
@@ -425,6 +555,7 @@ class JsonMrfParser(BaseParser):
                             payer.standard_charge_percentage
                         ),
                         "standard_charge_algorithm": payer.standard_charge_algorithm,
+                        "estimated_amount": _to_float(payer.estimated_amount),
                         "median_amount": _to_float(payer.median_amount),
                         "tenth_percentile": _to_float(payer.tenth_percentile),
                         "ninetieth_percentile": _to_float(
@@ -446,7 +577,9 @@ class JsonMrfParser(BaseParser):
         section: str,
         ordinal: int,
         raw: Any,
-        exc: Exception,
+        exc: Exception | dict[str, Any],
+        *,
+        attempted_schema_families: list[str] | None = None,
     ) -> None:
         """Write a failed item to ``quarantine/snapshot_id=<id>/<section>.jsonl``."""
         snapshot_id = self.snapshot_meta["snapshot_id"]
@@ -460,6 +593,9 @@ class JsonMrfParser(BaseParser):
             "error": str(exc),
             "raw": raw,
         }
+        if attempted_schema_families is not None:
+            record["attempted_schema_families"] = attempted_schema_families
+            record["errors_by_schema_family"] = exc
         with q_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, default=str) + "\n")
 
@@ -507,6 +643,21 @@ def _accumulator_to_batch(
     return {
         table_name: _df(rows, BRONZE_SCHEMAS[table_name])
         for table_name, rows in accumulator.items()
+    }
+
+
+def _validation_error_summary(exc: ValidationError) -> dict[str, Any]:
+    """Build a compact, JSON-serializable summary of a Pydantic failure."""
+    err_locs = sorted(
+        {
+            ".".join(str(part) for part in err.get("loc", ()))
+            for err in exc.errors()
+        }
+    )
+    return {
+        "message": str(exc),
+        "error_count": len(exc.errors()),
+        "fields": err_locs[:20],
     }
 
 
