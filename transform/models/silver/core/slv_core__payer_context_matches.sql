@@ -21,7 +21,17 @@ candidate_matches as (
         row_number() over (
             partition by base_rates.silver_payer_rate_id
             order by
-                case when overrides.match_scope = 'state' then 0 else 1 end,
+                case
+                    when overrides.match_scope = 'state' then 0
+                    else 1
+                end,
+                case overrides.match_type
+                    when 'exact_clean' then 0
+                    when 'token_contains' then 1
+                    when 'plan_contains' then 2
+                    when 'regex' then 3
+                    else 99
+                end,
                 length(overrides.plan_pattern) desc,
                 overrides.payer_context_rule_id
         ) as match_rank
