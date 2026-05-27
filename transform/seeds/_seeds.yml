@@ -15,8 +15,170 @@ seeds:
           - not_null
       - name: canonical_state
         description: "Two-letter state abbreviation from the registry."
+      - name: hospital_type
+        description: "Reviewed hospital type or facility category from the registry."
+      - name: health_system
+        description: "Reviewed health system or ownership group associated with the hospital, when known."
+      - name: mrf_url
+        description: "Registry source URL for the hospital machine-readable file."
       - name: expected_format
         description: "Expected source format used by the ingest pipeline."
         tests:
           - accepted_values:
               values: ["json", "csv_tall", "csv_wide"]
+
+  - name: canonical_payers
+    description: "Reviewed canonical payer and payer-program identities used by Silver Core payer normalization."
+    columns:
+      - name: canonical_payer_id
+        description: "Stable canonical payer or payer-program identifier used in Silver Core joins."
+        tests:
+          - not_null
+          - unique
+      - name: canonical_payer_name
+        description: "Reviewed display name for the canonical payer or payer-program identity."
+        tests:
+          - not_null
+      - name: parent_organization
+        description: "Reviewed parent organization or brand family for payer rollups."
+      - name: payer_category
+        description: "Reviewed payer category used for analytical grouping."
+        tests:
+          - accepted_values:
+              values:
+                - commercial
+                - medicare_advantage
+                - medicare_fee_for_service
+                - medicaid_managed_care
+                - medicaid_fee_for_service
+                - exchange_marketplace
+                - workers_comp
+                - tricare_va
+                - self_pay
+                - other_government
+                - other
+                - unknown
+      - name: active
+        description: "Whether the canonical payer identity is active for current mapping joins."
+      - name: evidence_source
+        description: "Source category used to support the canonical payer identity, such as manual_review or an external reference."
+      - name: evidence_url
+        description: "URL for source-backed evidence when an external reference was used."
+      - name: notes
+        description: "Reviewer notes explaining the canonical payer identity or any important mapping caveats."
+
+  - name: payer_aliases
+    description: "Reviewed payer-name aliases. Accepted active rows can map clean source payer names to canonical payers."
+    columns:
+      - name: payer_alias_id
+        description: "Stable identifier for this reviewed payer alias rule."
+        tests:
+          - not_null
+          - unique
+      - name: canonical_payer_id
+        description: "Canonical payer identity assigned when this alias rule matches."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('canonical_payers')
+              field: canonical_payer_id
+      - name: example_raw_payer_name
+        description: "Human-readable example of a source payer name represented by this alias rule."
+      - name: clean_payer_name
+        description: "Deterministically cleaned source payer name used for exact alias matching."
+        tests:
+          - not_null
+      - name: alias_pattern
+        description: "Pattern value represented by the rule; for exact-clean rules this matches clean_payer_name."
+      - name: match_type
+        description: "Matching method used by the rule."
+        tests:
+          - accepted_values:
+              values: ["exact_clean"]
+      - name: match_scope
+        description: "Scope where this alias can be applied, such as global or state-specific."
+        tests:
+          - accepted_values:
+              values: ["global", "state"]
+      - name: canonical_state
+        description: "Two-letter state required for state-scoped aliases; NA for global aliases."
+      - name: validation_status
+        description: "How the alias-to-payer mapping was validated."
+        tests:
+          - accepted_values:
+              values: ["manual_exact", "manual_alias", "source_verified", "inferred_from_pattern"]
+      - name: review_status
+        description: "Review lifecycle status controlling whether the alias is eligible for canonical mapping."
+        tests:
+          - accepted_values:
+              values: ["candidate", "accepted", "rejected", "needs_more_context"]
+      - name: reviewed_by
+        description: "Reviewer or process that last accepted or updated the alias decision."
+      - name: reviewed_at
+        description: "Date when the alias decision was reviewed."
+      - name: active
+        description: "Whether the alias rule is active for current Silver Core mapping joins."
+      - name: evidence_source
+        description: "Source category used to support the alias decision, such as manual_review or an external reference."
+      - name: evidence_url
+        description: "URL for source-backed evidence when an external reference was used."
+      - name: notes
+        description: "Reviewer notes explaining the alias decision, especially for non-exact or scoped mappings."
+
+  - name: payer_context_overrides
+    description: "Reviewed plan-conditioned rules that refine overly broad payer aliases without changing raw payer fields."
+    columns:
+      - name: payer_context_rule_id
+        description: "Stable identifier for this reviewed plan-conditioned payer override rule."
+        tests:
+          - not_null
+          - unique
+      - name: canonical_payer_id
+        description: "Canonical payer identity assigned when this context override matches."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('canonical_payers')
+              field: canonical_payer_id
+      - name: source_clean_payer_name
+        description: "Clean payer name that must be present before the plan-conditioned override can apply."
+        tests:
+          - not_null
+      - name: plan_pattern
+        description: "Clean plan-name text or substring used to identify the override context."
+        tests:
+          - not_null
+      - name: match_type
+        description: "Matching method used against clean_plan_name."
+        tests:
+          - accepted_values:
+              values: ["exact_clean", "plan_contains", "token_contains", "regex"]
+      - name: match_scope
+        description: "Scope where this context override can be applied, such as global or state-specific."
+        tests:
+          - accepted_values:
+              values: ["global", "state"]
+      - name: canonical_state
+        description: "Two-letter state required for state-scoped overrides; NA for global overrides."
+      - name: validation_status
+        description: "How the context override was validated."
+        tests:
+          - accepted_values:
+              values: ["manual_exact", "manual_alias", "source_verified", "inferred_from_pattern"]
+      - name: review_status
+        description: "Review lifecycle status controlling whether the override is eligible for canonical mapping."
+        tests:
+          - accepted_values:
+              values: ["candidate", "accepted", "rejected", "needs_more_context"]
+      - name: reviewed_by
+        description: "Reviewer or process that last accepted or updated the override decision."
+      - name: reviewed_at
+        description: "Date when the override decision was reviewed."
+      - name: active
+        description: "Whether the context override is active for current Silver Core mapping joins."
+      - name: evidence_source
+        description: "Source category used to support the context override, such as manual_review or an external reference."
+      - name: evidence_url
+        description: "URL for source-backed evidence when an external reference was used."
+      - name: notes
+        description: "Reviewer notes explaining why plan context should refine the payer identity."

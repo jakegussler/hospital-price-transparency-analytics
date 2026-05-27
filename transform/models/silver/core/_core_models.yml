@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: slv_core__payer_alias_matches
+    description: "Best accepted payer alias match per Silver Base payer-rate row."
+    columns:
+      - name: silver_payer_rate_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('slv_base__payer_rates')
+              field: silver_payer_rate_id
+      - name: canonical_payer_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('canonical_payers')
+              field: canonical_payer_id
+
+  - name: slv_core__payer_context_matches
+    description: "Best accepted plan-conditioned payer override per Silver Base payer-rate row."
+    columns:
+      - name: silver_payer_rate_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('slv_base__payer_rates')
+              field: silver_payer_rate_id
+      - name: canonical_payer_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('canonical_payers')
+              field: canonical_payer_id
+
+  - name: slv_core__payer_rates
+    description: "Row-preserving Silver Core payer-rate fact with reviewed canonical payer identity columns."
+    columns:
+      - name: silver_payer_rate_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('slv_base__payer_rates')
+              field: silver_payer_rate_id
+      - name: canonical_payer_id
+        tests:
+          - relationships:
+              to: ref('canonical_payers')
+              field: canonical_payer_id
+      - name: payer_match_basis
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["payer_alias", "payer_context_override", "unmatched"]
+      - name: payer_review_status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["candidate", "accepted", "rejected", "needs_more_context"]
+
+  - name: slv_review_queue__payer_candidates
+    description: "Ranked payer-name review queue showing all observed clean payer values and current mapping status."
+    columns:
+      - name: payer_candidate_key
+        tests:
+          - not_null
+          - unique
+      - name: clean_payer_name
+        tests:
+          - not_null
+      - name: review_queue_status
+        tests:
+          - accepted_values:
+              values: ["needs_review", "mapped"]
