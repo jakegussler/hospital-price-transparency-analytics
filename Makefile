@@ -1,4 +1,4 @@
-.PHONY: install install-dev test lint format download ingest \
+.PHONY: install install-dev test lint format download ingest export-hospitals-seed \
 	dbt-deps dbt-run dbt-run-selector dbt-test dbt-test-selector \
 	dbt-seed dbt-seed-selector dbt-build dbt-build-selector \
 	dbt-ls dbt-ls-selector dbt-compile dbt-compile-selector dbt-clean \
@@ -16,10 +16,10 @@ test:
 	pytest tests/
 
 lint:
-	ruff check src/ tests/
+	ruff check src/ tests/ scripts/
 
 format:
-	ruff format src/ tests/
+	ruff format src/ tests/ scripts/
 
 # --- Pipeline (Python) -----------------------------------------------------
 
@@ -28,6 +28,9 @@ download:
 
 ingest:
 	hpt ingest
+
+export-hospitals-seed:
+	hpt export-hospitals-seed
 
 # --- dbt -------------------------------------------------------------------
 

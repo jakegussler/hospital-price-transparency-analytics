@@ -18,6 +18,7 @@ from hpt.logging.log import LoggingRunPaths, configure_logging, get_logger
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospitals, load_registry
 from hpt.registry.models import HospitalSource
+from hpt.registry.seed_export import get_default_hospitals_seed_path, write_hospitals_seed
 from hpt.utils.string_utils import convert_string_to_list
 
 cli = typer.Typer(help="Hospital Price Transparency pipeline CLI.", no_args_is_help=True)
@@ -96,6 +97,58 @@ def ingest(
 
 def _registry_kwargs(registry_path: Path | None) -> dict[str, Path]:
     return {"path": registry_path} if registry_path is not None else {}
+
+
+@cli.command("export-hospitals-seed")
+def export_hospitals_seed(
+    output_path: Path | None = typer.Option(
+        None,
+        "--output-path",
+        file_okay=True,
+        dir_okay=False,
+        help=(
+            "CSV path to write. Defaults to transform/seeds/hospitals.csv "
+            "under the project root."
+        ),
+        show_default=False,
+    ),
+    registry_path: Path | None = typer.Option(
+        None,
+        "--registry-path",
+        file_okay=True,
+        dir_okay=False,
+        help=(
+            "Override the hospital registry file. Defaults to HPT_REGISTRY_PATH "
+            "or bundled registry."
+        ),
+        show_default=False,
+    ),
+) -> None:
+    """Populate the dbt hospitals seed from the active hospital registry."""
+    exit_code = export_hospitals_seed_logic(
+        output_path=output_path,
+        registry_path=registry_path,
+    )
+    raise typer.Exit(code=exit_code)
+
+
+def export_hospitals_seed_logic(
+    *,
+    output_path: Path | None = None,
+    registry_path: Path | None = None,
+) -> int:
+    """Run hospitals seed export logic and return a process-style exit code."""
+    try:
+        written_path = write_hospitals_seed(
+            registry_path=registry_path,
+            output_path=output_path or get_default_hospitals_seed_path(),
+        )
+    except RegistryError as exc:
+        typer.echo(f"Registry error: {exc}", err=True)
+        return 2
+
+    typer.echo(f"Wrote hospitals seed: {written_path}")
+    return 0
 
 
 def _load_hospitals_for_target(

@@ -7,6 +7,7 @@ HPT keeps runtime configuration as small immutable dataclasses in
 - `StorageConfig`: raw source storage, parsed Bronze output, and quarantine roots.
 - `DownloadConfig`: download target, registry path, storage, client, and run flags.
 - `IngestConfig`: ingest target, registry path, and storage roots.
+- `HPT_REGISTRY_PATH` is also used by the hospitals seed export command.
 
 ## Environment Variables
 
@@ -15,7 +16,7 @@ HPT keeps runtime configuration as small immutable dataclasses in
 | `HPT_RAW_STORAGE_BASE_URI` | `StorageConfig.raw_base_uri` | canonical project `data` root as absolute `file:///...` URI | fsspec URI for raw downloads and snapshot metadata. |
 | `HPT_BRONZE_ROOT` | `StorageConfig.bronze_root` and dbt Bronze source definitions | `<project_root>/data/bronze` for Python, `../data/bronze` from `transform/` for dbt | Parsed Bronze Parquet root written by ingest and read by dbt external sources. |
 | `HPT_QUARANTINE_ROOT` | `StorageConfig.quarantine_root` | `<project_root>/data/quarantine` | Parser validation failure output root. |
-| `HPT_REGISTRY_PATH` | `DownloadConfig.registry_path`, `IngestConfig.registry_path` | bundled registry | Optional registry file override. |
+| `HPT_REGISTRY_PATH` | `DownloadConfig.registry_path`, `IngestConfig.registry_path`, hospitals seed export | bundled registry | Optional registry file override. |
 | `HPT_HTTP_CONNECT_TIMEOUT` | `ClientConfig.connect_timeout_s` | `10` | HTTP connect timeout in seconds. |
 | `HPT_HTTP_READ_TIMEOUT` | `ClientConfig.read_timeout_s` | `300` | HTTP read timeout in seconds. |
 | `HPT_HTTP_TIMEOUT` | `ClientConfig.timeout_s` | `60` | Default HTTP timeout in seconds. |

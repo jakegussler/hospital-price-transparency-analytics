@@ -73,6 +73,7 @@ hpt ingest
 Run dbt against the DuckDB project:
 
 ```bash
+make export-hospitals-seed
 make dbt-seed
 make dbt-run
 make dbt-test
@@ -92,10 +93,12 @@ make lint
 make format
 make download
 make ingest
+make export-hospitals-seed
 make dbt-seed
 make dbt-run-selector DBT_SELECTOR=staging
 hpt download --help
 hpt ingest --help
+hpt export-hospitals-seed --help
 ```
 
 The CLI commands are the source of truth for pipeline execution. Use
