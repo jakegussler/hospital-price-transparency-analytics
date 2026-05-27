@@ -1,0 +1,48 @@
+payer_alias_id,canonical_payer_id,example_raw_payer_name,clean_payer_name,alias_pattern,match_type,match_scope,canonical_state,validation_status,review_status,reviewed_by,reviewed_at,active,evidence_source,evidence_url,notes
+pa_aetna,aetna,Aetna,aetna,aetna,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_ambetter,ambetter,Ambetter,ambetter,ambetter,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_amerigroup,amerigroup,Amerigroup,amerigroup,amerigroup,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_alliant,alliant,Alliant,alliant,alliant,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_allcare_medicare,allcare-medicare,AllCare Medicare,allcare medicare,allcare medicare,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_atrio_health,atrio-health,ATRIO Health,atrio health,atrio health,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_bcbs_tn_abbrev,bcbs-tennessee,BCBST,bcbst,bcbst,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,bcbs_licensee_list,https://www.bcbs.com/about-us/blue-cross-blue-shield-system/state-health-plan-companies,Reviewed abbreviation for Blue Cross Blue Shield of Tennessee.
+pa_bcbs_of_tn,bcbs-tennessee,BCBS of TN,bcbs of tn,bcbs of tn,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,bcbs_licensee_list,https://www.bcbs.com/about-us/blue-cross-blue-shield-system/state-health-plan-companies,Reviewed abbreviation for Blue Cross Blue Shield of Tennessee.
+pa_bcbs_tn_full,bcbs-tennessee,Blue Cross Blue Shield of TN,blue cross blue shield of tn,blue cross blue shield of tn,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,bcbs_licensee_list,https://www.bcbs.com/about-us/blue-cross-blue-shield-system/state-health-plan-companies,Reviewed abbreviation for Blue Cross Blue Shield of Tennessee.
+pa_bcbs_ga,bcbs-georgia,BCBSGA,bcbsga,bcbsga,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,bcbs_licensee_list,https://www.bcbs.com/about-us/blue-cross-blue-shield-system/state-health-plan-companies,Reviewed abbreviation for Blue Cross Blue Shield of Georgia.
+pa_bluecare,bluecare-tennessee,BlueCare,bluecare,bluecare,exact_clean,state,TN,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,State-scoped Tennessee Blues Medicaid brand.
+pa_caresource,caresource,CareSource,caresource,caresource,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_caresource_ga,caresource-georgia,CareSource GA,caresource ga,caresource ga,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Observed state-specific CareSource alias.
+pa_caresource_nc,caresource-north-carolina,CareSource NC,caresource nc,caresource nc,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Observed state-specific CareSource alias.
+pa_caresource_tn,caresource-tennessee,CareSource TN,caresource tn,caresource tn,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Observed state-specific CareSource alias.
+pa_cigna,cigna,Cigna,cigna,cigna,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_cigna_healthcare,cigna,Cigna Healthcare,cigna healthcare,cigna healthcare,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Reviewed Cigna alias.
+pa_cigna_healthspring_mcr_adv,cigna-healthspring-medicare-advantage,Cigna HealthSpring MCR ADV,cigna healthspring mcr adv,cigna healthspring mcr adv,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Observed Medicare Advantage brand.
+pa_clover,clover-health,Clover,clover,clover,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_delta_dental,delta-dental,Delta Dental,delta dental,delta dental,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_dentaquest,dentaquest,DentaQuest,dentaquest,dentaquest,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_devoted_health,devoted-health,Devoted Health,devoted health,devoted health,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Reviewed Devoted Health alias.
+pa_devoted_health_plan,devoted-health,Devoted Health Plan,devoted health plan,devoted health plan,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Reviewed Devoted Health alias.
+pa_first_health,first-health,First Health,first health,first health,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_first_health_coventry,first-health-coventry,First Health Coventry,first health coventry,first health coventry,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_humana,humana,Humana,humana,humana,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Default Humana mapping; context overrides can refine military plans.
+pa_magellan,magellan,Magellan,magellan,magellan,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_medcost,medcost,MedCost,medcost,medcost,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_metlife,metlife,Met Life,met life,met life,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Reviewed MetLife alias.
+pa_molina,molina-healthcare,Molina,molina,molina,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Reviewed Molina alias.
+pa_molina_healthcare,molina-healthcare,Molina Healthcare,molina healthcare,molina healthcare,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_nhc_advantage,nhc-advantage,NHC Advantage,nhc advantage,nhc advantage,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_optima_health,optima-health,Optima Health,optima health,optima health,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_optum,optum,Optum,optum,optum,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_oscar,oscar-health,Oscar,oscar,oscar,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_peach_state,peach-state-health-plan,Peach State Hlth Plan,peach state hlth plan,peach state hlth plan,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Reviewed Peach State Health Plan alias.
+pa_phcs,phcs,PHCS,phcs,phcs,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_simpra_advantage,simpra-advantage,Simpra Advantage,simpra advantage,simpra advantage,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_uhc,united-healthcare,UHC,uhc,uhc,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Reviewed UnitedHealthcare abbreviation.
+pa_united,united-healthcare,United,united,united,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Reviewed UnitedHealthcare alias.
+pa_united_healthcare,united-healthcare,United Healthcare,united healthcare,united healthcare,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Reviewed UnitedHealthcare alias.
+pa_wellcare,wellcare,Wellcare,wellcare,wellcare,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_wellcare_ky,wellcare-kentucky,Wellcare of KY,wellcare of ky,wellcare of ky,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Observed state-specific Wellcare alias.
+pa_wellcare_medicare,wellcare-medicare,Wellcare Medicare,wellcare medicare,wellcare medicare,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Observed Medicare Wellcare identity.
+pa_wellcare_tn,wellcare-tennessee,Wellcare of TN,wellcare of tn,wellcare of tn,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Observed state-specific Wellcare alias.
+pa_wellcare_health_plan_mcr_adv,wellcare-medicare,Wellcare Health Plan Inc MCR ADV,wellcare health plan inc mcr adv,wellcare health plan inc mcr adv,exact_clean,global,NA,manual_alias,accepted,initial_seed,2026-05-25,true,manual_review,,Observed Medicare Advantage Wellcare alias.
+pa_wellpoint,wellpoint,Wellpoint,wellpoint,wellpoint,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.

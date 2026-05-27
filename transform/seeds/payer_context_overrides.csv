@@ -1,0 +1,3 @@
+payer_context_rule_id,canonical_payer_id,source_clean_payer_name,plan_pattern,match_type,match_scope,canonical_state,validation_status,review_status,reviewed_by,reviewed_at,active,evidence_source,evidence_url,notes
+pco_humana_military,humana-military-east,humana,humana military,token_contains,global,NA,source_verified,accepted,initial_seed,2026-05-25,true,tricare_east,https://www.tricare.mil/east,Plan text indicates Humana Military East rather than broad Humana.
+pco_humana_tricare,humana-military-east,humana,tricare,token_contains,global,NA,source_verified,accepted,initial_seed,2026-05-25,true,tricare_east,https://www.tricare.mil/east,TRICARE plan text indicates Humana Military East rather than broad Humana.
