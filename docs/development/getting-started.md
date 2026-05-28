@@ -94,6 +94,7 @@ hpt ingest \
 From the repository root:
 
 ```bash
+make export-hospitals-seed
 make dbt-seed
 make dbt-run
 make dbt-test
@@ -106,10 +107,10 @@ The profile reads:
 - `HPT_DUCKDB_PATH`, defaulting to `../data/hpt.duckdb`.
 - `HPT_BRONZE_ROOT`, defaulting to `../data/bronze`.
 
-The Makefile exposes dbt commands for dependency install, seed, run, test,
-build, list, compile, and clean. Selector targets take `DBT_SELECTOR`; the dbt
-project currently defines layer selectors for `staging`, `silver_base`,
-`silver_core`, and `silver`, plus pipeline selectors for
+The Makefile exposes a registry-to-seed export plus dbt commands for dependency
+install, seed, run, test, build, list, compile, and clean. Selector targets take
+`DBT_SELECTOR`; the dbt project currently defines layer selectors for
+`staging`, `silver_base`, `silver_core`, and `silver`, plus pipeline selectors for
 `pipeline_snapshot_metadata` and `pipeline_charge_data`, in
 `transform/selectors.yml`.
 
