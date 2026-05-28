@@ -2,30 +2,26 @@ with cases as (
     select *
     from (
         values
-            ('bare_humana_unknown', 'humana', cast(null as varchar), 'humana-unknown'),
-            ('humana_military_east_plan', 'humana', 'humana military east', 'humana-military-east'),
-            ('humana_military_east_adult_plan', 'humana', 'humana military east adult', 'humana-military-east'),
-            ('humana_military_east_behavioral_plan', 'humana', 'humana military east behavioral health', 'humana-military-east'),
-            ('humana_military_alias', 'humana military', cast(null as varchar), 'humana-military-east'),
-            ('humana_choicecare_ppo_alias', 'humana choicecare ppo', cast(null as varchar), 'humana-choicecare'),
-            ('humana_choicecare_comm_plan_alias', 'humana choicecare', 'comm', 'humana-choicecare'),
-            ('humana_ppo_choicecare_alias', 'humana ppo/choicecare', cast(null as varchar), 'humana-choicecare'),
-            ('humanachoice_alias', 'humanachoice', cast(null as varchar), 'humana-choicecare'),
-            ('humana_choicecare_plan', 'humana', 'humana choicecare ppo', 'humana-choicecare'),
-            ('choicecare_beats_commercial_text', 'humana', 'choicecare all commercial plans', 'humana-choicecare'),
-            ('humana_medicare_advantage_ppo_alias', 'humana medicare advantage ppo', cast(null as varchar), 'humana-medicare-advantage'),
-            ('humana_medicare_advantage_hmo_pcp_plan', 'humana', 'medicare advantage hmo - pcp', 'humana-medicare-advantage'),
-            ('humana_medicare_advantage_hmo_specialists_non_physician_plan', 'humana', 'medicare advantage hmo - specialists - non physician', 'humana-medicare-advantage'),
-            ('humana_medicare_advantage_ppo_plan', 'humana', 'humana medicare advantage ppo', 'humana-medicare-advantage'),
-            ('humana_medicare_transplant_adult_plan', 'humana', 'humana medicare transplant adult', 'humana-medicare-advantage'),
-            ('humana_mcr_plan', 'humana', 'mcr', 'humana-medicare-advantage'),
-            ('mcr_without_humana_context', 'mcr', cast(null as varchar), cast(null as varchar)),
-            ('aetna_mcr_not_humana', 'aetna', 'mcr', 'aetna-unknown'),
-            ('humana_dental_alias', 'humana dental', cast(null as varchar), 'humana-dental'),
-            ('humana_dental_plan', 'humana', 'humana dental', 'humana-dental'),
-            ('humana_commercial_plan', 'humana', 'commercial hmox - ppox & posx', 'humana-commercial'),
-            ('humana_ntn_transplant_unknown', 'humana', 'humana ntn transplant adult', 'humana-unknown')
-    ) as t(case_id, clean_payer_name, clean_plan_name, expected_canonical_payer_id)
+            ('bare_aetna', 'aetna', cast(null as varchar), 'NA', 'aetna-unknown'),
+            ('aetna_hmo_generic', 'aetna', 'hmo', 'TN', 'aetna-unknown'),
+            ('aetna_medicare_named', 'aetna', 'aetna medicare behavioral health', 'TN', 'aetna-medicare-advantage'),
+            ('aetna_medicare_advantage', 'aetna', 'medicare advantage esa', 'MI', 'aetna-medicare-advantage'),
+            ('aetna_mcrppo', 'aetna', 'mcrppo', 'CA', 'aetna-medicare-advantage'),
+            ('aetna_better_health', 'aetna', 'aetna better health adult', 'TN', 'aetna-better-health'),
+            ('aetna_better_health_va', 'aetna', 'aetna better health of virginia', 'TN', 'aetna-better-health-virginia'),
+            ('aetna_better_health_va_dsnp', 'aetna', 'aetna better health of virginia medicare', 'TN', 'aetna-better-health-virginia-dsnp'),
+            ('aetna_whole_health', 'aetna', 'aetna whole health pediatric', 'TN', 'aetna-whole-health'),
+            ('aetna_awh', 'aetna', 'awh', 'CA', 'aetna-whole-health'),
+            ('aetna_vhan', 'aetna', 'aetna vhan behavioral health adult', 'TN', 'aetna-vhan'),
+            ('aetna_tn_preferred_tn', 'aetna', 'aetna tn preferred adult', 'TN', 'aetna-tennessee-preferred'),
+            ('aetna_tn_preferred_wrong_state', 'aetna', 'aetna tn preferred adult', 'CA', 'aetna-unknown'),
+            ('aetna_commercial_named', 'aetna', 'aetna commercial behavioral health', 'TN', 'aetna-commercial'),
+            ('aetna_all_commercial', 'aetna', 'all commercial plans', 'GA', 'aetna-commercial'),
+            ('aetna_funding_advantage', 'aetna', 'commercial & aetna funding advantage plans', 'MI', 'aetna-funding-advantage'),
+            ('aetna_workers_comp', 'aetna', 'workers'' compensation network', 'ID', 'aetna-workers-comp-auto'),
+            ('aetna_auto_network', 'aetna', 'auto network', 'ID', 'aetna-workers-comp-auto'),
+            ('multiplan_aetna_plan_not_aetna', 'multiplan, inc', 'aetna health plan ppo networks', 'WI', cast(null as varchar))
+    ) as t(case_id, clean_payer_name, clean_plan_name, canonical_state, expected_canonical_payer_id)
 ),
 
 alias_candidates as (
@@ -52,7 +48,13 @@ alias_candidates as (
         and aliases.active = true
         and aliases.review_status = 'accepted'
         and aliases.match_type = 'exact_clean'
-        and aliases.match_scope = 'global'
+        and (
+            aliases.match_scope = 'global'
+            or (
+                aliases.match_scope = 'state'
+                and aliases.canonical_state = cases.canonical_state
+            )
+        )
 ),
 
 alias_matches as (
@@ -92,7 +94,6 @@ context_candidates as (
         and cases.clean_plan_name is not null
         and overrides.active = true
         and overrides.review_status = 'accepted'
-        and overrides.match_scope = 'global'
         and (
             (
                 overrides.match_type = 'exact_clean'
@@ -114,6 +115,13 @@ context_candidates as (
                 and regexp_matches(cases.clean_plan_name, overrides.plan_pattern)
             )
         )
+        and (
+            overrides.match_scope = 'global'
+            or (
+                overrides.match_scope = 'state'
+                and overrides.canonical_state = cases.canonical_state
+            )
+        )
 ),
 
 context_matches as (
@@ -130,6 +138,7 @@ actual as (
         cases.case_id,
         cases.clean_payer_name,
         cases.clean_plan_name,
+        cases.canonical_state,
         cases.expected_canonical_payer_id,
         coalesce(context_matches.canonical_payer_id, alias_matches.canonical_payer_id)
             as actual_canonical_payer_id,
