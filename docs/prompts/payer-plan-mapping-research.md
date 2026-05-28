@@ -157,6 +157,27 @@ Store those concepts as rationale or attributes when useful, but do not make
 them payer identities unless authoritative research shows they are part of a
 distinct payer, product, network, or program.
 
+## Default Unknown Product Convention
+
+When a cleaned payer value is only a broad parent, carrier, or brand family
+name, map the identity alias to an explicit unknown-product canonical payer
+rather than silently defaulting it to commercial. Use IDs such as
+`aetna-unknown`, `humana-unknown`, or `<payer>-unknown` with payer category
+`unknown`.
+
+Only map a broad parent payer to a commercial, Medicare Advantage, Medicaid,
+exchange, dental, workers' compensation, network, or other segment when the
+payer value or plan context provides a reviewed signal for that segment. For
+example, `payer = Aetna`, `plan = HMO` should stay `aetna-unknown`, while
+`payer = Aetna`, `plan = Aetna Commercial Adult` can map to
+`aetna-commercial`, and `payer = Aetna`, `plan = Medicare Advantage` can map to
+`aetna-medicare-advantage`.
+
+This convention should be consistent across payer families. Do not use
+`<payer>` as a hidden commercial default for one family while using
+`<payer>-unknown` for another unless the seed notes explain a researched,
+intentional exception.
+
 ## Use Payer And Plan Context Together
 
 Classify using both payer and plan values whenever both exist. The payer field
@@ -204,9 +225,10 @@ available, and notes.
 
 Add or update `transform/seeds/payer_aliases.csv` for exact cleaned source payer
 names. Even when a payer has no alternate aliases, add an identity alias so the
-clean source payer name maps to its canonical payer. For example, if the only
-observed Aetna payer value is `aetna`, still add an accepted alias mapping
-`clean_payer_name = aetna` to canonical payer `aetna`. This lets downstream
+clean source payer name maps to a reviewed canonical payer. For example, if the
+only observed Aetna payer value is `aetna` and there is no plan context, add an
+accepted alias mapping `clean_payer_name = aetna` to canonical payer
+`aetna-unknown`, not to a hidden commercial default. This lets downstream
 unmapped-value models distinguish reviewed identity mappings from values that
 have not been worked yet.
 
