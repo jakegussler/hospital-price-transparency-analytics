@@ -20,8 +20,12 @@ dentaquest,DentaQuest,Sun Life,commercial,true,manual_review,,Initial manually r
 devoted-health,Devoted Health,Devoted Health,medicare_advantage,true,manual_review,,Initial manually reviewed payer identity.
 first-health,First Health,First Health,commercial,true,manual_review,,Initial manually reviewed payer identity.
 first-health-coventry,First Health Coventry,First Health,commercial,true,manual_review,,Observed payer-network identity.
-humana,Humana,Humana,commercial,true,manual_review,,Default Humana payer identity when no reviewed context override applies.
-humana-military-east,Humana Military East,Humana,tricare_va,true,tricare_east,https://www.tricare.mil/east,TRICARE East identity supported by the official TRICARE East contractor page.
+humana-choicecare,Humana ChoiceCare,Humana Inc.,commercial,true,manual_review,,Humana PPO/network contracting identity; keep separate from generic Humana commercial rates.
+humana-commercial,Humana Commercial,Humana Inc.,commercial,true,manual_review,,Humana commercial bucket used only when no more-specific ChoiceCare Medicare Advantage Military or Dental context applies.
+humana-dental,Humana Dental,Humana Inc.,commercial,true,manual_review,,Humana dental benefit-line identity; keep separate from generic Humana commercial rates.
+humana-medicare-advantage,Humana Medicare Advantage,Humana Inc.,medicare_advantage,true,manual_review,,Humana Medicare Advantage and Medicare managed care payer-program identity.
+humana-military-east,Humana Military / TRICARE East,Humana Inc.,tricare_va,true,tricare_east,https://www.tricare.mil/east,TRICARE East identity supported by the official TRICARE East contractor page.
+humana-unknown,Humana - Unknown Product,Humana Inc.,unknown,true,manual_review,,Default Humana identity when payer or plan context is insufficient to identify product or network.
 magellan,Magellan Health,Magellan Health,commercial,true,manual_review,,Initial manually reviewed payer identity.
 medcost,MedCost,MedCost,commercial,true,manual_review,,Initial manually reviewed payer identity.
 metlife,MetLife,MetLife,commercial,true,manual_review,,Initial manually reviewed payer identity.
