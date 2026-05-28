@@ -36,6 +36,17 @@ analytics-ready outputs in Gold. Add dbt tests for model grain and required
 keys.
 ```
 
+## Payer Mapping Research
+
+```text
+Use docs/prompts/payer-plan-mapping-research.md when researching payer and plan
+names or updating transform/seeds/canonical_payers.csv,
+transform/seeds/payer_aliases.csv, and
+transform/seeds/payer_context_overrides.csv. Query the local DuckDB data first
+when it is available so mappings cover all observed payer plus plan
+configurations.
+```
+
 ## Debugging Work
 
 ```text

@@ -1,5 +1,5 @@
 payer_alias_id,canonical_payer_id,example_raw_payer_name,clean_payer_name,alias_pattern,match_type,match_scope,canonical_state,validation_status,review_status,reviewed_by,reviewed_at,active,evidence_source,evidence_url,notes
-pa_aetna,aetna,Aetna,aetna,aetna,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
+pa_aetna,aetna-unknown,Aetna,aetna,aetna,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-27,true,aetna_facts,https://www.aetna.com/about-us/aetna-facts-and-subsidiaries/aetna-facts.html,Bare Aetna payer value maps to unknown product unless reviewed plan context identifies commercial Medicare Medicaid network workers comp or funding product.
 pa_ambetter,ambetter,Ambetter,ambetter,ambetter,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
 pa_amerigroup,amerigroup,Amerigroup,amerigroup,amerigroup,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
 pa_alliant,alliant,Alliant,alliant,alliant,exact_clean,global,NA,manual_exact,accepted,initial_seed,2026-05-25,true,manual_review,,Exact observed payer value.
