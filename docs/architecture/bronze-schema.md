@@ -157,22 +157,22 @@ erDiagram
     string code_N_type
     string setting
     string billing_class
-    float drug_unit_of_measurement
+    string drug_unit_of_measurement
     string drug_type_of_measurement
-    float standard_charge_gross
-    float standard_charge_discounted_cash
-    float standard_charge_min
-    float standard_charge_max
+    string standard_charge_gross
+    string standard_charge_discounted_cash
+    string standard_charge_min
+    string standard_charge_max
     string modifiers
     string payer_name
     string plan_name
-    float standard_charge_negotiated_dollar
-    float standard_charge_negotiated_percentage
+    string standard_charge_negotiated_dollar
+    string standard_charge_negotiated_percentage
     string standard_charge_negotiated_algorithm
     string methodology
-    float median_amount
-    float tenth_percentile
-    float ninetieth_percentile
+    string median_amount
+    string tenth_percentile
+    string ninetieth_percentile
     string count
     string additional_generic_notes
     string additional_payer_notes
@@ -225,5 +225,15 @@ CSV Bronze table:
 - JSON `standard_charge_information` rows include reported and parser schema
   family fields. When a row parses only under a non-reported schema family, the
   row is retained and `json_record_parse_diagnostics` records the fallback.
+- CSV Bronze stores numeric-looking cells (charges, percentiles, units) as raw
+  text. JSON Bronze amount columns use `Float64`. dbt staging casts these
+  values: currency-like amount fields to `decimal(18, 4)` via `hpt_safe_decimal`
+  and percentages/units to `double` via `hpt_safe_double` before Silver
+  modeling; see `docs/decisions/0010-monetary-precision.md`.
+- JSON parsing has row-level quarantine plus the
+  `json_record_parse_diagnostics` Bronze table. CSV malformed numeric values are
+  preserved as raw text in Bronze and are queryable through the dbt
+  `stg_bronze__csv_numeric_parse_diagnostics` staging model, which emits one row
+  per non-empty raw value that fails the staging cast.
 - Bronze preserves source values and parser lineage. Hospital, payer, plan,
   charge-item, code, and modifier normalization belongs in Silver.

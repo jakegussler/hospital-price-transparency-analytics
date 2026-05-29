@@ -310,10 +310,10 @@ rows remain in `slv_base__payer_rates`.
 | `clean_setting` | varchar | |
 | `raw_billing_class` | varchar | |
 | `clean_billing_class` | varchar | |
-| `gross_charge` | double | |
-| `discounted_cash` | double | |
-| `minimum` | double | |
-| `maximum` | double | |
+| `gross_charge` | decimal(18,4) | |
+| `discounted_cash` | decimal(18,4) | |
+| `minimum` | decimal(18,4) | |
+| `maximum` | decimal(18,4) | |
 | `additional_generic_notes` | varchar | |
 
 ---
@@ -406,13 +406,13 @@ rates come directly from the charge row with payer/plan columns.
 | `clean_plan_name` | varchar | |
 | `raw_methodology` | varchar | |
 | `clean_methodology` | varchar | |
-| `negotiated_dollar` | double | |
+| `negotiated_dollar` | decimal(18,4) | |
 | `negotiated_percentage` | double | |
 | `negotiated_algorithm` | varchar | |
-| `estimated_amount` | double | v2.2 JSON estimated amount for algorithm/percentage charges |
-| `median_amount` | double | |
-| `tenth_percentile` | double | |
-| `ninetieth_percentile` | double | |
+| `estimated_amount` | decimal(18,4) | v2.2 JSON estimated amount for algorithm/percentage charges |
+| `median_amount` | decimal(18,4) | |
+| `tenth_percentile` | decimal(18,4) | |
+| `ninetieth_percentile` | decimal(18,4) | |
 | `raw_count` | varchar | Source-preserved string |
 | `additional_payer_notes` | varchar | |
 
@@ -512,10 +512,10 @@ erDiagram
         varchar standard_charge_signature
         varchar clean_setting
         varchar clean_billing_class
-        double gross_charge
-        double discounted_cash
-        double minimum
-        double maximum
+        decimal gross_charge
+        decimal discounted_cash
+        decimal minimum
+        decimal maximum
     }
 
     slv_base__charge_item_codes {
@@ -540,9 +540,9 @@ erDiagram
         varchar clean_payer_name
         varchar clean_plan_name
         varchar clean_methodology
-        double negotiated_dollar
+        decimal negotiated_dollar
         double negotiated_percentage
-        double estimated_amount
+        decimal estimated_amount
         varchar parser_schema_family
         boolean schema_version_mismatch
     }
