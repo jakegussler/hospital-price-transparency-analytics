@@ -20,11 +20,13 @@ delta_dental,Delta Dental,delta_dental,Delta Dental,dental_payer,commercial,dent
 dentaquest,DentaQuest,sun_life,Sun Life,dental_payer,commercial,dental,true,manual_review,,Dental payer identity.
 devoted_health,Devoted Health,devoted_health,Devoted Health,regional_payer,medicare_advantage,medical,true,manual_review,,Broad Devoted Health payer identity.
 first_health,First Health,first_health,First Health,network,commercial,medical,true,manual_review,,First Health network identity. Coventry context is classified separately when observed.
+health_net,Health Net,centene,Centene,payer_brand,unknown,medical,true,health_net_about,https://www.healthnet.com/content/healthnet/en_us/about-us.html,Broad Health Net California payer identity. Product/program context is classified separately.
 humana,Humana,humana_inc,Humana Inc.,national_payer,unknown,medical,true,manual_review,,Broad Humana payer identity. Product/program/benefit-line context is classified separately.
 magellan,Magellan Health,magellan_health,Magellan Health,behavioral_health_payer,commercial,behavioral_health,true,manual_review,,Behavioral health payer identity.
 medcost,MedCost,medcost,MedCost,network,commercial,medical,true,manual_review,,Broad MedCost payer/network identity.
 metlife,MetLife,metlife,MetLife,dental_payer,commercial,dental,true,manual_review,,Dental payer identity.
 molina,Molina Healthcare,molina_healthcare,Molina Healthcare,national_payer,unknown,medical,true,manual_review,,Broad Molina Healthcare payer identity.
+multiplan,MultiPlan,multiplan,MultiPlan,network,commercial,medical,true,multiplan_networks,https://www.multiplan.us/wp-content/uploads/2023/04/PRVP123_MultiPlan_Networks_4-2023.pdf,MultiPlan network identity. Primary complementary PHCS and program context are classified separately.
 nhc_advantage,NHC Advantage,nhc,NHC,regional_payer,medicare_advantage,medical,true,manual_review,,NHC Advantage Medicare Advantage payer identity.
 optima_health,Optima Health,sentara_health,Sentara Health,regional_payer,unknown,medical,true,manual_review,,Broad Optima Health payer identity.
 optum,Optum,unitedhealth_group,UnitedHealth Group,services_brand,unknown,medical,true,optum_about,https://www.optum.com/en/about-us.html,Optum payer/services brand identity. Behavioral health and VA CCN context is classified separately.
