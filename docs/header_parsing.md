@@ -314,7 +314,7 @@ def parse_json_header(file_path: str, snapshot_meta: dict) -> tuple[dict, list, 
     h = {}  # accumulator for header fields
 
     with open(file_path, "rb") as f:
-        for prefix, event, value in ijson.parse(f, use_float=True):
+        for prefix, event, value in ijson.parse(f):
             if prefix == "hospital_name":
                 h["hospital_name"] = value
             elif prefix == "last_updated_on":

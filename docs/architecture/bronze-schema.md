@@ -74,7 +74,7 @@ erDiagram
   drug_information {
     string snapshot_id FK
     string charge_item_id FK
-    float unit
+    string unit
     string type
   }
 
@@ -83,10 +83,10 @@ erDiagram
     string snapshot_id FK
     string charge_item_id FK
     int charge_ordinal
-    float minimum
-    float maximum
-    float gross_charge
-    float discounted_cash
+    string minimum
+    string maximum
+    string gross_charge
+    string discounted_cash
     string setting
     string billing_class
     string additional_generic_notes
@@ -106,13 +106,13 @@ erDiagram
     string payer_name
     string plan_name
     string methodology
-    float standard_charge_dollar
-    float standard_charge_percentage
+    string standard_charge_dollar
+    string standard_charge_percentage
     string standard_charge_algorithm
-    float estimated_amount
-    float median_amount
-    float tenth_percentile
-    float ninetieth_percentile
+    string estimated_amount
+    string median_amount
+    string tenth_percentile
+    string ninetieth_percentile
     string count
     string additional_payer_notes
   }
@@ -225,14 +225,17 @@ CSV Bronze table:
 - JSON `standard_charge_information` rows include reported and parser schema
   family fields. When a row parses only under a non-reported schema family, the
   row is retained and `json_record_parse_diagnostics` records the fallback.
-- CSV Bronze stores numeric-looking cells (charges, percentiles, units) as raw
-  text. JSON Bronze amount columns use `Float64`. dbt staging casts these
-  values: currency-like amount fields to `decimal(18, 4)` via `hpt_safe_decimal`
-  and percentages/units to `double` via `hpt_safe_double` before Silver
-  modeling; see `docs/decisions/0010-monetary-precision.md`.
-- JSON parsing has row-level quarantine plus the
-  `json_record_parse_diagnostics` Bronze table. CSV malformed numeric values are
-  preserved as raw text in Bronze and are queryable through the dbt
+- Both JSON and CSV Bronze store numeric-looking source values (charges,
+  percentiles, units) as raw text (`Utf8`). dbt staging is the numeric type
+  boundary: it casts currency-like amount fields to `decimal(18, 4)` via
+  `hpt_safe_decimal` and percentages/units to `double` via `hpt_safe_double`
+  before Silver modeling; see `docs/decisions/0010-monetary-precision.md`.
+- JSON and CSV differ in how invalid numbers are surfaced. JSON validates each
+  record with Pydantic before Bronze, so a record with an invalid numeric field
+  is quarantined as JSONL and recorded in the `json_record_parse_diagnostics`
+  Bronze table — invalid JSON numbers generally never reach an accepted Bronze
+  row. CSV performs no such validation; its malformed numeric values survive as
+  raw text in Bronze and are queryable through the dbt
   `stg_bronze__csv_numeric_parse_diagnostics` staging model, which emits one row
   per non-empty raw value that fails the staging cast.
 - Bronze preserves source values and parser lineage. Hospital, payer, plan,

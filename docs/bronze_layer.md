@@ -13,6 +13,7 @@ The Bronze layer is a **source-faithful representation** of CMS Machine-Readable
 ### Core principles
 
 - **No transformation** — column values reflect what the source file contained, including nulls, inconsistencies, and duplicates.
+- **Numeric values are preserved as text** — amount, unit, and percentage columns are stored as `Utf8` in both JSON and CSV Bronze so the exact source digits survive. dbt staging is the numeric type boundary: `hpt_safe_decimal` casts currency-like amounts to `decimal(18, 4)` and `hpt_safe_double` casts percentages/units to `double`. See `docs/decisions/0010-monetary-precision.md`. (JSON still validates numeric fields with Pydantic before Bronze, so invalid numbers are quarantined rather than written as accepted rows.)
 - **No relational resolution** — Bronze parsers do not perform lookup joins. Raw code strings remain raw code strings.
 - **Surrogate keys are pipeline-generated** — the source files contain no natural PKs at the charge-item level. Keys are generated deterministically so that re-ingesting the same file always produces the same keys.
 
@@ -175,7 +176,7 @@ These tables are populated **only by the JSON parser**. They map directly to the
 |---|---|---|---|---|
 | `snapshot_id` | `Utf8` | FK | Pipeline-generated | → `hospital_mrf_snapshots.snapshot_id`; denormalized for direct querying |
 | `charge_item_id` | `Utf8` | FK | Pipeline-generated | → `standard_charge_info.charge_item_id` |
-| `unit` | `Float64` | | Source-derived | Nullable |
+| `unit` | `Utf8` | | Source-derived | Nullable |
 | `type` | `Utf8` | | Source-derived | Unit type: `GR`, `ML`, `ME`, etc. Nullable |
 
 ---
@@ -191,10 +192,10 @@ These tables are populated **only by the JSON parser**. They map directly to the
 | `snapshot_id` | `Utf8` | FK | Pipeline-generated | → `hospital_mrf_snapshots.snapshot_id`; denormalized for direct querying |
 | `charge_item_id` | `Utf8` | FK | Pipeline-generated | → `standard_charge_info.charge_item_id` |
 | `charge_ordinal` | `Int64` | | Source-derived | Position within the item's standard_charges array |
-| `minimum` | `Float64` | | Source-derived | Nullable |
-| `maximum` | `Float64` | | Source-derived | Nullable |
-| `gross_charge` | `Float64` | | Source-derived | Nullable |
-| `discounted_cash` | `Float64` | | Source-derived | Nullable |
+| `minimum` | `Utf8` | | Source-derived | Nullable |
+| `maximum` | `Utf8` | | Source-derived | Nullable |
+| `gross_charge` | `Utf8` | | Source-derived | Nullable |
+| `discounted_cash` | `Utf8` | | Source-derived | Nullable |
 | `setting` | `Utf8` | | Source-derived | `inpatient`, `outpatient`, or `both` |
 | `billing_class` | `Utf8` | | Source-derived | Nullable; e.g., `professional`, `facility` |
 | `additional_generic_notes` | `Utf8` | | Source-derived | Nullable |
@@ -241,12 +242,12 @@ These tables are populated **only by the JSON parser**. They map directly to the
 | `payer_name` | `Utf8` | | Source-derived | |
 | `plan_name` | `Utf8` | | Source-derived | Nullable |
 | `methodology` | `Utf8` | | Source-derived | Nullable |
-| `standard_charge_dollar` | `Float64` | | Source-derived | Nullable |
-| `standard_charge_percentage` | `Float64` | | Source-derived | Nullable |
+| `standard_charge_dollar` | `Utf8` | | Source-derived | Nullable |
+| `standard_charge_percentage` | `Utf8` | | Source-derived | Nullable |
 | `standard_charge_algorithm` | `Utf8` | | Source-derived | Nullable |
-| `median_amount` | `Float64` | | Source-derived | Nullable |
-| `tenth_percentile` | `Float64` | | Source-derived | Nullable |
-| `ninetieth_percentile` | `Float64` | | Source-derived | Nullable |
+| `median_amount` | `Utf8` | | Source-derived | Nullable |
+| `tenth_percentile` | `Utf8` | | Source-derived | Nullable |
+| `ninetieth_percentile` | `Utf8` | | Source-derived | Nullable |
 | `count` | `Utf8` | | Source-derived | Nullable; stored as string to preserve source fidelity |
 | `additional_payer_notes` | `Utf8` | | Source-derived | Nullable |
 
@@ -322,22 +323,22 @@ This table is populated by **both the CSV Tall parser and the CSV Wide parser**.
 | `code_N_type` | `Utf8` | | Source-derived | Nullable |
 | `setting` | `Utf8` | | Source-derived | `inpatient`, `outpatient`, or `both` |
 | `billing_class` | `Utf8` | | Source-derived | Optional; `professional`, `facility`, or `both`. Nullable |
-| `drug_unit_of_measurement` | `Float64` | | Source-derived | Nullable |
+| `drug_unit_of_measurement` | `Utf8` | | Source-derived | Nullable |
 | `drug_type_of_measurement` | `Utf8` | | Source-derived | Nullable; `GR`, `ME`, `ML`, `UN`, `F2`, `EA`, `GM` |
-| `standard_charge_gross` | `Float64` | | Source-derived | Nullable |
-| `standard_charge_discounted_cash` | `Float64` | | Source-derived | Nullable |
-| `standard_charge_min` | `Float64` | | Source-derived | Nullable; de-identified minimum across all payers |
-| `standard_charge_max` | `Float64` | | Source-derived | Nullable; de-identified maximum across all payers |
+| `standard_charge_gross` | `Utf8` | | Source-derived | Nullable |
+| `standard_charge_discounted_cash` | `Utf8` | | Source-derived | Nullable |
+| `standard_charge_min` | `Utf8` | | Source-derived | Nullable; de-identified minimum across all payers |
+| `standard_charge_max` | `Utf8` | | Source-derived | Nullable; de-identified maximum across all payers |
 | `modifiers` | `Utf8` | | Source-derived | Nullable; pipe-delimited modifier code string (e.g., `"25\|59"`); split at Silver |
 | `payer_name` | `Utf8` | | Source-derived (Tall) / Parser-extracted (Wide) | Nullable; extracted from column header during Wide unpivoting |
 | `plan_name` | `Utf8` | | Source-derived (Tall) / Parser-extracted (Wide) | Nullable; extracted from column header during Wide unpivoting |
-| `standard_charge_negotiated_dollar` | `Float64` | | Source-derived | Nullable |
-| `standard_charge_negotiated_percentage` | `Float64` | | Source-derived | Nullable |
+| `standard_charge_negotiated_dollar` | `Utf8` | | Source-derived | Nullable |
+| `standard_charge_negotiated_percentage` | `Utf8` | | Source-derived | Nullable |
 | `standard_charge_negotiated_algorithm` | `Utf8` | | Source-derived | Nullable |
 | `methodology` | `Utf8` | | Source-derived | Nullable; standard charge methodology |
-| `median_amount` | `Float64` | | Source-derived | Nullable |
-| `tenth_percentile` | `Float64` | | Source-derived | Nullable |
-| `ninetieth_percentile` | `Float64` | | Source-derived | Nullable |
+| `median_amount` | `Utf8` | | Source-derived | Nullable |
+| `tenth_percentile` | `Utf8` | | Source-derived | Nullable |
+| `ninetieth_percentile` | `Utf8` | | Source-derived | Nullable |
 | `count` | `Utf8` | | Source-derived | Nullable; stored as string to preserve source fidelity (values include `"0"`, `"1 through 10"`, whole numbers ≥ 11) |
 | `additional_generic_notes` | `Utf8` | | Source-derived | Nullable |
 | `additional_payer_notes` | `Utf8` | | Source-derived | Nullable; Wide format has a separate `additional_payer_notes` column; Tall encodes payer-specific notes in `additional_generic_notes` |
