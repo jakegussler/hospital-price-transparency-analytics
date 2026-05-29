@@ -16,7 +16,7 @@ from hpt.parsers.json_mrf import (
     JsonMrfParser,
     _df,
     _iso,
-    _to_float,
+    _to_text,
 )
 from hpt.parsers.schemas import BRONZE_SCHEMAS
 
@@ -143,20 +143,28 @@ def _collect_table(
 # ---------------------------------------------------------------------------
 
 
-class TestToFloat:
-    def test_decimal(self):
-        assert _to_float(Decimal("1.5")) == 1.5
+class TestToText:
+    def test_decimal_preserves_plain_string(self):
+        result = _to_text(Decimal("1.50"))
+        assert result == "1.50"
+        assert isinstance(result, str)
+
+    def test_decimal_no_float_roundtrip(self):
+        # A value that would lose precision via float keeps its exact digits.
+        assert _to_text(Decimal("0.1")) == "0.1"
 
     def test_none(self):
-        assert _to_float(None) is None
+        assert _to_text(None) is None
 
     def test_int(self):
-        result = _to_float(42)
-        assert result == 42.0
-        assert isinstance(result, float)
+        result = _to_text(42)
+        assert result == "42"
+        assert isinstance(result, str)
 
-    def test_float_passthrough(self):
-        assert _to_float(3.14) == 3.14
+    def test_float(self):
+        result = _to_text(3.14)
+        assert result == "3.14"
+        assert isinstance(result, str)
 
 
 class TestIso:
@@ -460,7 +468,9 @@ class TestChargeParsing:
 
         drug_df = charge_batch["drug_information"]
         assert len(drug_df) == 1
-        assert drug_df["unit"][0] == 10.0
+        # Bronze preserves the numeric source value as text; dbt staging casts it.
+        assert drug_df["unit"][0] == "10.0"
+        assert drug_df["unit"].dtype == pl.Utf8
         assert drug_df["type"][0] == "ML"
 
     def test_flatten_sci_modifier_codes(self, tmp_path):
@@ -496,7 +506,48 @@ class TestChargeParsing:
         assert payer_df["payer_name"][0] == "Aetna"
         assert payer_df["plan_name"][0] == "PPO"
         assert payer_df["methodology"][0] == "fee schedule"
-        assert payer_df["standard_charge_dollar"][0] == 150.0
+        # Bronze preserves the numeric source value as text; dbt staging casts it.
+        assert payer_df["standard_charge_dollar"][0] == "150.0"
+        assert payer_df["standard_charge_dollar"].dtype == pl.Utf8
+
+    def test_numeric_values_preserved_as_text(self, tmp_path):
+        """Accepted numeric fields land in Bronze as strings regardless of the
+        JSON source representation (string-quoted, integer, or fractional)."""
+        mrf_path = tmp_path / "mrf.json"
+        payer = {
+            "payer_name": "Aetna",
+            "plan_name": "PPO",
+            "methodology": "fee schedule",
+            # String-quoted numeric in source preserves its exact digits.
+            "standard_charge_dollar": "150.00",
+        }
+        sci = {
+            "description": "Chest X-Ray",
+            "code_information": [_VALID_CODE],
+            "standard_charges": [
+                {
+                    "setting": "outpatient",
+                    # Integer source value preserved without a trailing ".0".
+                    "gross_charge": 200,
+                    "minimum": "100.5",
+                    "maximum": 300,
+                    "payers_information": [payer],
+                }
+            ],
+        }
+        _write_mrf(mrf_path, _minimal_mrf(standard_charge_information=[sci]))
+        parser = _make_parser(tmp_path / "quarantine")
+
+        batches = list(parser.parse(mrf_path))
+        charges_df = _collect_table(batches[2:], "standard_charges")
+        payer_df = _collect_table(batches[2:], "payers_information")
+
+        assert charges_df["gross_charge"].dtype == pl.Utf8
+        assert charges_df["gross_charge"][0] == "200"
+        assert charges_df["minimum"][0] == "100.5"
+        assert charges_df["maximum"][0] == "300"
+        assert payer_df["standard_charge_dollar"].dtype == pl.Utf8
+        assert payer_df["standard_charge_dollar"][0] == "150.00"
 
     def test_v2_2_algorithm_estimated_amount_ingests_without_mismatch(self, tmp_path):
         quarantine_root = tmp_path / "quarantine"
@@ -536,7 +587,7 @@ class TestChargeParsing:
         assert charge_df["reported_schema_family"][0] == "2.2"
         assert charge_df["parser_schema_family"][0] == "2.2"
         assert charge_df["schema_version_mismatch"][0] is False
-        assert payer_df["estimated_amount"][0] == 33.51
+        assert payer_df["estimated_amount"][0] == "33.51"
         assert diagnostic_df.is_empty()
         assert not (quarantine_root / "snapshot_id=snap-001").exists()
 

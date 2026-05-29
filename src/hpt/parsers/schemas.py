@@ -69,7 +69,9 @@ JSON_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
     "drug_information": {
         "snapshot_id": pl.Utf8,
         "charge_item_id": pl.Utf8,
-        "unit": pl.Float64,
+        # Numeric source values are preserved as raw text in Bronze; dbt staging
+        # casts them with hpt_safe_decimal / hpt_safe_double. See ADR 0010.
+        "unit": pl.Utf8,
         "type": pl.Utf8,
     },
     "standard_charges": {
@@ -77,10 +79,12 @@ JSON_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
         "snapshot_id": pl.Utf8,
         "charge_item_id": pl.Utf8,
         "charge_ordinal": pl.Int64,
-        "minimum": pl.Float64,
-        "maximum": pl.Float64,
-        "gross_charge": pl.Float64,
-        "discounted_cash": pl.Float64,
+        # Numeric source values are preserved as raw text in Bronze; dbt staging
+        # casts them with hpt_safe_decimal / hpt_safe_double. See ADR 0010.
+        "minimum": pl.Utf8,
+        "maximum": pl.Utf8,
+        "gross_charge": pl.Utf8,
+        "discounted_cash": pl.Utf8,
         "setting": pl.Utf8,
         "billing_class": pl.Utf8,
         "additional_generic_notes": pl.Utf8,
@@ -98,13 +102,15 @@ JSON_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
         "payer_name": pl.Utf8,
         "plan_name": pl.Utf8,
         "methodology": pl.Utf8,
-        "standard_charge_dollar": pl.Float64,
-        "standard_charge_percentage": pl.Float64,
+        # Numeric source values are preserved as raw text in Bronze; dbt staging
+        # casts them with hpt_safe_decimal / hpt_safe_double. See ADR 0010.
+        "standard_charge_dollar": pl.Utf8,
+        "standard_charge_percentage": pl.Utf8,
         "standard_charge_algorithm": pl.Utf8,
-        "estimated_amount": pl.Float64,
-        "median_amount": pl.Float64,
-        "tenth_percentile": pl.Float64,
-        "ninetieth_percentile": pl.Float64,
+        "estimated_amount": pl.Utf8,
+        "median_amount": pl.Utf8,
+        "tenth_percentile": pl.Utf8,
+        "ninetieth_percentile": pl.Utf8,
         "count": pl.Utf8,
         "additional_payer_notes": pl.Utf8,
     },

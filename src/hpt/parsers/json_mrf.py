@@ -60,13 +60,17 @@ _CHARGE_TABLES: tuple[str, ...] = (
 )
 
 
-def _to_float(value: Decimal | float | int | None) -> float | None:
-    """Convert numeric Pydantic fields to ``float`` for Bronze Float64 columns."""
+def _to_text(value: Decimal | float | int | None) -> str | None:
+    """Render numeric Pydantic fields as text for Bronze ``Utf8`` columns.
+
+    Bronze preserves the source numeric representation; dbt staging is the type
+    boundary that casts these strings to ``decimal``/``double`` (see ADR 0010).
+    ``Decimal`` keeps its plain string form rather than being routed through
+    ``float``, so no precision is lost before dbt.
+    """
     if value is None:
         return None
-    if isinstance(value, float):
-        return value
-    return float(value)
+    return str(value)
 
 
 @dataclass(frozen=True)
@@ -147,7 +151,7 @@ class JsonMrfParser(BaseParser):
         h: dict[str, Any] = {}
 
         with _open_maybe_gz(file_path) as f:
-            for prefix, event, value in ijson.parse(f, use_float=True):
+            for prefix, event, value in ijson.parse(f):
                 if prefix == "hospital_name":
                     h["hospital_name"] = value
                 elif prefix == "last_updated_on":
@@ -250,7 +254,7 @@ class JsonMrfParser(BaseParser):
 
         with _open_maybe_gz(file_path) as f:
             for ordinal, raw_item in enumerate(
-                ijson.items(f, "modifier_information.item", use_float=True)
+                ijson.items(f, "modifier_information.item")
             ):
                 try:
                     mi = ModifierInformation.model_validate(raw_item)
@@ -314,9 +318,7 @@ class JsonMrfParser(BaseParser):
 
         with _open_maybe_gz(file_path) as f:
             for item_ordinal, raw_item in enumerate(
-                ijson.items(
-                    f, "standard_charge_information.item", use_float=True
-                )
+                ijson.items(f, "standard_charge_information.item")
             ):
                 parsed = self._parse_charge_with_fallback(raw_item)
                 if parsed.model is None:
@@ -506,7 +508,7 @@ class JsonMrfParser(BaseParser):
                 {
                     "snapshot_id": snapshot_id,
                     "charge_item_id": charge_item_id,
-                    "unit": _to_float(sci.drug_information.unit),
+                    "unit": _to_text(sci.drug_information.unit),
                     "type": sci.drug_information.type.value,
                 }
             )
@@ -519,10 +521,10 @@ class JsonMrfParser(BaseParser):
                     "snapshot_id": snapshot_id,
                     "charge_item_id": charge_item_id,
                     "charge_ordinal": charge_ord,
-                    "minimum": _to_float(charge.minimum),
-                    "maximum": _to_float(charge.maximum),
-                    "gross_charge": _to_float(charge.gross_charge),
-                    "discounted_cash": _to_float(charge.discounted_cash),
+                    "minimum": _to_text(charge.minimum),
+                    "maximum": _to_text(charge.maximum),
+                    "gross_charge": _to_text(charge.gross_charge),
+                    "discounted_cash": _to_text(charge.discounted_cash),
                     "setting": charge.setting.value,
                     "billing_class": charge.billing_class,
                     "additional_generic_notes": charge.additional_generic_notes,
@@ -548,17 +550,17 @@ class JsonMrfParser(BaseParser):
                         "payer_name": payer.payer_name,
                         "plan_name": payer.plan_name,
                         "methodology": payer.methodology.value,
-                        "standard_charge_dollar": _to_float(
+                        "standard_charge_dollar": _to_text(
                             payer.standard_charge_dollar
                         ),
-                        "standard_charge_percentage": _to_float(
+                        "standard_charge_percentage": _to_text(
                             payer.standard_charge_percentage
                         ),
                         "standard_charge_algorithm": payer.standard_charge_algorithm,
-                        "estimated_amount": _to_float(payer.estimated_amount),
-                        "median_amount": _to_float(payer.median_amount),
-                        "tenth_percentile": _to_float(payer.tenth_percentile),
-                        "ninetieth_percentile": _to_float(
+                        "estimated_amount": _to_text(payer.estimated_amount),
+                        "median_amount": _to_text(payer.median_amount),
+                        "tenth_percentile": _to_text(payer.tenth_percentile),
+                        "ninetieth_percentile": _to_text(
                             payer.ninetieth_percentile
                         ),
                         "count": payer.count,
