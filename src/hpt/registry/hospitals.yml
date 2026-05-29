@@ -6,7 +6,7 @@
 #
 # Add real hospitals here as you research their MRF URLs.
 # See docs/local/req_docs/source_registry_downloader.md for the
-# required mix (15-20 hospitals across FL, TN, NC).
+# current registry shape and supported expected_format values.
 
 hospitals:
 
