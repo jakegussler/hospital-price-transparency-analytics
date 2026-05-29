@@ -240,7 +240,23 @@ docs/cms_reference/
 
 
 # Local data (raw downloads, bronze parquet, DuckDB files)
-data/
+/data/*
+!/data/.gitkeep
+!/data/.tmp/
+!/data/bronze/
+!/data/metadata/
+!/data/quarantine/
+!/data/raw/
+/data/.tmp/*
+/data/bronze/*
+/data/metadata/*
+/data/quarantine/*
+/data/raw/*
+!/data/.tmp/.gitkeep
+!/data/bronze/.gitkeep
+!/data/metadata/.gitkeep
+!/data/quarantine/.gitkeep
+!/data/raw/.gitkeep
 *.duckdb
 *.duckdb.wal
 pricetransparency.db
@@ -263,4 +279,14 @@ infra/terraform/*.tfplan
 
 
 # Local logs
-logs/
+/logs/*
+!/logs/.gitkeep
+!/logs/failures/
+!/logs/json/
+!/logs/std_out/
+/logs/failures/*
+/logs/json/*
+/logs/std_out/*
+!/logs/failures/.gitkeep
+!/logs/json/.gitkeep
+!/logs/std_out/.gitkeep
