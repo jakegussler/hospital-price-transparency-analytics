@@ -42,19 +42,24 @@ Relevant Silver models:
 - `transform/models/silver/core/slv_core__payer_rates.sql` exposes broad payer
   identity plus separate context columns.
 - `transform/models/silver/review_queue/slv_review_queue__payer_candidates.sql`
-  summarizes mapped and unmapped payer values for review.
+  summarizes unmatched payer values where no broad canonical payer identity was
+  found.
+- `transform/models/silver/review_queue/slv_review_queue__payer_plan_candidates.sql`
+  summarizes unmatched payer plus plan combinations so reviewers can see the
+  plan context attached to unmapped payers.
 
 Do not add business normalization to Bronze parsers. This work belongs in dbt
 seeds and Silver Core mapping logic.
 
 ## If You Have Database Access
 
-Before researching, query the current data to understand all observed
-configurations for the payer or payer family you are mapping. Pull payer and
-plan combinations, row counts, hospital counts, state context, current identity
-mapping status, and current context classification status.
+Before researching, query the current data to understand which unmatched payer
+values matter most and what plan context appears with them. Pull row counts,
+hospital counts, snapshot counts, source-format counts, example states, state
+counts, example raw values, and distinct plan counts from the review queues.
 
-Start from the review queue when available:
+Start with unmatched payer names. This is the best queue for deciding which
+`payer_aliases.csv` rows or new broad `canonical_payers.csv` rows are needed:
 
 ```sql
 select *
@@ -64,7 +69,27 @@ where clean_payer_name like '%<payer token>%'
 order by payer_rate_rows desc, hospital_count desc, clean_payer_name;
 ```
 
-Then inspect plan context in the base payer rates:
+Then inspect unmatched payer plus plan combinations. This is the best queue for
+finding plan names that may justify context rules after the payer identity is
+mapped:
+
+```sql
+select *
+from slv_review_queue__payer_plan_candidates
+where clean_payer_name like '%<payer token>%'
+   or clean_plan_name like '%<payer token>%'
+order by payer_rate_rows desc, hospital_count desc, clean_payer_name, clean_plan_name;
+```
+
+Use `slv_review_queue__payer_candidates` to prioritize unmapped payer identity
+work. Use `slv_review_queue__payer_plan_candidates` to understand the plans
+associated with those unmapped payers and to identify likely
+`payer_context_rules.csv` additions. Both review queues intentionally expose
+`example_state` and `state_count`; do not treat state as part of the grouping
+unless a specific state-scoped rule or BCBS licensee decision requires it.
+
+Only drill into base payer rates after the review queues show a candidate that
+needs deeper inspection:
 
 ```sql
 select
