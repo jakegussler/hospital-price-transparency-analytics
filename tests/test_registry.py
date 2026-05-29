@@ -45,6 +45,21 @@ class TestLoadRegistry:
         with pytest.raises(RegistryError, match="bad-enum-hospital"):
             load_registry(FIXTURES / "bad_enum.yml")
 
+    def test_ndjson_expected_format_rejected(self, tmp_path):
+        p = tmp_path / "ndjson.yml"
+        p.write_text(
+            "hospitals:\n"
+            "  - hospital_id: ndjson-hospital\n"
+            "    canonical_hospital_name: X\n"
+            "    canonical_state: FL\n"
+            "    hospital_type: community\n"
+            "    mrf_source:\n"
+            "      url: https://example.com/x.ndjson\n"
+            "      expected_format: ndjson\n"
+        )
+        with pytest.raises(RegistryError, match="ndjson-hospital"):
+            load_registry(p)
+
     def test_bad_url_raises(self):
         with pytest.raises(RegistryError, match="bad-url-hospital"):
             load_registry(FIXTURES / "bad_url.yml")

@@ -11,7 +11,7 @@ class MrfSource(BaseModel):
     """Location and format metadata for a hospital's MRF file."""
 
     url: HttpUrl
-    expected_format: Literal["json", "ndjson", "csv_tall", "csv_wide"]
+    expected_format: Literal["json", "csv_tall", "csv_wide"]
     notes: str | None = None
 
 
