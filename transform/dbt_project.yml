@@ -75,9 +75,10 @@ models:
           +tags: ["pipeline_charge_data"]
       core:
         +tags: ["silver_core", "silver"]
-    gold:
-      +materialized: table
 
 seeds:
   hospital_price_transparency:
     +schema: seeds
+    payer_context_rules:
+      +column_types:
+        plan_type: varchar

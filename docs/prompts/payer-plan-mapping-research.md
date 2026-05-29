@@ -308,6 +308,30 @@ plan name supplies product, market-segment, program, network, benefit-line,
 funding, or state context. Context rules enrich rows; they do not replace
 `canonical_payer_id`.
 
+## CSV Formatting Requirements
+
+Keep all dbt seed CSV files in Unix `LF` line-ending format. Do not introduce
+mixed `CRLF`/`LF` line endings when appending rows. DuckDB's seed CSV sniffer can
+fail with "number of columns found by the sniffer: 0" when a seed has mixed line
+endings, even if Python's CSV parser accepts the file.
+
+After editing payer seed CSVs, verify formatting before handing off:
+
+```bash
+python3 -c "from pathlib import Path; paths=['transform/seeds/canonical_payers.csv','transform/seeds/payer_aliases.csv','transform/seeds/payer_context_rules.csv']; [print(p, Path(p).read_bytes().count(b'\r\n'), Path(p).read_bytes().count(b'\r')-Path(p).read_bytes().count(b'\r\n')) for p in paths]"
+```
+
+Both numeric counts printed for each file must be `0`. If any seed has CRLF or
+bare CR counts, normalize it before completion:
+
+```bash
+perl -pi -e 's/\r\n/\n/g; s/\r/\n/g' transform/seeds/canonical_payers.csv transform/seeds/payer_aliases.csv transform/seeds/payer_context_rules.csv
+```
+
+Also verify that every row has the expected number of columns after edits.
+Python CSV parsing is a useful row-shape check, but it is not enough by itself
+because it can hide line-ending problems that DuckDB/dbt will reject.
+
 Make aliases and context rules as general as accuracy allows. Prefer a single
 confident rule such as `plan_pattern = medicare advantage` under
 `source_canonical_payer_id = aetna` over many overly specific
