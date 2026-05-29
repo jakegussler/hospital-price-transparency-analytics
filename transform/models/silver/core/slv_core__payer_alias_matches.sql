@@ -1,3 +1,5 @@
+{{ config(materialized='ephemeral') }}
+
 with base_rates as (
     select
         pr.silver_payer_rate_id,

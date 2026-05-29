@@ -21,10 +21,10 @@ where evidence_source <> 'manual_review'
 union all
 
 select
-    'payer_context_overrides' as seed_name,
+    'payer_context_rules' as seed_name,
     payer_context_rule_id as record_id,
     evidence_source,
     evidence_url
-from {{ ref('payer_context_overrides') }}
+from {{ ref('payer_context_rules') }}
 where evidence_source <> 'manual_review'
     and {{ hpt_clean_text('evidence_url') }} is null

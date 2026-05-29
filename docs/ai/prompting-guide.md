@@ -42,7 +42,7 @@ keys.
 Use docs/prompts/payer-plan-mapping-research.md when researching payer and plan
 names or updating transform/seeds/canonical_payers.csv,
 transform/seeds/payer_aliases.csv, and
-transform/seeds/payer_context_overrides.csv. Query the local DuckDB data first
+transform/seeds/payer_context_rules.csv. Query the local DuckDB data first
 when it is available so mappings cover all observed payer plus plan
 configurations.
 ```

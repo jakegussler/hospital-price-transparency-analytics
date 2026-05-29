@@ -28,21 +28,41 @@ seeds:
               values: ["json", "csv_tall", "csv_wide"]
 
   - name: canonical_payers
-    description: "Reviewed canonical payer and payer-program identities used by Silver Core payer normalization."
+    description: "Reviewed broad payer identities used for Silver Core payer normalization. Product, program, segment, network, and benefit-line context lives in payer_context_rules."
     columns:
       - name: canonical_payer_id
-        description: "Stable canonical payer or payer-program identifier used in Silver Core joins."
+        description: "Stable broad payer, payer brand, administrator, network, or licensee identifier."
         tests:
           - not_null
           - unique
       - name: canonical_payer_name
-        description: "Reviewed display name for the canonical payer or payer-program identity."
+        description: "Reviewed display name for the broad payer identity."
         tests:
           - not_null
-      - name: parent_organization
-        description: "Reviewed parent organization or brand family for payer rollups."
-      - name: payer_category
-        description: "Reviewed payer category used for analytical grouping."
+      - name: payer_parent_id
+        description: "Stable parent organization identifier used for corporate rollups."
+      - name: payer_parent_name
+        description: "Reviewed parent organization display name."
+      - name: payer_type
+        description: "Broad payer identity type."
+        tests:
+          - accepted_values:
+              values:
+                - national_payer
+                - regional_payer
+                - payer_brand
+                - marketplace_brand
+                - bcbs_licensee
+                - medicaid_mco_brand
+                - dental_payer
+                - behavioral_health_payer
+                - network
+                - tpa
+                - product_brand
+                - services_brand
+                - other_payer
+      - name: default_market_segment
+        description: "Default market segment when the payer identity itself strongly implies one; otherwise unknown."
         tests:
           - accepted_values:
               values:
@@ -58,6 +78,11 @@ seeds:
                 - other_government
                 - other
                 - unknown
+      - name: default_benefit_line
+        description: "Default benefit line for the payer identity when one is strongly implied."
+        tests:
+          - accepted_values:
+              values: ["medical", "dental", "vision", "behavioral_health", "transplant", "unknown"]
       - name: active
         description: "Whether the canonical payer identity is active for current mapping joins."
       - name: evidence_source
@@ -68,7 +93,7 @@ seeds:
         description: "Reviewer notes explaining the canonical payer identity or any important mapping caveats."
 
   - name: payer_aliases
-    description: "Reviewed payer-name aliases. Accepted active rows can map clean source payer names to canonical payers."
+    description: "Reviewed payer-name aliases. Accepted active rows map clean source payer names to broad canonical payer identities."
     columns:
       - name: payer_alias_id
         description: "Stable identifier for this reviewed payer alias rule."
@@ -76,7 +101,7 @@ seeds:
           - not_null
           - unique
       - name: canonical_payer_id
-        description: "Canonical payer identity assigned when this alias rule matches."
+        description: "Broad canonical payer identity assigned when this alias rule matches."
         tests:
           - not_null
           - relationships:
@@ -125,60 +150,83 @@ seeds:
       - name: notes
         description: "Reviewer notes explaining the alias decision, especially for non-exact or scoped mappings."
 
-  - name: payer_context_overrides
-    description: "Reviewed plan-conditioned rules that refine overly broad payer aliases without changing raw payer fields."
+  - name: payer_context_rules
+    description: "Reviewed payer and plan context rules. Accepted active rows enrich payer-rate rows with market, program, product, network, benefit-line, and state context without replacing canonical_payer_id."
     columns:
       - name: payer_context_rule_id
-        description: "Stable identifier for this reviewed plan-conditioned payer override rule."
+        description: "Stable identifier for this reviewed payer context rule."
         tests:
           - not_null
           - unique
-      - name: canonical_payer_id
-        description: "Canonical payer identity assigned when this context override matches."
+      - name: source_canonical_payer_id
+        description: "Broad canonical payer identity that must be resolved before this context rule can apply."
         tests:
           - not_null
           - relationships:
               to: ref('canonical_payers')
               field: canonical_payer_id
       - name: source_clean_payer_name
-        description: "Clean payer name that must be present before the plan-conditioned override can apply."
-        tests:
-          - not_null
+        description: "Optional clean payer name constraint used when a context rule should apply only to a specific alias."
       - name: plan_pattern
-        description: "Clean plan-name text or substring used to identify the override context."
+        description: "Clean plan-name text, regex, token, substring, or payer-name value used to identify the context."
         tests:
           - not_null
       - name: match_type
-        description: "Matching method used against clean_plan_name."
+        description: "Matching method used by the rule."
         tests:
           - accepted_values:
-              values: ["exact_clean", "plan_contains", "token_contains", "regex"]
+              values: ["payer_name", "exact_clean", "plan_contains", "token_contains", "regex"]
       - name: match_scope
-        description: "Scope where this context override can be applied, such as global or state-specific."
+        description: "Scope where this context rule can be applied."
         tests:
           - accepted_values:
               values: ["global", "state"]
-      - name: canonical_state
-        description: "Two-letter state required for state-scoped overrides; NA for global overrides."
+      - name: match_state
+        description: "Two-letter state required for state-scoped rules."
+      - name: priority
+        description: "Lower numbers win when multiple context rules match."
+        tests:
+          - not_null
+      - name: market_segment
+        description: "Broad financing or coverage market classified from payer/plan context."
+      - name: program_type
+        description: "Specific government or product program context, such as dsnp, tenncare, medi_cal, or va_ccn."
+      - name: product_or_network_name
+        description: "Named product, network, or plan family that should not replace payer identity."
+      - name: subsidiary_or_brand
+        description: "More specific operating brand or subsidiary represented by the payer/plan context."
+      - name: benefit_line
+        description: "Benefit line such as dental, behavioral health, vision, transplant, or medical."
+      - name: funding_arrangement
+        description: "Funding arrangement when detectable, such as level_funded."
+      - name: context_state
+        description: "State implied by the payer/product/program context, especially Medicaid managed care programs."
+      - name: plan_type
+        description: "Plan type such as HMO, PPO, POS, or EPO when explicitly classified."
+      - name: context_confidence
+        description: "Reviewer confidence for the context classification."
+        tests:
+          - accepted_values:
+              values: ["high", "medium", "low"]
       - name: validation_status
-        description: "How the context override was validated."
+        description: "How the context rule was validated."
         tests:
           - accepted_values:
               values: ["manual_exact", "manual_alias", "source_verified", "inferred_from_pattern"]
       - name: review_status
-        description: "Review lifecycle status controlling whether the override is eligible for canonical mapping."
+        description: "Review lifecycle status controlling whether the context rule is eligible for matching."
         tests:
           - accepted_values:
               values: ["candidate", "accepted", "rejected", "needs_more_context"]
       - name: reviewed_by
-        description: "Reviewer or process that last accepted or updated the override decision."
+        description: "Reviewer or process that last accepted or updated the context rule."
       - name: reviewed_at
-        description: "Date when the override decision was reviewed."
+        description: "Date when the context rule decision was reviewed."
       - name: active
-        description: "Whether the context override is active for current Silver Core mapping joins."
+        description: "Whether the context rule is active for current Silver Core matching joins."
       - name: evidence_source
-        description: "Source category used to support the context override, such as manual_review or an external reference."
+        description: "Source category used to support the context decision, such as manual_review or an external reference."
       - name: evidence_url
         description: "URL for source-backed evidence when an external reference was used."
       - name: notes
-        description: "Reviewer notes explaining why plan context should refine the payer identity."
+        description: "Reviewer notes explaining why payer or plan context should receive these enrichment fields."

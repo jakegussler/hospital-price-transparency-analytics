@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: slv_review_queue__payer_candidates
+    description: >
+      Review queue of clean payer names that did not resolve to a broad
+      canonical payer identity in Silver Core. This model intentionally excludes
+      already mapped payers and keeps only review metrics, example raw values,
+      and observed plan/state coverage so maintainers can add or reject payer
+      aliases in transform/seeds/payer_aliases.csv.
+    config:
+      tags: ["silver_review_queue", "silver", "payer_normalization"]
+    columns:
+      - name: payer_candidate_key
+        description: "Stable key for the unmatched clean payer name."
+        tests:
+          - not_null
+          - unique
+      - name: clean_payer_name
+        description: "Deterministically cleaned payer name that has no accepted broad canonical payer alias."
+        tests:
+          - not_null
+      - name: example_raw_payer_name
+        description: "Example raw payer name observed for this unmatched clean payer value."
+      - name: example_clean_plan_name
+        description: "Example cleaned plan name observed with this unmatched payer, when present."
+      - name: example_raw_plan_name
+        description: "Example raw plan name observed with this unmatched payer, when present."
+      - name: example_canonical_state
+        description: "Example hospital snapshot state observed with this unmatched payer, when present."
+      - name: payer_rate_rows
+        description: "Number of Silver Base payer-rate rows carrying this unmatched clean payer name."
+        tests:
+          - not_null
+      - name: hospital_count
+        description: "Number of hospitals where this unmatched clean payer name appears."
+        tests:
+          - not_null
+      - name: snapshot_count
+        description: "Number of hospital MRF snapshots where this unmatched clean payer name appears."
+        tests:
+          - not_null
+      - name: source_format_count
+        description: "Number of source formats where this unmatched clean payer name appears."
+        tests:
+          - not_null
+      - name: state_count
+        description: "Number of states where this unmatched clean payer name appears."
+        tests:
+          - not_null
+      - name: distinct_clean_plan_names
+        description: "Number of distinct non-null cleaned plan names observed with this unmatched payer."
+        tests:
+          - not_null
+      - name: review_queue_status
+        description: "Review status for this queue row. This model only emits needs_review rows."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["needs_review"]
