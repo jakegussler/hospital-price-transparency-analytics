@@ -1,45 +1,69 @@
 # Hospital Price Transparency
 
-Hospital Price Transparency is a local-first data pipeline for ingesting,
-normalizing, and analyzing CMS hospital machine-readable files (MRFs). The
-current implementation focuses on downloading hospital source files, tracking
-file snapshots, parsing JSON and CSV MRF layouts, and writing source-faithful
-Bronze Parquet tables for downstream dbt/DuckDB modeling.
+Hospital Price Transparency is a local-first data pipeline for working with CMS
+hospital machine-readable files (MRFs). It downloads hospital source files,
+tracks file snapshots, parses JSON and CSV layouts into source-faithful Bronze
+Parquet, and models the data with dbt and DuckDB.
 
-## Current Status
+The project is built for research and engineering work on hospital price
+transparency data. It emphasizes reproducible snapshots, source lineage, and a
+clear separation between structural parsing in Python and semantic modeling in
+dbt.
 
-Implemented today:
+## Project Status
 
-- Python package and CLI under `src/hpt`.
-- Registry-driven MRF download with SHA-256 change detection.
-- Raw file and snapshot metadata storage through `fsspec`.
-- JSON, CSV Tall, and CSV Wide Bronze parsers.
-- Bronze Parquet writer partitioned by `snapshot_id`.
-- dbt project skeleton targeting DuckDB, with Bronze external sources.
-- pytest coverage for config, registry, storage, snapshots, download, parsers,
-  Bronze writing, and ingest orchestration.
+This is an active data engineering project with a working local ingestion and
+modeling pipeline. The Python downloader, snapshot tracker, Bronze parsers, dbt
+staging models, Silver foundation models, Silver payer normalization models, and
+review queues are implemented.
 
-Planned or early-stage:
+Gold analytics models, dashboards, orchestration, Docker, and Terraform are not
+production-ready in this repository yet.
 
-- Silver and Gold dbt models.
-- Airflow orchestration under `orchestration/`.
-- Docker and Terraform under `infra/`.
-- Curated production registry workflow.
-- Analytics-facing documentation and dashboards.
+## Why This Project Matters
+
+Hospital price transparency data is public, valuable, and difficult to use in
+practice. Hospitals publish large files in multiple layouts, with inconsistent
+headers, nested payer contracts, changing URLs, mixed code systems, and
+publisher-specific data quality issues.
+
+This project addresses those problems as a reproducible healthcare analytics
+pipeline: it captures source snapshots, preserves lineage, parses multiple MRF
+formats, quarantines invalid records, applies quality checks, and builds
+analytics-ready Silver models for downstream analysis.
+
+## Current Implementation
+
+The current implementation includes:
+
+- Registry-driven downloads for a curated set of hospital MRF URLs.
+- SHA-256 source-file change detection and Type-2 snapshot metadata.
+- `fsspec`-backed raw storage, so local files and cloud object stores use the
+  same storage abstraction.
+- JSON, CSV Tall, and CSV Wide MRF parsing into Bronze Parquet.
+- Quarantine output for records that fail parser validation.
+- dbt/DuckDB staging views over Bronze Parquet.
+- Silver Base models for hospitals, snapshots, locations, NPIs, charge items,
+  codes, standard charges, payer rates, and modifiers.
+- Silver Core payer-rate models with payer alias and payer/plan context matching.
+- Review queue models for unmatched payer and payer/plan candidates.
+- pytest coverage for configuration, registry validation, download, storage,
+  snapshots, parser behavior, Parquet writing, and ingest orchestration.
+- dbt schema and data tests for Bronze sources, staging, Silver, reconciliation,
+  and payer normalization rules.
 
 ## Repository Map
 
 ```text
 src/hpt/             Python package and CLI
-tests/               pytest test suite
-docs/                Project documentation and reference notes
-transform/           dbt project, currently targeting DuckDB
-registry/            Experimental registry files and notes
-adhoc_scripts/       One-off exploration scripts
-scripts/             Placeholder for reusable utility scripts
-infra/               Placeholder for Docker and Terraform
-orchestration/       Placeholder for Airflow DAGs and plugins
-data/                Local runtime data, ignored by git
+tests/               pytest suite
+transform/           dbt project targeting DuckDB
+docs/                Architecture, domain, and development docs
+scripts/             Reusable utility scripts
+infra/               Placeholder deployment infrastructure
+orchestration/       Placeholder Airflow structure
+data/                Local runtime output, ignored by git
+logs/                Local run logs, ignored by git
 ```
 
 ## Quickstart
@@ -52,100 +76,177 @@ source .venv/bin/activate
 pip install -e ".[dev,warehouse]"
 ```
 
-Run the test suite:
+Verify the Python project:
 
 ```bash
 make test
+make lint
+hpt --help
 ```
 
-Download MRF files from the active registry:
+Download source MRFs from the bundled registry:
 
 ```bash
 hpt download
 ```
 
-Parse current downloaded snapshots into Bronze Parquet:
+Parse the current downloaded snapshots into Bronze Parquet:
 
 ```bash
 hpt ingest
 ```
 
-Run dbt against the DuckDB project:
+Build the DuckDB warehouse with dbt:
 
 ```bash
 make export-hospitals-seed
 make dbt-seed
 make dbt-run
 make dbt-test
+```
+
+By default, raw files, snapshot metadata, Bronze Parquet, quarantine records,
+DuckDB files, and logs are written under local ignored paths.
+
+## Common Commands
+
+```bash
+# Install
+make install-dev
+
+# Python quality checks
+make test
+make lint
+make format
+
+# Pipeline shortcuts
+make download
+make ingest
+
+# Equivalent CLI commands and option help
+hpt download
+hpt ingest
+hpt download --help
+hpt ingest --help
+hpt export-hospitals-seed --help
+
+# dbt
+make dbt-seed
+make dbt-run
+make dbt-test
+make dbt-build
 make dbt-build-selector DBT_SELECTOR=silver
 make dbt-build-selector DBT_SELECTOR=pipeline_charge_data
 ```
 
-By default, local raw files, snapshot metadata, Bronze Parquet, quarantine
-records, and DuckDB files live under `data/`.
+The dbt project defines selectors for `staging`, `silver_base`, `silver_core`,
+`silver_review_queue`, `silver`, `pipeline_snapshot_metadata`, and
+`pipeline_charge_data`.
 
-## Core Commands
+## Runtime Configuration
 
-```bash
-make install-dev
-make test
-make lint
-make format
-make download
-make ingest
-make export-hospitals-seed
-make dbt-seed
-make dbt-run-selector DBT_SELECTOR=staging
-hpt download --help
-hpt ingest --help
-hpt export-hospitals-seed --help
+Most local runs work with defaults. The main overrides are:
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `HPT_RAW_STORAGE_BASE_URI` | Raw downloads and snapshot metadata root | `file://.../data` |
+| `HPT_BRONZE_ROOT` | Parsed Bronze Parquet root | `data/bronze` |
+| `HPT_QUARANTINE_ROOT` | Parser validation failures | `data/quarantine` |
+| `HPT_REGISTRY_PATH` | Optional hospital registry override | bundled registry |
+| `HPT_DUCKDB_PATH` | dbt DuckDB database path | `data/hpt.duckdb` |
+
+See `docs/configuration.md` for all environment variables, precedence rules, and
+HTTP client settings.
+
+## Architecture
+
+The pipeline follows a medallion pattern:
+
+```mermaid
+flowchart LR
+  registry[Hospital Registry] --> download[Download]
+  download --> raw[Raw MRF Files]
+  download --> snapshots[Snapshot Metadata]
+  raw --> bronze[Bronze Parquet]
+  snapshots --> bronze
+  bronze --> silver[dbt Silver Models]
+  silver --> review[Review Queues]
+  review --> gold[Future Gold Models]
+  gold --> dashboards[Future Dashboards]
 ```
 
-The CLI commands are the source of truth for pipeline execution. Use
-`hpt ingest` for parsing downloaded snapshots into Bronze Parquet.
+Python owns:
 
-The dbt project defines layer selectors for `staging`, `silver_base`,
-`silver_core`, and `silver`. Pipeline tags and selectors currently group
-snapshot metadata models under `pipeline_snapshot_metadata` and charge-data
-models under `pipeline_charge_data`.
+- hospital registry loading;
+- HTTP download and retry behavior;
+- raw file and snapshot metadata storage;
+- compression handling and MRF layout sniffing;
+- JSON and CSV structural parsing;
+- Bronze Parquet writing and quarantine output.
+
+dbt owns:
+
+- external Bronze source definitions for DuckDB;
+- staging views over Bronze;
+- Silver Base normalization across JSON and CSV inputs;
+- Silver Core payer identity and payer/plan context enrichment;
+- review queues and data quality tests.
+
+Bronze intentionally preserves source values and lineage. Business
+normalization, payer matching, code interpretation, and analytics-friendly
+shaping belong in dbt models.
+
+## Data And Lineage
+
+Downloaded MRFs can be large and are not committed to git. Runtime output is
+local by default and ignored:
+
+- `data/raw/` for source files;
+- `data/metadata/` for snapshot metadata;
+- `data/bronze/` for parsed Parquet;
+- `data/quarantine/` for validation failures;
+- `data/hpt.duckdb` for local dbt/DuckDB work;
+- `logs/` for CLI run logs and failure summaries.
+
+Snapshot lineage is a core design constraint. Downstream tables preserve
+identifiers such as `snapshot_id`, `file_hash`, source URL, source filename, and
+ingest timestamps so modeled rows can be traced back to the source file.
+
+## Example Use Case
+
+One intended workflow is comparing negotiated payer rates across hospitals after
+normalizing charge items, payer identities, and plan context. The pipeline keeps
+the source file lineage intact while converting heterogeneous JSON and CSV MRFs
+into dbt models that can support cross-hospital rate analysis.
 
 ## Documentation
 
-Start here:
+Start with:
 
-- `docs/architecture/pipeline-overview.md` explains the implemented pipeline.
-- `docs/architecture/medallion-layers.md` defines Bronze, Silver, and Gold
-  responsibilities.
-- `docs/architecture/storage-layout.md` describes raw, metadata, Bronze,
-  quarantine, and DuckDB paths.
-- `docs/architecture/bronze-schema.md` diagrams the implemented Bronze schema.
-- `docs/architecture/silver-schema.md` diagrams the target Silver schema.
-- `docs/domain/hpt-glossary.md` defines project and CMS terms.
-- `docs/domain/cms-mrf-schema-notes.md` summarizes JSON, CSV Tall, and CSV Wide
-  MRF layouts.
-- `docs/domain/hospital-registry-rules.md` explains the registry contract.
-- `docs/development/getting-started.md` covers local setup and first runs.
-- `docs/development/testing-strategy.md` explains test coverage expectations.
-- `docs/development/common-debugging-notes.md` collects common failure modes.
-- `docs/cleanup.md` tracks known code/doc alignment issues.
+- `docs/architecture/pipeline-overview.md`
+- `docs/architecture/medallion-layers.md`
+- `docs/architecture/storage-layout.md`
+- `docs/architecture/bronze-schema.md`
+- `docs/architecture/silver-schema.md`
+- `docs/domain/hpt-glossary.md`
+- `docs/domain/cms-mrf-schema-notes.md`
+- `docs/domain/hospital-registry-rules.md`
+- `docs/development/getting-started.md`
+- `docs/development/testing-strategy.md`
 
-Existing detailed references:
+`docs/notes/` and `docs/planning/` are planning history, not authoritative
+runtime documentation.
 
-- `docs/bronze_layer.md`
-- `docs/configuration.md`
-- `docs/header_parsing.md`
-- `docs/format_templates/`
+## Current Limitations
 
-## Design Direction
+- The bundled registry is curated for development and research coverage, not a
+  complete national hospital registry.
+- Publisher MRF URLs can change or disappear; failed downloads should be
+  investigated against the registry and source hospital pages.
+- Gold analytics models are planned but not implemented.
+- Airflow, Docker, and Terraform directories are placeholders.
+- This project is not medical, billing, legal, or compliance advice.
 
-This project uses a medallion pattern:
+## License
 
-- Bronze preserves source-faithful parsed records with minimal interpretation.
-- Silver will normalize charge items, codes, payers, plans, modifiers, hospitals,
-  and dates.
-- Gold will answer analytics questions about price variation, payer behavior,
-  hospital comparisons, and compliance.
-
-DuckDB is the expected local analytical database. Polars handles parser-side
-DataFrame construction and Parquet writing. dbt will own Silver and Gold SQL
-models.
+Apache License 2.0.
