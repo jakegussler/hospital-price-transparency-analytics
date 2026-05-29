@@ -26,7 +26,7 @@ models:
         description: "Example cleaned plan name observed with this unmatched payer, when present."
       - name: example_raw_plan_name
         description: "Example raw plan name observed with this unmatched payer, when present."
-      - name: example_canonical_state
+      - name: example_state
         description: "Example hospital snapshot state observed with this unmatched payer, when present."
       - name: payer_rate_rows
         description: "Number of Silver Base payer-rate rows carrying this unmatched clean payer name."
@@ -50,6 +50,62 @@ models:
           - not_null
       - name: distinct_clean_plan_names
         description: "Number of distinct non-null cleaned plan names observed with this unmatched payer."
+        tests:
+          - not_null
+      - name: review_queue_status
+        description: "Review status for this queue row. This model only emits needs_review rows."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["needs_review"]
+
+  - name: slv_review_queue__payer_plan_candidates
+    description: >
+      Review queue of unmatched clean payer and clean plan name
+      combinations. This complements slv_review_queue__payer_candidates by
+      preserving plan context and state coverage metrics needed to decide
+      whether a missing payer alias is broad and global or whether the observed
+      payer-plan pairing needs more research. The model only includes rows where
+      Silver Core did not resolve a canonical payer identity.
+    config:
+      tags: ["silver_review_queue", "silver", "payer_normalization"]
+    columns:
+      - name: payer_plan_candidate_key
+        description: "Stable key for the unmatched clean payer and clean plan combination."
+        tests:
+          - not_null
+          - unique
+      - name: clean_payer_name
+        description: "Deterministically cleaned payer name that has no accepted broad canonical payer alias for this observed row set."
+        tests:
+          - not_null
+      - name: clean_plan_name
+        description: "Deterministically cleaned plan name observed with the unmatched payer, when present."
+      - name: example_raw_payer_name
+        description: "Example raw payer name observed for this unmatched payer-plan combination."
+      - name: example_raw_plan_name
+        description: "Example raw plan name observed for this unmatched payer-plan combination, when present."
+      - name: example_state
+        description: "Example hospital snapshot state observed with this unmatched payer-plan combination, when present."
+      - name: payer_rate_rows
+        description: "Number of Silver Base payer-rate rows carrying this unmatched payer-plan combination."
+        tests:
+          - not_null
+      - name: hospital_count
+        description: "Number of hospitals where this unmatched payer-plan combination appears."
+        tests:
+          - not_null
+      - name: snapshot_count
+        description: "Number of hospital MRF snapshots where this unmatched payer-plan combination appears."
+        tests:
+          - not_null
+      - name: source_format_count
+        description: "Number of source formats where this unmatched payer-plan combination appears."
+        tests:
+          - not_null
+      - name: state_count
+        description: "Number of states where this unmatched payer-plan combination appears."
         tests:
           - not_null
       - name: review_queue_status

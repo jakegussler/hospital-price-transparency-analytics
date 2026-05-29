@@ -16,6 +16,12 @@ selectors:
     definition:
       method: tag
       value: silver_core
+  
+  - name: silver_review_queue
+    description: "Silver review queue models."
+    definition:
+      method: tag
+      value: silver_review_queue
 
   - name: silver
     description: "All Silver base and Silver core models."
