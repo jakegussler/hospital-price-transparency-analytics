@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import polars as pl
+
 from hpt.parsers.csv_wide import CsvWideParser
 
 _SNAPSHOT_META = {
@@ -72,8 +74,42 @@ def test_csv_wide_parse_unpivots_payer_columns(tmp_path):
     assert charge_df["payer_name"][1] == "Cigna"
     assert charge_df["plan_name"][0] == "PPO"
     assert charge_df["plan_name"][1] == "HMO"
-    assert charge_df["standard_charge_negotiated_dollar"][0] == 150.0
-    assert charge_df["standard_charge_negotiated_dollar"][1] == 125.0
+    assert charge_df["standard_charge_negotiated_dollar"][0] == "150"
+    assert charge_df["standard_charge_negotiated_dollar"][1] == "125"
+    assert charge_df["standard_charge_negotiated_dollar"].dtype == pl.Utf8
     assert charge_df["methodology"][0] == "fee schedule"
     assert charge_df["additional_payer_notes"][1] == "Manual contract"
     assert charge_df["source_format"][0] == "csv_wide"
+
+
+def test_csv_wide_preserves_malformed_numeric_as_raw_text(tmp_path):
+    path = tmp_path / "wide_bad_number.csv"
+    _write_csv(
+        path,
+        [
+            (
+                "hospital_name,last_updated_on,version,location_name,hospital_address,"
+                f"license_number|TN,type_2_npi,{_ATTESTATION_TEXT},attester_name"
+            ),
+            (
+                "General Hospital,2025-01-01,3.0.0,Main Campus,123 Main St,"
+                "12345,1234567890,true,Jane Smith"
+            ),
+            (
+                "description,code|1,code|1|type,setting,standard_charge|gross,"
+                "standard_charge|Aetna|PPO|negotiated_dollar"
+            ),
+            "X-Ray,99213,CPT,outpatient,200,not-a-number",
+        ],
+    )
+
+    parser = _make_parser(tmp_path)
+    batches = list(parser.parse(path))
+
+    charge_df = batches[1]["csv_charge_rows"]
+    assert len(charge_df) == 1
+    # Bronze is source-faithful: malformed numeric cells survive as raw text
+    # rather than being coerced to null during parsing.
+    assert charge_df["standard_charge_negotiated_dollar"].dtype == pl.Utf8
+    assert charge_df["standard_charge_negotiated_dollar"][0] == "not-a-number"
+    assert charge_df["standard_charge_gross"][0] == "200"

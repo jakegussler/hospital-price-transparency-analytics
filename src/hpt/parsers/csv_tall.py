@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -19,19 +20,9 @@ from hpt.parsers.schemas import build_csv_charge_rows_schema
 if TYPE_CHECKING:
     import polars as pl
 
+logger = logging.getLogger(__name__)
+
 _BATCH_SIZE = 5000
-_NUMERIC_COLUMNS = {
-    "drug_unit_of_measurement",
-    "standard_charge_gross",
-    "standard_charge_discounted_cash",
-    "standard_charge_min",
-    "standard_charge_max",
-    "standard_charge_negotiated_dollar",
-    "standard_charge_negotiated_percentage",
-    "median_amount",
-    "tenth_percentile",
-    "ninetieth_percentile",
-}
 
 
 class CsvTallParser(BaseParser):
@@ -61,10 +52,7 @@ class CsvTallParser(BaseParser):
                     value = _safe_cell(row, index)
                     if value is None:
                         continue
-                    if column_name in _NUMERIC_COLUMNS:
-                        out_row[column_name] = _to_optional_float(value)
-                    else:
-                        out_row[column_name] = value
+                    out_row[column_name] = value
 
                 rows_buffer.append(out_row)
                 if len(rows_buffer) >= _BATCH_SIZE:
@@ -82,13 +70,3 @@ def _safe_cell(row: list[str], idx: int) -> str | None:
         return None
     value = row[idx].strip()
     return value or None
-
-
-def _to_optional_float(value: str) -> float | None:
-    cleaned = value.strip()
-    if not cleaned:
-        return None
-    try:
-        return float(cleaned)
-    except ValueError:
-        return None

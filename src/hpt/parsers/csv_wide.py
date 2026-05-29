@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -20,19 +21,9 @@ from hpt.parsers.schemas import build_csv_charge_rows_schema
 if TYPE_CHECKING:
     import polars as pl
 
+logger = logging.getLogger(__name__)
+
 _BATCH_SIZE = 5000
-_NUMERIC_COLUMNS = {
-    "drug_unit_of_measurement",
-    "standard_charge_gross",
-    "standard_charge_discounted_cash",
-    "standard_charge_min",
-    "standard_charge_max",
-    "standard_charge_negotiated_dollar",
-    "standard_charge_negotiated_percentage",
-    "median_amount",
-    "tenth_percentile",
-    "ninetieth_percentile",
-}
 
 
 class CsvWideParser(BaseParser):
@@ -93,17 +84,15 @@ class CsvWideParser(BaseParser):
 
 
 def _extract_values(
-    row: list[str], column_map: dict[str, int]
-) -> dict[str, str | float | None]:
-    values: dict[str, str | float | None] = {}
+    row: list[str],
+    column_map: dict[str, int],
+) -> dict[str, str | None]:
+    values: dict[str, str | None] = {}
     for column_name, index in column_map.items():
         value = _safe_cell(row, index)
         if value is None:
             continue
-        if column_name in _NUMERIC_COLUMNS:
-            values[column_name] = _to_optional_float(value)
-        else:
-            values[column_name] = value
+        values[column_name] = value
     return values
 
 
@@ -112,13 +101,3 @@ def _safe_cell(row: list[str], idx: int | None) -> str | None:
         return None
     value = row[idx].strip()
     return value or None
-
-
-def _to_optional_float(value: str) -> float | None:
-    cleaned = value.strip()
-    if not cleaned:
-        return None
-    try:
-        return float(cleaned)
-    except ValueError:
-        return None
