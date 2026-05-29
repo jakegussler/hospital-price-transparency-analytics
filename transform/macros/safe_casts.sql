@@ -10,6 +10,10 @@
     try_cast({{ hpt_clean_display_text(expression) }} as double)
 {%- endmacro %}
 
+{% macro hpt_safe_decimal(expression, precision=18, scale=4) -%}
+    try_cast({{ hpt_clean_display_text(expression) }} as decimal({{ precision }}, {{ scale }}))
+{%- endmacro %}
+
 {% macro hpt_safe_bigint(expression) -%}
     try_cast({{ hpt_clean_display_text(expression) }} as bigint)
 {%- endmacro %}

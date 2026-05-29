@@ -98,7 +98,7 @@ csv_rates as (
         r.negotiated_dollar,
         r.negotiated_percentage,
         r.negotiated_algorithm,
-        cast(null as double) as estimated_amount,
+        cast(null as decimal(18, 4)) as estimated_amount,
         r.median_amount,
         r.tenth_percentile,
         r.ninetieth_percentile,
