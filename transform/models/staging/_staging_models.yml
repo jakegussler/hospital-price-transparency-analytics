@@ -120,3 +120,30 @@ models:
       - name: source_rate_ordinal
         tests:
           - not_null
+
+  - name: stg_bronze__csv_numeric_parse_diagnostics
+    description: >
+      Malformed numeric values from CSV Bronze. CSV Bronze stores
+      numeric-looking cells as raw text; this model emits one row per non-empty
+      raw value that fails the same hpt_safe_decimal / hpt_safe_double cast that
+      staging applies, so bad numbers are queryable instead of silently becoming
+      null. Item-level columns repeat across payer groups after CSV Wide
+      unpivoting and are deduped without payer/plan; payer-level columns carry
+      payer/plan.
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: row_ordinal
+        tests:
+          - not_null
+      - name: column_name
+        tests:
+          - not_null
+      - name: raw_value
+        tests:
+          - not_null
+      - name: diagnostic_type
+        tests:
+          - accepted_values:
+              values: ["numeric_cast_failed"]
