@@ -6,11 +6,10 @@ called out in a later implementation task.
 
 ## Transform Alignment
 
-- Silver and Gold dbt directories exist but do not contain production models yet. (leave this for now)
-- `docs/architecture/medallion-layers.md` points to
-  `docs/architecture/silver-schema.md`, but that architecture document does not
-  exist yet. Use the planning target in `docs/planning/silver-target-schema.md`
-  until a Silver schema is implemented and promoted to architecture docs.
+- Gold dbt directories exist but do not contain production models yet. (leave
+  this for now)
+- Silver Base, Silver Core, and review queue models are implemented and
+  documented in `docs/architecture/silver-schema.md`.
 
 ## Planning Notes
 
