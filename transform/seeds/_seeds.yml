@@ -55,6 +55,7 @@ seeds:
                 - bcbs_licensee
                 - medicaid_mco_brand
                 - dental_payer
+                - vision_payer
                 - behavioral_health_payer
                 - network
                 - tpa
