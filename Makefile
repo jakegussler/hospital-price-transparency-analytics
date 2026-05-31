@@ -1,6 +1,7 @@
 .PHONY: install install-dev test lint format download ingest export-hospitals-seed \
 	dbt-deps dbt-run dbt-run-selector dbt-test dbt-test-selector \
 	dbt-seed dbt-seed-selector dbt-build dbt-build-selector \
+	dbt-build-validation \
 	dbt-ls dbt-ls-selector dbt-compile dbt-compile-selector dbt-clean \
 	require-dbt-selector clean
 
@@ -62,6 +63,9 @@ dbt-build:
 
 dbt-build-selector: require-dbt-selector
 	cd transform && dbt build --selector "$(DBT_SELECTOR)" --profiles-dir .
+
+dbt-build-validation:
+	cd transform && dbt build --selector validation --profiles-dir .
 
 dbt-ls:
 	cd transform && dbt ls --profiles-dir .
