@@ -42,9 +42,10 @@ Each hospital source should provide:
 
 The registry should describe publisher sources, not parsed Bronze state.
 
-The current registry model accepts hospitals in CA, FL, GA, ID, IL, MI, MN, NC,
-TN, and WI. Expand the model deliberately when adding sources in new states so
-registry validation stays explicit.
+The current registry model accepts the full CMS hospital price transparency
+state-code list, including the 50 states, District of Columbia, CMS-listed
+territories, and freely associated states. The transform project mirrors this
+list in the `states` seed for dbt validation and geographic labels.
 
 ## Hospital ID Rules
 

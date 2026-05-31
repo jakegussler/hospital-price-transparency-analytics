@@ -237,6 +237,13 @@ CSV Bronze table:
   row. CSV performs no such validation; its malformed numeric values survive as
   raw text in Bronze and are queryable through the dbt
   `stg_bronze__csv_numeric_parse_diagnostics` staging model, which emits one row
-  per non-empty raw value that fails the staging cast.
+  per non-empty raw value that fails the staging cast. The broader dbt
+  validation schema now supersedes that CSV-only diagnostic for Silver
+  filtering: `val__standard_charge_violations`, `val__payer_rate_violations`,
+  and `val__drug_violations` emit one row per malformed numeric value across
+  JSON and CSV where Bronze row evidence exists.
 - Bronze preserves source values and parser lineage. Hospital, payer, plan,
   charge-item, code, and modifier normalization belongs in Silver.
+- Bronze and staging are not filtered by validation. Reject-severity validation
+  failures remain in Bronze and are excluded only when Silver base models
+  anti-join the dbt rejection keysets.

@@ -1,7 +1,8 @@
 # Medallion Layers
 
 The project follows a medallion pattern: Bronze preserves source-faithful parsed
-records, Silver normalizes business entities, and Gold serves analytics.
+records, dbt validation records CMS conformance issues, Silver normalizes
+business entities, and Gold serves analytics.
 
 ## Bronze
 
@@ -33,6 +34,30 @@ Bronze should not:
 - Cast questionable source values into stricter business types when doing so
   would lose source fidelity.
 
+## Validation
+
+Status: implemented in dbt under `models/validation/`.
+
+Validation is the queryable data-quality boundary between Bronze/staging and
+Silver. It turns the CMS rule registry into row-level violation tables,
+rejection keysets, and monitoring statistics.
+
+Validation responsibilities:
+
+- Emit one row per failing value in `val__*_violations` models.
+- Attach `rule_id`, severity, grain, diagnostic type, source keys, and CMS
+  citation metadata from the `cms_validation_rules` seed.
+- Preserve JSON structural quarantine diagnostics as
+  `val__structural_parse_violations`.
+- Produce `val__*_rejections` keysets that Silver base models anti-join.
+- Provide summary and monitoring models under `val_stats__*`.
+
+Validation should not:
+
+- Modify Bronze or staging rows.
+- Apply payer identity resolution or business normalization.
+- Hide warn-severity records from Silver.
+
 See `docs/bronze_layer.md` for the Bronze data dictionary.
 See `docs/architecture/bronze-schema.md` for the implemented Bronze schema
 diagram.
@@ -45,8 +70,8 @@ contexts, payer rates, codes, NPIs, locations, and modifiers. Conformed Silver
 models for reviewed payer, plan, and cross-snapshot item identity are still
 planned.
 
-Silver converts source-faithful Bronze data into normalized analytical
-entities.
+Silver converts source-faithful, validation-filtered Bronze data into
+normalized analytical entities.
 
 Expected responsibilities:
 
@@ -56,7 +81,8 @@ Expected responsibilities:
 - Standardize payer and plan strings where rules are defensible.
 - Normalize modifiers and modifier relationships.
 - Convert source date strings into typed dates where valid.
-- Apply data quality tests for expected keys, grains, and accepted values.
+- Exclude records that fail reject-severity validation rules while retaining
+  enough source keys to trace the exclusion back to Bronze.
 
 Silver should remain close enough to source data that issues can be traced back
 to a specific `snapshot_id`, source file, and row or ordinal.
@@ -88,7 +114,8 @@ lineage back to Silver and Bronze identifiers.
 ```mermaid
 flowchart LR
   raw[RawMRFFiles] --> bronze[BronzeSourceFaithful]
-  bronze --> silver[SilverNormalizedEntities]
+  bronze --> validation[dbtValidation]
+  validation --> silver[SilverNormalizedEntities]
   silver --> gold[GoldAnalytics]
 ```
 

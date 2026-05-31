@@ -10,6 +10,10 @@ called out in a later implementation task.
   this for now)
 - Silver Base, Silver Core, and review queue models are implemented and
   documented in `docs/architecture/silver-schema.md`.
+- The validation layer records `general_contract_provisions_required_shape` in
+  rule coverage, but the current streaming parser does not emit general
+  contract provision Bronze rows. It is covered only by parser diagnostics until
+  Bronze row evidence exists.
 
 ## Planning Notes
 

@@ -369,7 +369,7 @@ columns in `csv_charge_rows` and then deduplicated back to one row per unique
 | `clean_code` | varchar | |
 | `raw_code_type` | varchar | |
 | `clean_code_type` | varchar | |
-| `canonical_code_system` | varchar | Lowercase CMS HPT code system when `clean_code_type` matches the v3 code-type enum: `cpt`, `hcpcs`, `icd`, `drg`, `ms-drg`, `r-drg`, `s-drg`, `aps-drg`, `ap-drg`, `apr-drg`, `tris-drg`, `apc`, `ndc`, `hipps`, `local`, `eapg`, `cdt`, `rc`, `cdm`, `cmg`, `ms-ltc-drg`; null otherwise |
+| `canonical_code_system` | varchar | Lowercase CMS HPT code system when `clean_code_type` matches `cms_code_types.code_type`; null otherwise |
 | `source_code_path` | varchar | `json_code_information` or `csv_charge_rows` |
 
 ---

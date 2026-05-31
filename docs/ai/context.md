@@ -46,6 +46,7 @@ registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
 - `docs/architecture/storage-layout.md`
 - `docs/domain/hpt-glossary.md`
 - `docs/domain/cms-mrf-schema-notes.md`
+- `docs/domain/cms-validation-rules.md`
 - `docs/domain/hospital-registry-rules.md`
 - `docs/development/getting-started.md`
 - `docs/development/testing-strategy.md`
