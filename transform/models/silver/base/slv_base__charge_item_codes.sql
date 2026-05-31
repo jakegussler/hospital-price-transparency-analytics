@@ -2,6 +2,10 @@ with csv_codes as (
     {{ hpt_csv_code_unpivot("select * from " ~ ref('stg_bronze__csv_charge_rows')) }}
 ),
 
+code_types as (
+    select * from {{ ref('cms_code_types') }}
+),
+
 json_codes as (
     select
         {{ hpt_surrogate_key([
@@ -19,37 +23,14 @@ json_codes as (
         c.clean_code,
         c.raw_code_type,
         c.clean_code_type,
-        case
-            when c.clean_code_type in (
-                'cpt',
-                'hcpcs',
-                'icd',
-                'drg',
-                'ms-drg',
-                'r-drg',
-                's-drg',
-                'aps-drg',
-                'ap-drg',
-                'apr-drg',
-                'tris-drg',
-                'apc',
-                'ndc',
-                'hipps',
-                'local',
-                'eapg',
-                'cdt',
-                'rc',
-                'cdm',
-                'cmg',
-                'ms-ltc-drg'
-            ) then c.clean_code_type
-            else null
-        end as canonical_code_system,
+        ct.code_type as canonical_code_system,
         'json_code_information' as source_code_path
     from {{ ref('stg_bronze__code_information') }} c
     inner join {{ ref('slv_base__charge_items') }} ci
         on c.snapshot_id = ci.snapshot_id
         and c.charge_item_id = ci.source_charge_item_id
+    left join code_types ct
+        on c.clean_code_type = ct.code_type
 ),
 
 csv_deduped_codes as (
@@ -84,36 +65,13 @@ csv_codes_final as (
         c.clean_code,
         c.raw_code_type,
         c.clean_code_type,
-        case
-            when c.clean_code_type in (
-                'cpt',
-                'hcpcs',
-                'icd',
-                'drg',
-                'ms-drg',
-                'r-drg',
-                's-drg',
-                'aps-drg',
-                'ap-drg',
-                'apr-drg',
-                'tris-drg',
-                'apc',
-                'ndc',
-                'hipps',
-                'local',
-                'eapg',
-                'cdt',
-                'rc',
-                'cdm',
-                'cmg',
-                'ms-ltc-drg'
-            ) then c.clean_code_type
-            else null
-        end as canonical_code_system,
+        ct.code_type as canonical_code_system,
         'csv_charge_rows' as source_code_path
     from csv_deduped_codes c
     inner join {{ ref('slv_base__charge_items') }} ci
         on c.silver_charge_item_id = ci.silver_charge_item_id
+    left join code_types ct
+        on c.clean_code_type = ct.code_type
 )
 
 select * from json_codes
