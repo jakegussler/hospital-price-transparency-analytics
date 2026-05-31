@@ -54,8 +54,8 @@ make dbt-build-selector DBT_SELECTOR=silver
 ```
 
 dbt selectors available: `staging`, `silver_base`, `silver_core`,
-`silver_review_queue`, `silver`, `pipeline_snapshot_metadata`,
-`pipeline_charge_data`.
+`silver_review_queue`, `silver`, `validation`,
+`pipeline_snapshot_metadata`, `pipeline_charge_data`.
 
 ## Code map
 
