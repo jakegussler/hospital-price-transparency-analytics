@@ -40,3 +40,9 @@ selectors:
     definition:
       method: tag
       value: pipeline_charge_data
+
+  - name: validation
+    description: "Validation models, rejection keysets, and validation statistics."
+    definition:
+      method: tag
+      value: validation

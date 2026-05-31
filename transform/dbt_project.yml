@@ -78,7 +78,7 @@ models:
     validation:
       +schema: validation
       +materialized: table
-      +tags: ["validation", "data_quality"]
+      +tags: ["validation"]
       violations:
         +tags: ["pipeline_charge_data"]
       rejections:
