@@ -1,6 +1,26 @@
 version: 2
 
 seeds:
+  - name: cms_validation_rules
+    description: "Machine-facing CMS validation rule registry used by the dbt validation layer."
+    columns:
+      - name: rule_id
+        tests:
+          - not_null
+          - unique
+      - name: severity
+        tests:
+          - accepted_values:
+              values: ["reject", "warn"]
+      - name: grain
+        tests:
+          - accepted_values:
+              values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier"]
+      - name: applies_to_formats
+        tests:
+          - accepted_values:
+              values: ["json", "csv", "both"]
+
   - name: hospitals
     description: "Registry-backed hospital metadata used to enrich Silver foundation snapshot rows."
     columns:
