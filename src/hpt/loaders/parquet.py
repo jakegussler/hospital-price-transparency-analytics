@@ -43,14 +43,22 @@ class BronzeWriter:
         self._row_counts: dict[str, int] = defaultdict(int)
         self._part_index: dict[str, int] = defaultdict(int)
         self._total_rows: dict[str, int] = defaultdict(int)
+        # Schema captured for every table key seen in a batch, even when empty,
+        # plus the set of tables that actually received a writer. On close we
+        # materialize an empty Parquet for any seen-but-unwritten table so its
+        # partition directory always exists and downstream ``read_parquet``
+        # globs never fail on an absent optional table.
+        self._seen_schemas: dict[str, pa.Schema] = {}
+        self._ever_written: set[str] = set()
 
     def write_batch(self, batch: dict[str, pl.DataFrame]) -> None:
         """Append each non-empty DataFrame in *batch* to its Parquet file."""
         batch_row_counts: dict[str, int] = {}
         for table_name, df in batch.items():
+            arrow_table = df.to_arrow()
+            self._seen_schemas.setdefault(table_name, arrow_table.schema)
             if df.is_empty():
                 continue
-            arrow_table = df.to_arrow()
             writer = self._get_writer(table_name, arrow_table.schema)
             writer.write_table(arrow_table)
 
@@ -83,7 +91,17 @@ class BronzeWriter:
             )
 
     def close(self) -> None:
-        """Close every open writer and log per-table row totals."""
+        """Close every open writer and log per-table row totals.
+
+        Tables that were emitted by the parser but never received rows (e.g. a
+        snapshot with no ``general_contract_provisions`` or no modifiers) are
+        materialized as empty Parquet files so their partition directory always
+        exists for downstream dbt sources.
+        """
+        for table_name, schema in self._seen_schemas.items():
+            if table_name not in self._ever_written:
+                self._write_empty_table(table_name, schema)
+
         for writer in self._writers.values():
             writer.close()
         self._writers.clear()
@@ -125,6 +143,7 @@ class BronzeWriter:
             part_num = self._part_index[table_name]
             path = part_dir / f"part-{part_num:03d}.parquet"
             self._writers[table_name] = pq.ParquetWriter(str(path), schema)
+            self._ever_written.add(table_name)
             logger.info(
                 "bronze_table_start",
                 extra={
@@ -135,6 +154,26 @@ class BronzeWriter:
                 },
             )
         return self._writers[table_name]
+
+    def _write_empty_table(self, table_name: str, schema: pa.Schema) -> None:
+        """Materialize a zero-row Parquet file so the partition dir exists."""
+        part_dir = (
+            self.bronze_root / table_name / f"snapshot_id={self.snapshot_id}"
+        )
+        part_dir.mkdir(parents=True, exist_ok=True)
+        path = part_dir / "part-000.parquet"
+        writer = pq.ParquetWriter(str(path), schema)
+        writer.write_table(schema.empty_table())
+        writer.close()
+        self._ever_written.add(table_name)
+        logger.info(
+            "bronze_table_empty",
+            extra={
+                "snapshot_id": self.snapshot_id,
+                "table_name": table_name,
+                "path": str(path),
+            },
+        )
 
     def _roll_part(self, table_name: str) -> None:
         """Close the current part and bump the part index for the next write."""

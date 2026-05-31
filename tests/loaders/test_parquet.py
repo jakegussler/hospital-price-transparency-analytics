@@ -43,12 +43,35 @@ class TestWriteBatch:
 
         assert _part_path(tmp_path, "charges", "snap-1").exists()
 
-    def test_empty_df_skipped(self, tmp_path):
+    def test_empty_df_materialized_as_zero_row_file(self, tmp_path):
+        # A table emitted only as an empty DataFrame is still materialized as a
+        # zero-row Parquet on close so its partition directory always exists and
+        # downstream read_parquet globs never fail on an absent optional table.
         empty = pl.DataFrame(schema=_simple_schema())
         with BronzeWriter(tmp_path, "snap-1") as writer:
             writer.write_batch({"charges": empty})
 
-        assert not _part_path(tmp_path, "charges", "snap-1").exists()
+        path = _part_path(tmp_path, "charges", "snap-1")
+        assert path.exists()
+        table = pq.read_table(path)
+        assert table.num_rows == 0
+        # File carries the declared schema (snapshot_id is added by the reader
+        # from the Hive partition path, so only assert the data columns).
+        assert {"id", "value"} <= set(table.column_names)
+
+    def test_empty_table_not_written_when_table_also_has_rows(self, tmp_path):
+        # An empty batch followed by a populated batch for the same table must
+        # not produce a spurious extra empty part file.
+        empty = pl.DataFrame(schema=_simple_schema())
+        with BronzeWriter(tmp_path, "snap-1") as writer:
+            writer.write_batch({"charges": empty})
+            writer.write_batch({"charges": _make_df()})
+
+        assert _part_path(tmp_path, "charges", "snap-1").exists()
+        # No second part file from the empty-table fallback.
+        assert not _part_path(tmp_path, "charges", "snap-1", part=1).exists()
+        table = pq.read_table(_part_path(tmp_path, "charges", "snap-1"))
+        assert table.num_rows == 3
 
     def test_multiple_tables_separate_dirs(self, tmp_path):
         with BronzeWriter(tmp_path, "snap-1") as writer:
