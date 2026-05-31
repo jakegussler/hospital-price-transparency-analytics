@@ -253,6 +253,25 @@ violations as (
     union all
 
     select
+        sc.snapshot_id, sc.hospital_id, sc.source_format, sc.source_format_family,
+        sc.reported_schema_family, cast(null as varchar), cast(null as varchar),
+        cast(null as integer), cast(null as integer), cast(null as integer),
+        cast(null as integer), cast(null as varchar),
+        'general_contract_provisions_required_shape',
+        'general_contract_provisions.provisions',
+        cast(null as varchar), 'required_field_missing',
+        'General contract provisions object is present but provisions text is missing.'
+    from snapshot_context sc
+    where exists (
+        select 1
+        from {{ ref('stg_bronze__general_contract_provisions') }} gcp
+        where gcp.snapshot_id = sc.snapshot_id
+            and gcp.clean_provisions is null
+    )
+
+    union all
+
+    select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, cast(null as varchar), cast(null as varchar),
         cast(null as integer), cast(null as integer), cast(null as integer),

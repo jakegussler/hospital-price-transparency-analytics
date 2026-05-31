@@ -12,16 +12,15 @@ with coverage as (
                 'state_valid_usps_code',
                 'attestation_text_exact',
                 'attestation_confirmation_true',
-                'csv_placeholder_headers_resolved'
+                'csv_placeholder_headers_resolved',
+                'general_contract_provisions_required_shape'
             ) then 'val__header_violations'
             when rule_id in (
                 'standard_charge_information_required_shape',
                 'required_arrays_non_empty'
             ) then 'val__charge_item_violations'
-            when rule_id in (
-                'general_contract_provisions_required_shape',
-                'modifier_information_required_shape'
-            ) then 'val__modifier_violations'
+            when rule_id = 'modifier_information_required_shape'
+                then 'val__modifier_violations'
             when rule_id in (
                 'code_information_required_shape',
                 'code_type_allowed_values',
@@ -63,10 +62,8 @@ with coverage as (
             else null
         end as primary_model,
         case
-            when rule_id in (
-                'general_contract_provisions_required_shape',
-                'modifier_information_required_shape'
-            ) then 'implemented_where_bronze_evidence_exists'
+            when rule_id = 'modifier_information_required_shape'
+                then 'implemented_where_bronze_evidence_exists'
             when rule_id in (
                 'standard_charge_information_required_shape',
                 'required_arrays_non_empty'
@@ -78,7 +75,7 @@ with coverage as (
                 'standard_charge_information_required_shape',
                 'required_arrays_non_empty'
             ) then 'Accepted Bronze rows are checked where row evidence exists; quarantined JSON rows are represented in val__structural_parse_violations.'
-            when rule_id = 'general_contract_provisions_required_shape' then 'The streaming parser does not emit general contract provision rows today, so this rule is covered by parser diagnostics and documented as limited until Bronze evidence exists.'
+            when rule_id = 'general_contract_provisions_required_shape' then 'General contract provision rows are emitted source-faithfully by the parser (JSON array objects and the flat CSV column), so val__header_violations flags missing/blank provisions at the file grain.'
             when rule_id = 'modifier_information_required_shape' then 'Modifier rows are checked when the optional modifier Bronze tables are present; parser diagnostics cover quarantined JSON records.'
             else 'Rule has row-level dbt checks.'
         end as coverage_notes

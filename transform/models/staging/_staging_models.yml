@@ -36,6 +36,18 @@ models:
         tests:
           - not_null
 
+  - name: stg_bronze__general_contract_provisions
+    description: >
+      Staging view for optional aggregate-level payer contract provisions
+      (JSON array objects or the flat CSV General Data Element column).
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: provision_ordinal
+        tests:
+          - not_null
+
   - name: stg_bronze__standard_charge_info
     description: "Staging view for JSON standard charge item parents."
     columns:

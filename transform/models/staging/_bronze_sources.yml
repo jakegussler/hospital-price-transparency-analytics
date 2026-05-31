@@ -55,6 +55,24 @@ sources:
             tests:
               - not_null
 
+      - name: general_contract_provisions
+        description: >
+          Optional aggregate/claim-level payer contract provisions. JSON emits
+          one row per ``general_contract_provisions[]`` object (with optional
+          payer/plan); CSV emits a single row from the flat
+          ``general_contract_provisions`` General Data Element column. Parsed
+          source-faithfully so a missing/blank ``provisions`` reaches the dbt
+          validation layer.
+        columns:
+          - name: snapshot_id
+            description: "FK to hospital_mrf_snapshots."
+            tests:
+              - not_null
+          - name: provision_ordinal
+            description: "0-based index of the provision within the MRF (0 for CSV)."
+            tests:
+              - not_null
+
       # ---- JSON-only tables --------------------------------------------
       - name: standard_charge_info
         description: "One row per entry in the source standard_charge_information array."
