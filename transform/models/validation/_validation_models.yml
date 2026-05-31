@@ -1,0 +1,186 @@
+version: 2
+
+seeds:
+  - name: cms_validation_rules
+    description: "Machine-facing CMS validation rule registry used by the dbt validation layer."
+    columns:
+      - name: rule_id
+        tests:
+          - not_null
+          - unique
+      - name: severity
+        tests:
+          - accepted_values:
+              values: ["reject", "warn"]
+      - name: grain
+        tests:
+          - accepted_values:
+              values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier"]
+      - name: applies_to_formats
+        tests:
+          - accepted_values:
+              values: ["json", "csv", "both"]
+
+models:
+  - name: val__header_violations
+    description: "Row-level file and header validation failures."
+    columns: &violation_columns
+      - name: validation_violation_id
+        tests:
+          - not_null
+          - unique
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: rule_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('cms_validation_rules')
+              field: rule_id
+      - name: severity
+        tests:
+          - accepted_values:
+              values: ["reject", "warn"]
+      - name: grain
+        tests:
+          - accepted_values:
+              values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier"]
+      - name: diagnostic_type
+        tests:
+          - not_null
+
+  - name: val__structural_parse_violations
+    description: "Validation rows derived from JSON parser quarantine diagnostics for records that never reached Bronze."
+    columns: *violation_columns
+
+  - name: val__charge_item_violations
+    description: "Row-level charge-item validation failures, including NDC drug requirements and JSON required arrays where Bronze evidence exists."
+    columns: *violation_columns
+
+  - name: val__code_violations
+    description: "Row-level code validation failures for JSON code_information and CSV code_N/code_N_type pairs."
+    columns: *violation_columns
+
+  - name: val__drug_violations
+    description: "Row-level drug-information validation failures."
+    columns: *violation_columns
+
+  - name: val__standard_charge_violations
+    description: "Row-level standard-charge validation failures, including numeric checks and conditional charge requirements."
+    columns: *violation_columns
+
+  - name: val__payer_rate_violations
+    description: "Row-level payer-rate validation failures, including numeric checks, methodology rules, and count/allowed-amount conditionals."
+    columns: *violation_columns
+
+  - name: val__modifier_violations
+    description: "Row-level modifier validation failures for JSON modifier tables and CSV modifier-only rows."
+    columns: *violation_columns
+
+  - name: val__all_violations
+    description: "Consolidated long table of every validation violation across grains."
+    columns: *violation_columns
+
+  - name: val__snapshot_rejections
+    description: "Distinct snapshot/header keys that fail reject-severity rules."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: rule_id
+        tests:
+          - relationships:
+              to: ref('cms_validation_rules')
+              field: rule_id
+
+  - name: val__charge_item_rejections
+    description: "Distinct charge-item keys that fail reject-severity charge-item, code, or drug rules."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: rule_id
+        tests:
+          - relationships:
+              to: ref('cms_validation_rules')
+              field: rule_id
+
+  - name: val__standard_charge_rejections
+    description: "Distinct standard-charge keys that fail reject-severity standard-charge rules."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: rule_id
+        tests:
+          - relationships:
+              to: ref('cms_validation_rules')
+              field: rule_id
+
+  - name: val__payer_rate_rejections
+    description: "Distinct payer-rate keys that fail reject-severity payer-rate rules."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: rule_id
+        tests:
+          - relationships:
+              to: ref('cms_validation_rules')
+              field: rule_id
+
+  - name: val__rule_coverage
+    description: "Rule-by-rule implementation coverage for the Stage 2 validation layer."
+    columns:
+      - name: rule_id
+        tests:
+          - not_null
+          - unique
+      - name: implementation_status
+        tests:
+          - not_null
+
+  - name: val_stats__snapshot_summary
+    description: "Per-snapshot validation counts and pass rates by grain/rule/severity."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: rule_id
+        tests:
+          - relationships:
+              to: ref('cms_validation_rules')
+              field: rule_id
+
+  - name: val_stats__rule_summary
+    description: "Rule-level violation counts and affected hospital/snapshot counts."
+    columns:
+      - name: rule_id
+        tests:
+          - not_null
+          - unique
+
+  - name: val_stats__value_distributions
+    description: "Numeric field distribution and parseability statistics across Bronze values."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: column_name
+        tests:
+          - not_null
+
+  - name: val_stats__anomalies
+    description: "Warn-level statistical and cross-field anomalies that are useful for monitoring but not CMS reject rules."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: anomaly_type
+        tests:
+          - not_null
+      - name: severity
+        tests:
+          - accepted_values:
+              values: ["warn"]
