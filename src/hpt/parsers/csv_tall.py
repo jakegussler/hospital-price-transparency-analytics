@@ -29,10 +29,12 @@ class CsvTallParser(BaseParser):
     """Parse CSV tall-format hospital MRF files."""
 
     def parse(self, file_path: Path) -> Iterator[dict[str, pl.DataFrame]]:
-        snapshot_record, location_rows, npi_rows = parse_csv_header(
+        snapshot_record, location_rows, npi_rows, provision_rows = parse_csv_header(
             file_path, self.snapshot_meta
         )
-        yield build_header_batch(snapshot_record, location_rows, npi_rows)
+        yield build_header_batch(
+            snapshot_record, location_rows, npi_rows, provision_rows
+        )
 
         reader, charge_headers, handle = get_charge_reader(file_path)
         try:

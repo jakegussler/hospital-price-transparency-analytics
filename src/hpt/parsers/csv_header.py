@@ -73,7 +73,12 @@ class WideColumnCatalog:
 def parse_csv_header(
     file_path: Path,
     snapshot_meta: dict[str, Any],
-) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[
+    dict[str, Any],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
     """Parse rows 1-2 and return snapshot + child-table rows."""
     with open_csv_text(file_path) as f:
         reader = csv.reader(f)
@@ -94,7 +99,10 @@ def parse_csv_header(
     snapshot_record = build_snapshot_record(header, snapshot_meta)
     location_rows = _build_location_rows(header, snapshot_meta["snapshot_id"])
     npi_rows = _build_npi_rows(header, snapshot_meta["snapshot_id"])
-    return snapshot_record, location_rows, npi_rows
+    provision_rows = _build_general_contract_provision_rows(
+        header, snapshot_meta["snapshot_id"]
+    )
+    return snapshot_record, location_rows, npi_rows, provision_rows
 
 
 def get_charge_reader(file_path: Path) -> tuple[csv.reader, list[str], TextIO]:
@@ -180,6 +188,7 @@ def build_header_batch(
     snapshot_record: dict[str, Any],
     location_rows: list[dict[str, Any]],
     npi_rows: list[dict[str, Any]],
+    provision_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, pl.DataFrame]:
     """Build the first parser batch containing shared Bronze tables."""
     return {
@@ -190,6 +199,10 @@ def build_header_batch(
             location_rows, BRONZE_SCHEMAS["hospital_locations"]
         ),
         "type2_npi": _df(npi_rows, BRONZE_SCHEMAS["type2_npi"]),
+        "general_contract_provisions": _df(
+            provision_rows or [],
+            BRONZE_SCHEMAS["general_contract_provisions"],
+        ),
     }
 
 
@@ -321,6 +334,29 @@ def _build_location_rows(
             }
         )
     return rows
+
+
+def _build_general_contract_provision_rows(
+    header: dict[str, str], snapshot_id: str
+) -> list[dict[str, Any]]:
+    """Emit one Bronze row when the optional column header is present.
+
+    CSV exposes general contract provisions as a single flat string in the
+    General Data Elements (row 1/2) — no payer/plan structure. A present but
+    blank value still emits a row so the dbt validation layer can flag a
+    missing ``provisions`` value; an absent column emits nothing.
+    """
+    if "general_contract_provisions" not in header:
+        return []
+    return [
+        {
+            "snapshot_id": snapshot_id,
+            "provision_ordinal": 0,
+            "payer_name": None,
+            "plan_name": None,
+            "provisions": _none_if_blank(header.get("general_contract_provisions")),
+        }
+    ]
 
 
 def _build_npi_rows(

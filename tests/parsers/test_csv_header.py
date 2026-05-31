@@ -56,7 +56,9 @@ def test_parse_csv_header_extracts_snapshot_fields(tmp_path):
         ],
     )
 
-    snapshot_record, locations, npis = parse_csv_header(path, _SNAPSHOT_META)
+    snapshot_record, locations, npis, provisions = parse_csv_header(
+        path, _SNAPSHOT_META
+    )
     assert snapshot_record["reported_hospital_name"] == "General Hospital"
     assert snapshot_record["reported_state"] == "TN"
     assert snapshot_record["license_number"] == "12345"
@@ -67,6 +69,47 @@ def test_parse_csv_header_extracts_snapshot_fields(tmp_path):
     assert locations[1]["hospital_address"] == "456 North St"
     assert len(npis) == 2
     assert npis[1]["npi"] == "0987654321"
+    # Optional column absent -> no general contract provision rows.
+    assert provisions == []
+
+
+def test_parse_csv_header_emits_general_contract_provisions(tmp_path):
+    path = tmp_path / "sample.csv"
+    _write_csv(
+        path,
+        [
+            "hospital_name,last_updated_on,version,general_contract_provisions",
+            "General Hospital,2025-01-01,3.0.0,Stop-loss applies over $100k",
+            "description,payer_name,plan_name",
+            "X-Ray,Aetna,PPO",
+        ],
+    )
+
+    _, _, _, provisions = parse_csv_header(path, _SNAPSHOT_META)
+    assert len(provisions) == 1
+    assert provisions[0]["snapshot_id"] == "snap-001"
+    assert provisions[0]["provision_ordinal"] == 0
+    assert provisions[0]["payer_name"] is None
+    assert provisions[0]["plan_name"] is None
+    assert provisions[0]["provisions"] == "Stop-loss applies over $100k"
+
+
+def test_parse_csv_header_blank_provisions_still_emits_row(tmp_path):
+    path = tmp_path / "sample.csv"
+    _write_csv(
+        path,
+        [
+            "hospital_name,last_updated_on,version,general_contract_provisions",
+            "General Hospital,2025-01-01,3.0.0,",
+            "description,payer_name,plan_name",
+            "X-Ray,Aetna,PPO",
+        ],
+    )
+
+    _, _, _, provisions = parse_csv_header(path, _SNAPSHOT_META)
+    # Present-but-blank column emits a row so dbt can flag the missing value.
+    assert len(provisions) == 1
+    assert provisions[0]["provisions"] is None
 
 
 def test_get_charge_reader_positions_at_row_4(tmp_path):

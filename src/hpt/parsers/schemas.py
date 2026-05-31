@@ -45,6 +45,15 @@ SHARED_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
         "npi": pl.Utf8,
         "npi_ordinal": pl.Int64,
     },
+    "general_contract_provisions": {
+        "snapshot_id": pl.Utf8,
+        "provision_ordinal": pl.Int64,
+        # payer_name/plan_name are optional in CMS and only populated by JSON;
+        # CSV exposes a single flat provisions string with both left null.
+        "payer_name": pl.Utf8,
+        "plan_name": pl.Utf8,
+        "provisions": pl.Utf8,
+    },
 }
 
 JSON_SCHEMAS: dict[str, dict[str, pl.DataType]] = {

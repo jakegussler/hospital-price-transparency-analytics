@@ -82,8 +82,9 @@ def _minimal_mrf(
     type_2_npi: list[str] | None = None,
     modifier_information: list[dict[str, Any]] | None = None,
     standard_charge_information: list[dict[str, Any]] | None = None,
+    general_contract_provisions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    return {
+    mrf: dict[str, Any] = {
         "hospital_name": hospital_name,
         "last_updated_on": "2025-01-01",
         "version": version,
@@ -103,6 +104,10 @@ def _minimal_mrf(
             else standard_charge_information
         ),
     }
+    # Mirror CMS physical layout: this root array appears after the charge array.
+    if general_contract_provisions is not None:
+        mrf["general_contract_provisions"] = general_contract_provisions
+    return mrf
 
 
 def _write_mrf(path: Path, data: dict[str, Any]) -> None:
@@ -418,6 +423,96 @@ class TestModifierParsing:
         assert record["ordinal"] == 0
         assert "error" in record
         assert "raw" in record
+
+
+# ---------------------------------------------------------------------------
+# General contract provisions parsing
+# ---------------------------------------------------------------------------
+
+
+class TestGeneralContractProvisionsParsing:
+    def test_absent_emits_no_rows(self, tmp_path):
+        mrf_path = tmp_path / "mrf.json"
+        _write_mrf(mrf_path, _minimal_mrf())
+        parser = _make_parser(tmp_path / "quarantine")
+
+        batches = list(parser.parse(mrf_path))
+        df = _collect_table(batches, "general_contract_provisions")
+        assert df.is_empty()
+
+    def test_emitted_after_charge_array(self, tmp_path):
+        mrf_path = tmp_path / "mrf.json"
+        provisions = [
+            {
+                "payer_name": "Platform Health",
+                "plan_name": "PPO",
+                "provisions": "Stop-loss over $200k reimburses at 50% of charges.",
+            },
+            {
+                "payer_name": "Region Health",
+                "plan_name": "HMO",
+                "provisions": "Outlier provision applies at the claim level.",
+            },
+        ]
+        _write_mrf(
+            mrf_path,
+            _minimal_mrf(general_contract_provisions=provisions),
+        )
+        parser = _make_parser(tmp_path / "quarantine")
+
+        batches = list(parser.parse(mrf_path))
+        df = _collect_table(batches, "general_contract_provisions")
+
+        assert len(df) == 2
+        assert df["provision_ordinal"].to_list() == [0, 1]
+        assert df["payer_name"].to_list() == ["Platform Health", "Region Health"]
+        assert df["plan_name"].to_list() == ["PPO", "HMO"]
+        assert df["provisions"][0].startswith("Stop-loss")
+        # Lineage preserved.
+        assert df["snapshot_id"].to_list() == ["snap-001", "snap-001"]
+
+    def test_missing_provisions_field_still_emits_row(self, tmp_path):
+        # Source-faithful: a provisions-less object is NOT quarantined; the dbt
+        # validation layer flags general_contract_provisions_required_shape.
+        mrf_path = tmp_path / "mrf.json"
+        provisions = [{"payer_name": "Platform Health", "plan_name": "PPO"}]
+        _write_mrf(
+            mrf_path,
+            _minimal_mrf(general_contract_provisions=provisions),
+        )
+        parser = _make_parser(tmp_path / "quarantine")
+
+        batches = list(parser.parse(mrf_path))
+        df = _collect_table(batches, "general_contract_provisions")
+
+        assert len(df) == 1
+        assert df["provisions"][0] is None
+        assert df["payer_name"][0] == "Platform Health"
+        # No quarantine file is written for the optional provisions pass.
+        q_file = (
+            tmp_path
+            / "quarantine"
+            / "snapshot_id=snap-001"
+            / "general_contract_provisions.jsonl"
+        )
+        assert not q_file.exists()
+
+    def test_payerless_provision_emits_row(self, tmp_path):
+        mrf_path = tmp_path / "mrf.json"
+        provisions = [{"provisions": "Aggregate carve-out applies."}]
+        _write_mrf(
+            mrf_path,
+            _minimal_mrf(general_contract_provisions=provisions),
+        )
+        parser = _make_parser(tmp_path / "quarantine")
+
+        batches = list(parser.parse(mrf_path))
+        df = _collect_table(batches, "general_contract_provisions")
+
+        assert len(df) == 1
+        assert df["payer_name"][0] is None
+        assert df["plan_name"][0] is None
+        assert df["provisions"][0] == "Aggregate carve-out applies."
 
 
 # ---------------------------------------------------------------------------

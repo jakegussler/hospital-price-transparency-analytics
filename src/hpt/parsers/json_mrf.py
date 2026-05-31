@@ -14,6 +14,9 @@
    model :class:`~hpt.ingest.cms_json_models.StandardChargeInformation`
    and fanned out into rows across six child tables. Invalid items are
    written to the quarantine directory and skipped.
+4. Pass 4 — :func:`ijson.items` on ``general_contract_provisions.item``
+   streams the optional root contract-provisions array (which appears after
+   the charge array). Parsed leniently and emitted as a single batch.
 """
 
 from __future__ import annotations
@@ -127,6 +130,15 @@ class JsonMrfParser(BaseParser):
             extra={"snapshot_id": snapshot_id, "pass_name": "standard_charge_information"},
         )
         yield from self._parse_charges(file_path)
+
+        logger.info(
+            "json_parse_pass_start",
+            extra={
+                "snapshot_id": snapshot_id,
+                "pass_name": "general_contract_provisions",
+            },
+        )
+        yield from self._parse_general_contract_provisions(file_path)
 
     # ------------------------------------------------------------------
     # Pass 1 — header
@@ -299,6 +311,56 @@ class JsonMrfParser(BaseParser):
                 "quarantined": self._quarantine_counts.get(section, 0),
                 "modifier_rows": len(modifiers_rows),
                 "modifier_payer_rows": len(modifier_payer_rows),
+            },
+        )
+        yield batch
+
+    # ------------------------------------------------------------------
+    # Pass 4 — general_contract_provisions (runs after the charge pass)
+    # ------------------------------------------------------------------
+
+    def _parse_general_contract_provisions(
+        self, file_path: Path
+    ) -> Iterator[dict[str, pl.DataFrame]]:
+        """Stream the optional root ``general_contract_provisions`` array.
+
+        This root element appears after the large ``standard_charge_information``
+        array, so the header pass never reaches it; like ``modifier_information``
+        it needs its own scan. Parsing is intentionally lenient — Bronze is
+        source-faithful, so rows are emitted even when ``provisions`` is missing
+        or blank, leaving the ``general_contract_provisions_required_shape``
+        check to the dbt validation layer rather than quarantining the object.
+        """
+        snapshot_id = self.snapshot_meta["snapshot_id"]
+        section = "general_contract_provisions"
+        provision_rows: list[dict[str, Any]] = []
+
+        with _open_maybe_gz(file_path) as f:
+            for ordinal, raw_item in enumerate(
+                ijson.items(f, "general_contract_provisions.item")
+            ):
+                item = raw_item if isinstance(raw_item, dict) else {}
+                provision_rows.append(
+                    {
+                        "snapshot_id": snapshot_id,
+                        "provision_ordinal": ordinal,
+                        "payer_name": item.get("payer_name"),
+                        "plan_name": item.get("plan_name"),
+                        "provisions": item.get("provisions"),
+                    }
+                )
+
+        batch = {
+            "general_contract_provisions": _df(
+                provision_rows, BRONZE_SCHEMAS["general_contract_provisions"]
+            ),
+        }
+        logger.info(
+            "json_parse_pass_complete",
+            extra={
+                "snapshot_id": snapshot_id,
+                "pass_name": section,
+                "provision_rows": len(provision_rows),
             },
         )
         yield batch
