@@ -1,0 +1,14 @@
+select distinct
+    snapshot_id,
+    hospital_id,
+    source_format,
+    source_format_family,
+    source_charge_item_id,
+    row_ordinal,
+    rule_id,
+    severity,
+    diagnostic_type,
+    message
+from {{ ref('val__all_violations') }}
+where severity = 'reject'
+    and grain in ('charge_item', 'code', 'drug')
