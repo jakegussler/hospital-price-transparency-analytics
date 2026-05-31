@@ -96,6 +96,23 @@ class TestHospitalIdValidation:
 
         assert {"CA", "GA", "ID", "IL", "MI", "MN", "WI"}.issubset(states)
 
+    def test_registry_accepts_cms_state_codes_outside_current_seed(self, tmp_path):
+        p = tmp_path / "valid_territory.yml"
+        p.write_text(
+            "hospitals:\n"
+            "  - hospital_id: territory-hospital\n"
+            "    canonical_hospital_name: X\n"
+            "    canonical_state: PR\n"
+            "    hospital_type: community\n"
+            "    mrf_source:\n"
+            "      url: https://example.com/x.csv\n"
+            "      expected_format: csv_wide\n"
+        )
+
+        hospitals = load_registry(p)
+
+        assert hospitals[0].canonical_state == "PR"
+
     def test_empty_id_rejected(self, tmp_path):
         p = tmp_path / "bad_id.yml"
         p.write_text(

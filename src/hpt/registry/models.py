@@ -6,6 +6,68 @@ from typing import Literal
 
 from pydantic import BaseModel, HttpUrl, field_validator
 
+StateCode = Literal[
+    "AL",
+    "AK",
+    "AS",
+    "AZ",
+    "AR",
+    "CA",
+    "CO",
+    "CT",
+    "DE",
+    "DC",
+    "FM",
+    "FL",
+    "GA",
+    "GU",
+    "HI",
+    "ID",
+    "IL",
+    "IN",
+    "IA",
+    "KS",
+    "KY",
+    "LA",
+    "ME",
+    "MH",
+    "MD",
+    "MA",
+    "MI",
+    "MN",
+    "MS",
+    "MO",
+    "MT",
+    "NE",
+    "NV",
+    "NH",
+    "NJ",
+    "NM",
+    "NY",
+    "NC",
+    "ND",
+    "MP",
+    "OH",
+    "OK",
+    "OR",
+    "PW",
+    "PA",
+    "PR",
+    "RI",
+    "SC",
+    "SD",
+    "TN",
+    "TX",
+    "UT",
+    "VT",
+    "VI",
+    "VA",
+    "WA",
+    "WV",
+    "WI",
+    "WY",
+]
+
 
 class MrfSource(BaseModel):
     """Location and format metadata for a hospital's MRF file."""
@@ -20,7 +82,7 @@ class HospitalSource(BaseModel):
 
     hospital_id: str
     canonical_hospital_name: str
-    canonical_state: Literal["CA", "FL", "GA", "ID", "IL", "MI", "MN", "NC", "TN", "WI"]
+    canonical_state: StateCode
     hospital_type: Literal[
         "academic_medical_center",
         "community",
