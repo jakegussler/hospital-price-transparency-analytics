@@ -75,10 +75,53 @@ models:
           +tags: ["pipeline_charge_data"]
       core:
         +tags: ["silver_core", "silver"]
+    validation:
+      +schema: validation
+      +materialized: table
+      +tags: ["validation", "data_quality"]
+      violations:
+        +tags: ["pipeline_charge_data"]
+      rejections:
+        +tags: ["pipeline_charge_data"]
+      stats:
+        +tags: ["pipeline_charge_data"]
 
 seeds:
   hospital_price_transparency:
     +schema: seeds
+    states:
+      +column_types:
+        state_code: varchar
+        state_name: varchar
+        state_type: varchar
+        census_region: varchar
+        census_division: varchar
+        is_50_state: boolean
+        is_cms_accepted: boolean
+    cms_validation_rules:
+      +column_types:
+        rule_id: varchar
+        rule_name: varchar
+        description: varchar
+        cms_citation: varchar
+        grain: varchar
+        fields: varchar
+        schema_families: varchar
+        condition: varchar
+        severity: varchar
+        applies_to_formats: varchar
+        current_pydantic_location: varchar
+        target_dbt_model: varchar
+        notes: varchar
+    cms_code_types:
+      +column_types:
+        code_type: varchar
+        cms_code_type: varchar
+        standard_name: varchar
+        valid_in_2_1: boolean
+        valid_in_2_2: boolean
+        valid_in_3_0: boolean
+        requires_drug_information: boolean
     payer_context_rules:
       +column_types:
         plan_type: varchar
