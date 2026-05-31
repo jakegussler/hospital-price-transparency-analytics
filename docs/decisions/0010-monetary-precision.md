@@ -62,7 +62,10 @@ larger parser rewrite.
   during parsing; they survive as raw text in Bronze and become null only when
   dbt staging casts them. The `stg_bronze__csv_numeric_parse_diagnostics` model
   emits one row per non-empty raw value that fails the cast, so bad numbers stay
-  queryable.
+  queryable. ADR 0011 generalizes this into the `validation` schema: the
+  `val__standard_charge_violations`, `val__payer_rate_violations`, and
+  `val__drug_violations` models preserve the same `numeric_cast_failed`
+  diagnostic vocabulary and drive reject-severity Silver filtering.
 - JSON keeps its stronger validation path: Pydantic still enforces numeric
   validity before Bronze output, and invalid records are quarantined as JSONL
   and recorded in `json_record_parse_diagnostics`. Because invalid JSON numbers
