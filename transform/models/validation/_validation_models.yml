@@ -1,54 +1,73 @@
 version: 2
 
-seeds:
-  - name: cms_validation_rules
-    description: "Machine-facing CMS validation rule registry used by the dbt validation layer."
-    columns:
-      - name: rule_id
-        tests:
-          - not_null
-          - unique
-      - name: severity
-        tests:
-          - accepted_values:
-              values: ["reject", "warn"]
-      - name: grain
-        tests:
-          - accepted_values:
-              values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier"]
-      - name: applies_to_formats
-        tests:
-          - accepted_values:
-              values: ["json", "csv", "both"]
-
 models:
   - name: val__header_violations
     description: "Row-level file and header validation failures."
     columns: &violation_columns
       - name: validation_violation_id
+        description: "Stable hash key for this emitted validation violation row."
         tests:
           - not_null
           - unique
       - name: snapshot_id
+        description: "Bronze snapshot identifier for the source MRF that produced the failing value."
         tests:
           - not_null
+      - name: hospital_id
+        description: "Registry hospital identifier when it can be resolved from snapshot metadata."
+      - name: source_format
+        description: "Original parser/source format for the snapshot, such as json, csv_tall, or csv_wide."
+      - name: source_format_family
+        description: "Normalized source family used by validation branching: json or csv."
+      - name: reported_schema_family
+        description: "CMS schema family reported by or inferred for the source record; CSV rows are treated as 3.0."
+      - name: source_charge_item_id
+        description: "JSON Bronze charge-item identifier when the violation belongs to a charge item or descendant."
+      - name: source_standard_charge_id
+        description: "JSON Bronze standard-charge identifier when the violation belongs to a standard charge or payer rate."
+      - name: payer_ordinal
+        description: "Zero-based JSON payer ordinal within a standard charge when the violation belongs to a payer rate."
+      - name: row_ordinal
+        description: "Zero-based CSV source row ordinal, or JSON parser diagnostic record ordinal for quarantined rows."
+      - name: source_rate_ordinal
+        description: "Zero-based CSV payer-rate ordinal within a source row after wide/tall payer-rate unpivoting."
+      - name: code_ordinal
+        description: "Zero-based code ordinal within the source charge item or CSV code pair when the violation belongs to a code."
+      - name: modifier_code_id
+        description: "JSON Bronze modifier identifier when the violation belongs to a modifier row."
       - name: rule_id
+        description: "Stable validation rule identifier from the cms_validation_rules seed."
         tests:
           - not_null
           - relationships:
               to: ref('cms_validation_rules')
               field: rule_id
+      - name: rule_name
+        description: "Human-readable validation rule name from the rule registry."
       - name: severity
+        description: "Rule severity. reject rows drive Silver filtering; warn rows remain in Silver for review."
         tests:
           - accepted_values:
               values: ["reject", "warn"]
       - name: grain
+        description: "Business/source grain where the rule is evaluated."
         tests:
           - accepted_values:
               values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier"]
+      - name: column_name
+        description: "Source or logical column whose value failed the rule."
+      - name: raw_value
+        description: "Source value or compact source-value summary that failed validation."
       - name: diagnostic_type
+        description: "Machine-readable violation category, reusing existing diagnostics such as numeric_cast_failed where applicable."
         tests:
           - not_null
+      - name: message
+        description: "Reviewer-facing explanation of why this row violates the rule."
+      - name: is_rejected
+        description: "Boolean convenience flag derived from severity = reject."
+      - name: cms_citation
+        description: "CMS documentation or schema citation carried from the rule registry."
 
   - name: val__structural_parse_violations
     description: "Validation rows derived from JSON parser quarantine diagnostics for records that never reached Bronze."
@@ -86,101 +105,269 @@ models:
     description: "Distinct snapshot/header keys that fail reject-severity rules."
     columns:
       - name: snapshot_id
+        description: "Snapshot removed from Silver because a file/header reject rule fired."
         tests:
           - not_null
+      - name: hospital_id
+        description: "Registry hospital identifier from the rejected snapshot."
+      - name: source_format
+        description: "Original parser/source format for the rejected snapshot."
+      - name: source_format_family
+        description: "Normalized source family for the rejected snapshot: json or csv."
       - name: rule_id
+        description: "Reject-severity validation rule that created this snapshot rejection."
         tests:
           - relationships:
               to: ref('cms_validation_rules')
               field: rule_id
+      - name: severity
+        description: "Severity for the rejection row; always reject."
+      - name: diagnostic_type
+        description: "Machine-readable diagnostic category copied from the violation row."
+      - name: message
+        description: "Reviewer-facing reason the snapshot is excluded from Silver."
 
   - name: val__charge_item_rejections
     description: "Distinct charge-item keys that fail reject-severity charge-item, code, or drug rules."
     columns:
       - name: snapshot_id
+        description: "Snapshot containing the rejected charge item."
         tests:
           - not_null
+      - name: hospital_id
+        description: "Registry hospital identifier from the rejected charge-item snapshot."
+      - name: source_format
+        description: "Original parser/source format for the rejected charge item."
+      - name: source_format_family
+        description: "Normalized source family for join-key branching: json or csv."
+      - name: source_charge_item_id
+        description: "JSON Bronze charge-item identifier used by Silver anti-joins for JSON records."
+      - name: row_ordinal
+        description: "CSV source row ordinal used by Silver anti-joins for CSV records."
       - name: rule_id
+        description: "Reject-severity charge-item, code, or drug rule that created this rejection."
         tests:
           - relationships:
               to: ref('cms_validation_rules')
               field: rule_id
+      - name: severity
+        description: "Severity for the rejection row; always reject."
+      - name: diagnostic_type
+        description: "Machine-readable diagnostic category copied from the violation row."
+      - name: message
+        description: "Reviewer-facing reason the charge item is excluded from Silver."
 
   - name: val__standard_charge_rejections
     description: "Distinct standard-charge keys that fail reject-severity standard-charge rules."
     columns:
       - name: snapshot_id
+        description: "Snapshot containing the rejected standard charge context."
         tests:
           - not_null
+      - name: hospital_id
+        description: "Registry hospital identifier from the rejected standard-charge snapshot."
+      - name: source_format
+        description: "Original parser/source format for the rejected standard charge."
+      - name: source_format_family
+        description: "Normalized source family for join-key branching: json or csv."
+      - name: source_charge_item_id
+        description: "JSON Bronze parent charge-item identifier for contextual traceability."
+      - name: source_standard_charge_id
+        description: "JSON Bronze standard-charge identifier used by Silver anti-joins for JSON records."
+      - name: row_ordinal
+        description: "CSV source row ordinal used by Silver anti-joins for CSV standard-charge contexts."
       - name: rule_id
+        description: "Reject-severity standard-charge rule that created this rejection."
         tests:
           - relationships:
               to: ref('cms_validation_rules')
               field: rule_id
+      - name: severity
+        description: "Severity for the rejection row; always reject."
+      - name: diagnostic_type
+        description: "Machine-readable diagnostic category copied from the violation row."
+      - name: message
+        description: "Reviewer-facing reason the standard charge is excluded from Silver."
 
   - name: val__payer_rate_rejections
     description: "Distinct payer-rate keys that fail reject-severity payer-rate rules."
     columns:
       - name: snapshot_id
+        description: "Snapshot containing the rejected payer rate."
         tests:
           - not_null
+      - name: hospital_id
+        description: "Registry hospital identifier from the rejected payer-rate snapshot."
+      - name: source_format
+        description: "Original parser/source format for the rejected payer rate."
+      - name: source_format_family
+        description: "Normalized source family for join-key branching: json or csv."
+      - name: source_standard_charge_id
+        description: "JSON Bronze standard-charge identifier used with payer_ordinal for JSON payer-rate anti-joins."
+      - name: payer_ordinal
+        description: "Zero-based JSON payer ordinal used with source_standard_charge_id for JSON payer-rate anti-joins."
+      - name: row_ordinal
+        description: "CSV source row ordinal used with source_rate_ordinal for CSV payer-rate anti-joins."
+      - name: source_rate_ordinal
+        description: "Zero-based CSV payer-rate ordinal used with row_ordinal for CSV payer-rate anti-joins."
       - name: rule_id
+        description: "Reject-severity payer-rate rule that created this rejection."
         tests:
           - relationships:
               to: ref('cms_validation_rules')
               field: rule_id
+      - name: severity
+        description: "Severity for the rejection row; always reject."
+      - name: diagnostic_type
+        description: "Machine-readable diagnostic category copied from the violation row."
+      - name: message
+        description: "Reviewer-facing reason the payer rate is excluded from Silver."
 
   - name: val__rule_coverage
     description: "Rule-by-rule implementation coverage for the Stage 2 validation layer."
     columns:
       - name: rule_id
+        description: "Rule registry identifier whose dbt implementation coverage is being reported."
         tests:
           - not_null
           - unique
+      - name: rule_name
+        description: "Human-readable rule name from the registry."
+      - name: grain
+        description: "Registry grain where the rule is evaluated."
+      - name: severity
+        description: "Registry severity for the rule."
+      - name: applies_to_formats
+        description: "Registry source-format scope for the rule: json, csv, or both."
+      - name: primary_model
+        description: "Primary validation model that implements or records coverage for the rule."
       - name: implementation_status
+        description: "Coverage state used by tests to ensure no registry rule is silently skipped."
         tests:
           - not_null
+      - name: coverage_notes
+        description: "Implementation detail or limitation, especially where current Bronze evidence is incomplete."
 
   - name: val_stats__snapshot_summary
     description: "Per-snapshot validation counts and pass rates by grain/rule/severity."
     columns:
       - name: snapshot_id
+        description: "Snapshot summarized for validation monitoring."
         tests:
           - not_null
+      - name: hospital_id
+        description: "Registry hospital identifier for the summarized snapshot."
+      - name: source_format
+        description: "Original parser/source format for the summarized snapshot."
+      - name: grain
+        description: "Validation grain summarized for this row."
       - name: rule_id
+        description: "Rule whose violations are counted for the snapshot/grain."
         tests:
           - relationships:
               to: ref('cms_validation_rules')
               field: rule_id
+      - name: severity
+        description: "Rule severity represented in the summary row."
+      - name: total_records
+        description: "Approximate denominator of source records at the summarized grain for the snapshot."
+      - name: violation_count
+        description: "Number of violation rows emitted for this snapshot, grain, rule, and severity."
+      - name: rejected_violation_count
+        description: "Number of violation rows in the summary that are reject-severity."
+      - name: pass_rate
+        description: "Approximate pass rate calculated as one minus violations divided by total_records."
 
   - name: val_stats__rule_summary
     description: "Rule-level violation counts and affected hospital/snapshot counts."
     columns:
       - name: rule_id
+        description: "Rule registry identifier summarized across all available snapshots."
         tests:
           - not_null
           - unique
+      - name: rule_name
+        description: "Human-readable rule name from the registry."
+      - name: grain
+        description: "Registry grain where the rule is evaluated."
+      - name: severity
+        description: "Registry severity for the rule."
+      - name: applies_to_formats
+        description: "Registry source-format scope for the rule: json, csv, or both."
+      - name: violation_count
+        description: "Total number of violation rows emitted for the rule."
+      - name: affected_snapshot_count
+        description: "Number of distinct snapshots with at least one violation for the rule."
+      - name: affected_hospital_count
+        description: "Number of distinct hospitals with at least one violation for the rule."
+      - name: rejected_violation_count
+        description: "Total number of reject-severity violation rows emitted for the rule."
+      - name: diagnostic_types
+        description: "Comma-separated list of diagnostic_type values observed for the rule."
 
   - name: val_stats__value_distributions
     description: "Numeric field distribution and parseability statistics across Bronze values."
     columns:
       - name: snapshot_id
+        description: "Snapshot whose raw numeric source values are summarized."
         tests:
           - not_null
+      - name: grain
+        description: "Validation grain of the numeric field."
       - name: column_name
+        description: "Source numeric column summarized in this distribution row."
         tests:
           - not_null
+      - name: row_count
+        description: "Total number of source rows considered for the numeric field."
+      - name: null_or_blank_count
+        description: "Number of rows where the source value cleans to null or blank."
+      - name: non_castable_count
+        description: "Number of non-blank source values that cannot be safely cast to the configured numeric type."
+      - name: min_value
+        description: "Minimum parsed numeric value, excluding null and non-castable values."
+      - name: max_value
+        description: "Maximum parsed numeric value, excluding null and non-castable values."
+      - name: median_value
+        description: "Median parsed numeric value, excluding null and non-castable values."
+      - name: p10_value
+        description: "Tenth percentile parsed numeric value, excluding null and non-castable values."
+      - name: p90_value
+        description: "Ninetieth percentile parsed numeric value, excluding null and non-castable values."
+      - name: zero_count
+        description: "Number of parsed numeric values equal to zero."
+      - name: negative_count
+        description: "Number of parsed numeric values less than zero."
 
   - name: val_stats__anomalies
     description: "Warn-level statistical and cross-field anomalies that are useful for monitoring but not CMS reject rules."
     columns:
       - name: snapshot_id
+        description: "Snapshot containing the anomalous value combination."
         tests:
           - not_null
+      - name: hospital_id
+        description: "Registry hospital identifier for the anomaly row."
+      - name: source_format
+        description: "Original parser/source format for the anomaly row."
+      - name: reported_schema_family
+        description: "CMS schema family reported by or inferred for the anomaly row."
+      - name: source_standard_charge_id
+        description: "JSON Bronze standard-charge identifier when the anomaly belongs to a JSON payer rate."
+      - name: payer_ordinal
+        description: "Zero-based JSON payer ordinal when the anomaly belongs to a JSON payer rate."
+      - name: row_ordinal
+        description: "Zero-based CSV source row ordinal when the anomaly belongs to a CSV payer rate."
+      - name: source_rate_ordinal
+        description: "Zero-based CSV payer-rate ordinal when the anomaly belongs to a CSV payer rate."
       - name: anomaly_type
+        description: "Machine-readable anomaly category, such as negotiated_dollar_gt_gross_charge."
         tests:
           - not_null
+      - name: details
+        description: "Compact summary of the values that triggered the anomaly."
       - name: severity
+        description: "Monitoring severity for anomaly rows; always warn because these checks do not reject Silver records."
         tests:
           - accepted_values:
               values: ["warn"]

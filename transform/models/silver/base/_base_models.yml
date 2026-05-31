@@ -8,6 +8,14 @@ models:
         tests:
           - not_null
           - unique
+      - name: canonical_state_name
+        description: "State display label from the states seed."
+      - name: canonical_state_type
+        description: "State seed category such as state, district, territory, or freely associated state."
+      - name: canonical_census_region
+        description: "U.S. Census region for geographic rollups when available."
+      - name: canonical_census_division
+        description: "U.S. Census division for geographic rollups when available."
 
   - name: slv_base__hospital_snapshots
     description: "One row per ingested MRF snapshot with typed dates and registry metadata."
@@ -128,30 +136,9 @@ models:
               field: silver_charge_item_id
       - name: canonical_code_system
         tests:
-          - accepted_values:
-              arguments:
-                values:
-                  - cpt
-                  - hcpcs
-                  - icd
-                  - drg
-                  - ms-drg
-                  - r-drg
-                  - s-drg
-                  - aps-drg
-                  - ap-drg
-                  - apr-drg
-                  - tris-drg
-                  - apc
-                  - ndc
-                  - hipps
-                  - local
-                  - eapg
-                  - cdt
-                  - rc
-                  - cdm
-                  - cmg
-                  - ms-ltc-drg
+          - relationships:
+              to: ref('cms_code_types')
+              field: code_type
 
   - name: slv_base__payer_rates
     description: "Format-neutral payer and plan negotiated rate rows linked to grouped Silver standard charges."
