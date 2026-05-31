@@ -55,3 +55,10 @@ select distinct
     raw_drug_unit_type,
     clean_drug_unit_type
 from signed_rows
+where not exists (
+    select 1
+    from {{ ref('val__charge_item_rejections') }} r
+    where r.source_format_family = 'csv'
+        and r.snapshot_id = signed_rows.snapshot_id
+        and r.row_ordinal = signed_rows.row_ordinal
+)

@@ -38,6 +38,13 @@ with json_standard_charges as (
     inner join {{ ref('slv_base__charge_items') }} ci
         on sc.snapshot_id = ci.snapshot_id
         and sc.charge_item_id = ci.source_charge_item_id
+    where not exists (
+        select 1
+        from {{ ref('val__standard_charge_rejections') }} r
+        where r.source_format_family = 'json'
+            and r.snapshot_id = sc.snapshot_id
+            and r.source_standard_charge_id = sc.standard_charge_id
+    )
 ),
 
 csv_standard_charges as (
@@ -64,6 +71,13 @@ csv_standard_charges as (
             and r.row_ordinal = row_items.row_ordinal
         inner join {{ ref('slv_base__hospital_snapshots') }} hs
             on r.snapshot_id = hs.snapshot_id
+        where not exists (
+            select 1
+            from {{ ref('val__standard_charge_rejections') }} rej
+            where rej.source_format_family = 'csv'
+                and rej.snapshot_id = r.snapshot_id
+                and rej.row_ordinal = r.row_ordinal
+        )
     ),
 
     signed_context_rows as (

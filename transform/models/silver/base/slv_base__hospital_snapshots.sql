@@ -31,3 +31,8 @@ select
 from {{ ref('stg_bronze__hospital_mrf_snapshots') }} s
 left join {{ ref('slv_base__hospitals') }} h
     on s.hospital_id = h.hospital_id
+where not exists (
+    select 1
+    from {{ ref('val__snapshot_rejections') }} r
+    where r.snapshot_id = s.snapshot_id
+)
