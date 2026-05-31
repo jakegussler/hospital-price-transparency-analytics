@@ -1,0 +1,22 @@
+code_type,cms_code_type,standard_name,valid_in_2_1,valid_in_2_2,valid_in_3_0,requires_drug_information
+cpt,CPT,Current Procedural Terminology,true,true,true,false
+ndc,NDC,National Drug Code,true,true,true,true
+hcpcs,HCPCS,Healthcare Common Procedural Coding System,true,true,true,false
+rc,RC,Revenue Code,true,true,true,false
+icd,ICD,International Classification of Diseases,true,true,true,false
+drg,DRG,Diagnosis Related Groups,true,true,true,false
+ms-drg,MS-DRG,Medicare Severity Diagnosis Related Groups,true,true,true,false
+r-drg,R-DRG,Refined Diagnosis Related Groups,true,true,true,false
+s-drg,S-DRG,Severity Diagnosis Related Groups,true,true,true,false
+aps-drg,APS-DRG,"All Patient, Severity-Adjusted Diagnosis Related Groups",true,true,true,false
+ap-drg,AP-DRG,All Patient Diagnosis Related Groups,true,true,true,false
+apr-drg,APR-DRG,All Patient Refined Diagnosis Related Groups,true,true,true,false
+apc,APC,Ambulatory Payment Classifications,true,true,true,false
+local,LOCAL,Local Code Processing,true,true,true,false
+eapg,EAPG,Enhanced Ambulatory Patient Grouping,true,true,true,false
+hipps,HIPPS,Health Insurance Prospective Payment System,true,true,true,false
+cdt,CDT,Current Dental Terminology,true,true,true,false
+cdm,CDM,Charge Description Master (chargemaster),true,true,true,false
+tris-drg,TRIS-DRG,TriCare Diagnosis Related Groups,true,true,true,false
+cmg,CMG,Case Mix Group,false,false,true,false
+ms-ltc-drg,MS-LTC-DRG,Medicare Severity Long-Term Care Diagnosis Related Groups,false,false,true,false

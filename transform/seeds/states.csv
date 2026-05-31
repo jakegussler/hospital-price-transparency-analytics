@@ -1,0 +1,60 @@
+state_code,state_name,state_type,census_region,census_division,is_50_state,is_cms_accepted
+AL,Alabama,state,South,East South Central,true,true
+AK,Alaska,state,West,Pacific,true,true
+AS,American Samoa,territory,,,false,true
+AZ,Arizona,state,West,Mountain,true,true
+AR,Arkansas,state,South,West South Central,true,true
+CA,California,state,West,Pacific,true,true
+CO,Colorado,state,West,Mountain,true,true
+CT,Connecticut,state,Northeast,New England,true,true
+DE,Delaware,state,South,South Atlantic,true,true
+DC,District of Columbia,district,South,South Atlantic,false,true
+FM,Federated States of Micronesia,freely_associated_state,,,false,true
+FL,Florida,state,South,South Atlantic,true,true
+GA,Georgia,state,South,South Atlantic,true,true
+GU,Guam,territory,,,false,true
+HI,Hawaii,state,West,Pacific,true,true
+ID,Idaho,state,West,Mountain,true,true
+IL,Illinois,state,Midwest,East North Central,true,true
+IN,Indiana,state,Midwest,East North Central,true,true
+IA,Iowa,state,Midwest,West North Central,true,true
+KS,Kansas,state,Midwest,West North Central,true,true
+KY,Kentucky,state,South,East South Central,true,true
+LA,Louisiana,state,South,West South Central,true,true
+ME,Maine,state,Northeast,New England,true,true
+MH,Marshall Islands,freely_associated_state,,,false,true
+MD,Maryland,state,South,South Atlantic,true,true
+MA,Massachusetts,state,Northeast,New England,true,true
+MI,Michigan,state,Midwest,East North Central,true,true
+MN,Minnesota,state,Midwest,West North Central,true,true
+MS,Mississippi,state,South,East South Central,true,true
+MO,Missouri,state,Midwest,West North Central,true,true
+MT,Montana,state,West,Mountain,true,true
+NE,Nebraska,state,Midwest,West North Central,true,true
+NV,Nevada,state,West,Mountain,true,true
+NH,New Hampshire,state,Northeast,New England,true,true
+NJ,New Jersey,state,Northeast,Middle Atlantic,true,true
+NM,New Mexico,state,West,Mountain,true,true
+NY,New York,state,Northeast,Middle Atlantic,true,true
+NC,North Carolina,state,South,South Atlantic,true,true
+ND,North Dakota,state,Midwest,West North Central,true,true
+MP,Northern Mariana Islands,territory,,,false,true
+OH,Ohio,state,Midwest,East North Central,true,true
+OK,Oklahoma,state,South,West South Central,true,true
+OR,Oregon,state,West,Pacific,true,true
+PW,Palau,freely_associated_state,,,false,true
+PA,Pennsylvania,state,Northeast,Middle Atlantic,true,true
+PR,Puerto Rico,territory,,,false,true
+RI,Rhode Island,state,Northeast,New England,true,true
+SC,South Carolina,state,South,South Atlantic,true,true
+SD,South Dakota,state,Midwest,West North Central,true,true
+TN,Tennessee,state,South,East South Central,true,true
+TX,Texas,state,South,West South Central,true,true
+UT,Utah,state,West,Mountain,true,true
+VT,Vermont,state,Northeast,New England,true,true
+VI,U.S. Virgin Islands,territory,,,false,true
+VA,Virginia,state,South,South Atlantic,true,true
+WA,Washington,state,West,Pacific,true,true
+WV,West Virginia,state,South,South Atlantic,true,true
+WI,Wisconsin,state,Midwest,East North Central,true,true
+WY,Wyoming,state,West,Mountain,true,true
