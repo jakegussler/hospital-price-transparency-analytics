@@ -361,5 +361,3 @@ hospitals:
       url: https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/87fdddfc55a14d4fbafdf4aefaa2f04e/390816848-mercyjanesvillehospital-standardcharges.json
       expected_format: json
       notes: Discovered from Mercyhealth cms-hpt.txt.
-
-  # --- Add FL and NC hospitals below -------------------------------------------
