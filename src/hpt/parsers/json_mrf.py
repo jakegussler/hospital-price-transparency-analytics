@@ -10,10 +10,11 @@
    optional top-level modifier dimension. Small array; emitted as a single
    batch.
 3. Pass 3 — :func:`ijson.items` on ``standard_charge_information.item``
-   streams the large charge array. Each item is validated by the Pydantic
+   streams the large charge array. Each item is shape-checked by the Pydantic
    model :class:`~hpt.ingest.cms_json_models.StandardChargeInformation`
-   and fanned out into rows across six child tables. Invalid items are
-   written to the quarantine directory and skipped.
+   and fanned out into rows across six child tables. Structurally invalid
+   items are written to the quarantine directory and skipped; value-level CMS
+   validation is handled in dbt.
 4. Pass 4 — :func:`ijson.items` on ``general_contract_provisions.item``
    streams the optional root contract-provisions array (which appears after
    the charge array). Parsed leniently and emitted as a single batch.
@@ -29,7 +30,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +38,6 @@ import polars as pl
 from pydantic import ValidationError
 
 from hpt.ingest.cms_json_models import (
-    JSON_SCHEMA_ATTEMPT_ORDERS,
     ModifierInformation,
     StandardChargeInformation,
     normalize_json_schema_family,
@@ -63,14 +62,8 @@ _CHARGE_TABLES: tuple[str, ...] = (
 )
 
 
-def _to_text(value: Decimal | float | int | None) -> str | None:
-    """Render numeric Pydantic fields as text for Bronze ``Utf8`` columns.
-
-    Bronze preserves the source numeric representation; dbt staging is the type
-    boundary that casts these strings to ``decimal``/``double`` (see ADR 0010).
-    ``Decimal`` keeps its plain string form rather than being routed through
-    ``float``, so no precision is lost before dbt.
-    """
+def _to_text(value: Any) -> str | None:
+    """Render source scalar values as text for Bronze ``Utf8`` columns."""
     if value is None:
         return None
     return str(value)
@@ -91,10 +84,6 @@ class ParsedChargeItem:
         if self.reported_schema_family is None or self.parser_schema_family is None:
             return False
         return self.reported_schema_family != self.parser_schema_family
-
-    @property
-    def used_fallback(self) -> bool:
-        return self.model is not None and len(self.errors_by_family) > 0
 
 
 class JsonMrfParser(BaseParser):
@@ -282,7 +271,7 @@ class JsonMrfParser(BaseParser):
                         "snapshot_id": snapshot_id,
                         "code": mi.code,
                         "description": mi.description,
-                        "setting": mi.setting.value if mi.setting else None,
+                        "setting": mi.setting,
                     }
                 )
                 for payer in mi.modifier_payer_information:
@@ -382,7 +371,7 @@ class JsonMrfParser(BaseParser):
             for item_ordinal, raw_item in enumerate(
                 ijson.items(f, "standard_charge_information.item")
             ):
-                parsed = self._parse_charge_with_fallback(raw_item)
+                parsed = self._parse_charge_structural(raw_item)
                 if parsed.model is None:
                     diagnostic = self._diagnostic_record(
                         section=section,
@@ -400,7 +389,7 @@ class JsonMrfParser(BaseParser):
                     )
                     continue
 
-                if parsed.used_fallback or parsed.schema_version_mismatch:
+                if parsed.schema_version_mismatch:
                     accumulator["json_record_parse_diagnostics"].append(
                         self._diagnostic_record(
                             section=section,
@@ -459,36 +448,34 @@ class JsonMrfParser(BaseParser):
             },
         )
 
-    def _parse_charge_with_fallback(self, raw_item: Any) -> ParsedChargeItem:
+    def _parse_charge_structural(self, raw_item: Any) -> ParsedChargeItem:
         reported_schema_version = self.snapshot_meta.get("schema_version")
         if reported_schema_version is not None:
             reported_schema_version = str(reported_schema_version)
         reported_schema_family = normalize_json_schema_family(reported_schema_version)
-        attempt_order = JSON_SCHEMA_ATTEMPT_ORDERS[reported_schema_family]
+        parser_schema_family = _infer_record_schema_family(
+            raw_item,
+            default_family=reported_schema_family or "3.0",
+        )
+        parser_schema_version = parser_schema_version_for_family(parser_schema_family)
+        attempted_schema_families = _schema_family_lineage(
+            reported_schema_family,
+            parser_schema_family,
+        )
         errors_by_family: dict[str, dict[str, Any]] = {}
 
-        for schema_family in attempt_order:
-            try:
-                model = StandardChargeInformation.model_validate(
-                    raw_item,
-                    context={
-                        "schema_family": schema_family,
-                        "schema_version": parser_schema_version_for_family(schema_family),
-                    },
-                )
-            except ValidationError as exc:
-                errors_by_family[schema_family] = _validation_error_summary(exc)
-                continue
-
+        try:
+            model = StandardChargeInformation.model_validate(raw_item)
+        except ValidationError as exc:
+            errors_by_family[parser_schema_family] = _validation_error_summary(exc)
+        else:
             return ParsedChargeItem(
                 model=model,
                 reported_schema_version=reported_schema_version,
                 reported_schema_family=reported_schema_family,
-                parser_schema_family=schema_family,
-                parser_schema_version=parser_schema_version_for_family(schema_family),
-                attempted_schema_families=attempt_order[
-                    : attempt_order.index(schema_family) + 1
-                ],
+                parser_schema_family=parser_schema_family,
+                parser_schema_version=parser_schema_version,
+                attempted_schema_families=attempted_schema_families,
                 errors_by_family=errors_by_family,
             )
 
@@ -498,7 +485,7 @@ class JsonMrfParser(BaseParser):
             reported_schema_family=reported_schema_family,
             parser_schema_family=None,
             parser_schema_version=None,
-            attempted_schema_families=attempt_order,
+            attempted_schema_families=attempted_schema_families,
             errors_by_family=errors_by_family,
         )
 
@@ -561,7 +548,7 @@ class JsonMrfParser(BaseParser):
                     "charge_item_id": charge_item_id,
                     "code_ordinal": code_ord,
                     "code": code.code,
-                    "type": code.type.value,
+                    "type": code.type,
                 }
             )
 
@@ -571,7 +558,7 @@ class JsonMrfParser(BaseParser):
                     "snapshot_id": snapshot_id,
                     "charge_item_id": charge_item_id,
                     "unit": _to_text(sci.drug_information.unit),
-                    "type": sci.drug_information.type.value,
+                    "type": sci.drug_information.type,
                 }
             )
 
@@ -587,7 +574,7 @@ class JsonMrfParser(BaseParser):
                     "maximum": _to_text(charge.maximum),
                     "gross_charge": _to_text(charge.gross_charge),
                     "discounted_cash": _to_text(charge.discounted_cash),
-                    "setting": charge.setting.value,
+                    "setting": charge.setting,
                     "billing_class": charge.billing_class,
                     "additional_generic_notes": charge.additional_generic_notes,
                 }
@@ -611,7 +598,7 @@ class JsonMrfParser(BaseParser):
                         "payer_ordinal": payer_ord,
                         "payer_name": payer.payer_name,
                         "plan_name": payer.plan_name,
-                        "methodology": payer.methodology.value,
+                        "methodology": payer.methodology,
                         "standard_charge_dollar": _to_text(
                             payer.standard_charge_dollar
                         ),
@@ -723,6 +710,78 @@ def _validation_error_summary(exc: ValidationError) -> dict[str, Any]:
         "error_count": len(exc.errors()),
         "fields": err_locs[:20],
     }
+
+
+def _schema_family_lineage(
+    reported_schema_family: str | None,
+    parser_schema_family: str | None,
+) -> list[str]:
+    """Return compact lineage for diagnostics without implying validation attempts."""
+    lineage = [
+        family
+        for family in (reported_schema_family, parser_schema_family)
+        if family is not None
+    ]
+    return list(dict.fromkeys(lineage))
+
+
+def _infer_record_schema_family(
+    raw_item: Any,
+    *,
+    default_family: str,
+) -> str:
+    """Infer record-level schema family from version-specific payer fields.
+
+    Stage 3 removed value-level schema validation, but schema lineage is still
+    useful. CMS 2.2 percentage/algorithm rows use ``estimated_amount`` where
+    CMS 3.0 uses ``count`` and allowed-amount percentile fields. Those field
+    families are structural enough to infer a mixed-version row without
+    rejecting it.
+    """
+    if not isinstance(raw_item, dict):
+        return default_family
+
+    has_v2_2_signal = False
+    has_v3_signal = False
+
+    for charge in _iter_dicts(raw_item.get("standard_charges")):
+        for payer in _iter_dicts(charge.get("payers_information")):
+            has_percentage_or_algorithm = any(
+                payer.get(field) is not None
+                for field in (
+                    "standard_charge_percentage",
+                    "standard_charge_algorithm",
+                )
+            )
+            if not has_percentage_or_algorithm:
+                continue
+
+            if payer.get("estimated_amount") is not None:
+                has_v2_2_signal = True
+            if any(
+                payer.get(field) is not None
+                for field in (
+                    "count",
+                    "median_amount",
+                    "10th_percentile",
+                    "90th_percentile",
+                )
+            ):
+                has_v3_signal = True
+
+    if has_v3_signal:
+        return "3.0"
+    if has_v2_2_signal:
+        return "2.2"
+    return default_family
+
+
+def _iter_dicts(value: Any) -> Iterator[dict[str, Any]]:
+    """Yield dictionary items from a JSON array-like value."""
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, dict):
+                yield item
 
 
 @contextmanager

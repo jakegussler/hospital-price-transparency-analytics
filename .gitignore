@@ -237,6 +237,7 @@ docs/local/
 docs/planning/
 docs/diagram_images/
 docs/cms_reference/
+docs/refactor/
 
 
 # Local data (raw downloads, bronze parquet, DuckDB files)

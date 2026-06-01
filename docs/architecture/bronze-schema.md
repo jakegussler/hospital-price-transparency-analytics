@@ -51,6 +51,14 @@ erDiagram
     int npi_ordinal
   }
 
+  general_contract_provisions {
+    string snapshot_id FK
+    int provision_ordinal
+    string payer_name
+    string plan_name
+    string provisions
+  }
+
   standard_charge_info {
     string charge_item_id PK
     string snapshot_id FK
@@ -181,6 +189,7 @@ erDiagram
 
   hospital_mrf_snapshots ||--o{ hospital_locations : has
   hospital_mrf_snapshots ||--o{ type2_npi : has
+  hospital_mrf_snapshots ||--o{ general_contract_provisions : has
   hospital_mrf_snapshots ||--o{ standard_charge_info : has
   standard_charge_info ||--o{ code_information : has
   standard_charge_info ||--o| drug_information : may_have
@@ -200,6 +209,9 @@ Shared tables for all formats:
 - `hospital_mrf_snapshots`
 - `hospital_locations`
 - `type2_npi`
+- `general_contract_provisions` (JSON emits one row per array object with
+  optional payer/plan; CSV emits a single row from the flat General Data
+  Element column)
 
 JSON-only tables:
 
@@ -219,6 +231,14 @@ CSV Bronze table:
 
 ## Important Notes
 
+- Optional tables a parser emits with no rows for a snapshot (e.g.
+  `general_contract_provisions` when absent, or `modifiers` for a file with no
+  modifier dimension) are written as zero-row Parquet files so their partition
+  directory always exists and downstream dbt `read_parquet` globs do not fail.
+- `general_contract_provisions` is source-faithful: a provisions object missing
+  its required `provisions` text is preserved (not quarantined), and the dbt
+  `general_contract_provisions_required_shape` rule flags it in
+  `val__header_violations`.
 - `code_N` and `code_N_type` columns in `csv_charge_rows` are dynamic per file.
 - Bronze stores `modifier_code` strings on `standard_charge_modifiers`; it does
   not resolve them to `modifier_code_id`.

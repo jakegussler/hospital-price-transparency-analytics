@@ -10,10 +10,13 @@ called out in a later implementation task.
   this for now)
 - Silver Base, Silver Core, and review queue models are implemented and
   documented in `docs/architecture/silver-schema.md`.
-- The validation layer records `general_contract_provisions_required_shape` in
-  rule coverage, but the current streaming parser does not emit general
-  contract provision Bronze rows. It is covered only by parser diagnostics until
-  Bronze row evidence exists.
+- The Bronze layer materializes empty Parquet files for optional tables a
+  parser emits but that have no rows (e.g. a snapshot without
+  `general_contract_provisions`), so their partition directory always exists.
+  Format-specific tables a parser never emits at all (e.g. `csv_charge_rows`
+  for a JSON-only corpus) can still produce an empty-glob `read_parquet` error
+  in staging; ingest at least one file of each format, or guard those sources,
+  before running dbt.
 
 ## Planning Notes
 

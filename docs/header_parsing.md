@@ -43,7 +43,7 @@ Row 1 is a standard CSV row where each cell is a field name (or in the case of t
 | 7 | `type_2_npi` | Pipe-delimited if multiple NPIs |
 | 8 | *(full attestation statement text)* | The entire CMS attestation paragraph **is** the column header; the corresponding row 2 value is `true` or `false` |
 | 9 | `attester_name` | |
-| 10+ | Optional fields (`financial_aid_policy`, `general_contract_provisions`) | Nullable; may not be present |
+| 10+ | Optional fields (`financial_aid_policy`, `general_contract_provisions`) | Nullable; may not be present. When the `general_contract_provisions` column is present it is emitted as a single row in the `general_contract_provisions` Bronze table (payer/plan null); an absent column emits no row. |
 
 > **Critical parsing note on attestation:** The attestation column header is the full CMS-mandated attestation paragraph. Do not match it by position — match by checking whether a cell starts with `"To the best of its knowledge and belief"`. The corresponding row 2 value in that column is the boolean `true` or `false`.
 

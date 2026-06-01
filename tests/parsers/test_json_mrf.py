@@ -686,7 +686,9 @@ class TestChargeParsing:
         assert diagnostic_df.is_empty()
         assert not (quarantine_root / "snapshot_id=snap-001").exists()
 
-    def test_v3_reported_v2_2_shape_falls_back_and_flags_mismatch(self, tmp_path):
+    def test_v3_reported_v2_2_shape_infers_record_family_and_flags_mismatch(
+        self, tmp_path
+    ):
         quarantine_root = tmp_path / "quarantine"
         mrf_path = tmp_path / "mrf.json"
         payer = {
@@ -721,8 +723,51 @@ class TestChargeParsing:
         assert charge_df["schema_version_mismatch"][0] is True
         assert len(diagnostic_df) == 1
         assert diagnostic_df["final_status"][0] == "accepted"
-        assert diagnostic_df["failure_count"][0] == 1
-        assert json.loads(diagnostic_df["attempted_schema_families"][0]) == ["3.0", "2.2"]
+        assert diagnostic_df["failure_count"][0] == 0
+        assert json.loads(diagnostic_df["attempted_schema_families"][0]) == [
+            "3.0",
+            "2.2",
+        ]
+        assert not (quarantine_root / "snapshot_id=snap-001").exists()
+
+    def test_value_level_violations_land_in_bronze_not_quarantine(self, tmp_path):
+        quarantine_root = tmp_path / "quarantine"
+        mrf_path = tmp_path / "mrf.json"
+        payer = {
+            "payer_name": "Blue Cross",
+            "plan_name": "PPO",
+            "methodology": "not a CMS methodology",
+            "standard_charge_dollar": "not numeric",
+            # Missing minimum/maximum is a dbt validation concern now.
+        }
+        sci = {
+            "description": "Malformed but structural item",
+            "code_information": [{"code": "10060", "type": "NOT_A_CODE_TYPE"}],
+            "standard_charges": [
+                {
+                    "setting": "bad setting",
+                    "gross_charge": -25,
+                    "payers_information": [payer],
+                }
+            ],
+        }
+        _write_mrf(mrf_path, _minimal_mrf(standard_charge_information=[sci]))
+        parser = _make_parser(quarantine_root)
+
+        batches = list(parser.parse(mrf_path))
+        code_df = _collect_table(batches[2:], "code_information")
+        charges_df = _collect_table(batches[2:], "standard_charges")
+        payer_df = _collect_table(batches[2:], "payers_information")
+        diagnostic_df = _collect_table(batches[2:], "json_record_parse_diagnostics")
+
+        assert code_df["type"][0] == "NOT_A_CODE_TYPE"
+        assert charges_df["setting"][0] == "bad setting"
+        assert charges_df["gross_charge"][0] == "-25"
+        assert charges_df["minimum"][0] is None
+        assert charges_df["maximum"][0] is None
+        assert payer_df["methodology"][0] == "not a CMS methodology"
+        assert payer_df["standard_charge_dollar"][0] == "not numeric"
+        assert diagnostic_df.is_empty()
         assert not (quarantine_root / "snapshot_id=snap-001").exists()
 
     def test_invalid_charge_quarantined_valid_still_emitted(self, tmp_path):
@@ -790,12 +835,8 @@ class TestChargeParsing:
         assert len(diagnostic_df) == 1
         assert diagnostic_df["final_status"][0] == "quarantined"
         assert diagnostic_df["accepted_schema_family"][0] is None
-        assert diagnostic_df["failure_count"][0] == 3
-        assert json.loads(diagnostic_df["attempted_schema_families"][0]) == [
-            "3.0",
-            "2.2",
-            "2.1",
-        ]
+        assert diagnostic_df["failure_count"][0] == 1
+        assert json.loads(diagnostic_df["attempted_schema_families"][0]) == ["3.0"]
 
 
 # ---------------------------------------------------------------------------
