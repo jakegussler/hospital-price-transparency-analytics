@@ -265,7 +265,7 @@ same `charge_item_signature`.
 | `reported_schema_family` | varchar | JSON parser lineage; null for CSV |
 | `parser_schema_family` | varchar | JSON parser lineage; null for CSV |
 | `parser_schema_version` | varchar | JSON parser lineage; null for CSV |
-| `schema_version_mismatch` | boolean | True when JSON fallback accepted a non-reported schema family |
+| `schema_version_mismatch` | boolean | True when inferred JSON record family differs from reported file family |
 | `raw_description` | varchar | |
 | `clean_description` | varchar | |
 | `drug_unit` | varchar | |
@@ -304,7 +304,7 @@ rows remain in `slv_base__payer_rates`.
 | `reported_schema_family` | varchar | JSON parser lineage; null for CSV |
 | `parser_schema_family` | varchar | JSON parser lineage; null for CSV |
 | `parser_schema_version` | varchar | JSON parser lineage; null for CSV |
-| `schema_version_mismatch` | boolean | True when JSON fallback accepted a non-reported schema family |
+| `schema_version_mismatch` | boolean | True when inferred JSON record family differs from reported file family |
 | `standard_charge_signature` | varchar | Deterministic charge-context signature used when source IDs do not exist |
 | `raw_setting` | varchar | |
 | `clean_setting` | varchar | |
@@ -398,7 +398,7 @@ rates come directly from the charge row with payer/plan columns.
 | `reported_schema_family` | varchar | JSON parser lineage; null for CSV |
 | `parser_schema_family` | varchar | JSON parser lineage; null for CSV |
 | `parser_schema_version` | varchar | JSON parser lineage; null for CSV |
-| `schema_version_mismatch` | boolean | True when JSON fallback accepted a non-reported schema family |
+| `schema_version_mismatch` | boolean | True when inferred JSON record family differs from reported file family |
 | `payer_ordinal` | integer | JSON only; null for CSV |
 | `raw_payer_name` | varchar | |
 | `clean_payer_name` | varchar | |

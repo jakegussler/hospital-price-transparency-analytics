@@ -28,15 +28,18 @@ base models anti-join those keysets:
 Warn-severity failures remain in Silver and are queryable in validation. Bronze
 and staging remain complete and source-faithful.
 
-Pydantic remains responsible for structural JSON parsing until Stage 3 finishes
-relaxing value-level validators. JSON quarantine diagnostics are represented in
-`val__structural_parse_violations`; value-level JSON violation models are ready
-for records that will begin reaching Bronze after Stage 3.
+Pydantic remains responsible only for structural JSON parsing. Stage 3 removed
+Python value-level, conditional, enum, and format validators, so malformed JSON
+values now reach Bronze as raw text. JSON quarantine diagnostics are represented
+in `val__structural_parse_violations`; value-level JSON violation models now
+operate on accepted Bronze rows.
 
 ## Consequences
 
 - Bronze is the durable record of source values; Silver is filtered by explicit
   dbt validation keysets.
+- JSON and CSV now share the same validation authority: Pydantic no longer
+  drops whole JSON records for CMS semantic/value failures.
 - CSV numeric diagnostics are preserved and superseded by the broader
   validation models, which emit the same `numeric_cast_failed` diagnostic type.
 - Validation statistics (`val_stats__*`) provide pass rates, rule summaries,

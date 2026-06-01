@@ -99,7 +99,7 @@ models:
           - not_null
 
   - name: stg_bronze__json_record_parse_diagnostics
-    description: "Staging view for JSON parse fallback and quarantine diagnostics."
+    description: "Staging view for JSON structural parse quarantine diagnostics."
     columns:
       - name: snapshot_id
         tests:

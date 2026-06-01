@@ -10,6 +10,11 @@ called out in a later implementation task.
   this for now)
 - Silver Base, Silver Core, and review queue models are implemented and
   documented in `docs/architecture/silver-schema.md`.
+- The JSON streaming parser validates individual `standard_charge_information`
+  and `modifier_information` objects structurally, but it still does not run the
+  root `CMSMRFJson` model over entire files. Header/root required-shape gaps are
+  therefore surfaced through Bronze header rows and dbt validation rather than
+  parser quarantine.
 - The Bronze layer materializes empty Parquet files for optional tables a
   parser emits but that have no rows (e.g. a snapshot without
   `general_contract_provisions`), so their partition directory always exists.

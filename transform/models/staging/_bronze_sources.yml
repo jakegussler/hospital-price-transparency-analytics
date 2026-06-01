@@ -131,7 +131,7 @@ sources:
               - not_null
 
       - name: json_record_parse_diagnostics
-        description: "Fallback and quarantine diagnostics for JSON records that did not parse with the initially expected schema family."
+        description: "Structural quarantine diagnostics for JSON records that cannot be exploded into Bronze rows."
 
       - name: modifiers
         description: "Top-level modifier dimension from JSON ``modifier_information``."

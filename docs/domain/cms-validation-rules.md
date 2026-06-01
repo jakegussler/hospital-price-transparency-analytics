@@ -368,30 +368,25 @@ normalizing so Bronze preserves source text. Severity: `reject`.
 JSON field: `count`. CSV columns: `count` and
 `count|[payer_name]|[plan_name]`.
 
-## Schema-family Fallback Diagnostics
+## Schema-family Lineage And Structural Diagnostics
 
-`JsonMrfParser._parse_charge_with_fallback` reads the reported source schema
-version from snapshot metadata, normalizes it to families `2.1`, `2.2`, or
-`3.0`, then validates each `standard_charge_information` item against an
-attempt order:
+`JsonMrfParser._parse_charge_structural` reads the reported source schema
+version from snapshot metadata and normalizes it to families `2.1`, `2.2`, or
+`3.0`. Pydantic validation is structural-only and family-agnostic, so the
+former accepted-row value-validation fallback loop has been replaced with
+record-level schema-family inference from version-specific fields. For example,
+v2.2 percentage/algorithm rows use `estimated_amount`, while v3.0 rows use
+`count`, `median_amount`, `10th_percentile`, and `90th_percentile`.
 
-- reported `3.0`: `3.0`, then `2.2`, then `2.1`
-- reported `2.2`: `2.2`, then `3.0`, then `2.1`
-- reported `2.1`: `2.1`, then `2.2`, then `3.0`
-- unknown: `3.0`, then `2.2`, then `2.1`
+Accepted records keep both `reported_schema_family` and inferred
+`parser_schema_family`. When they differ, `schema_version_mismatch` is true and
+an accepted `json_record_parse_diagnostics` row is emitted for lineage.
 
-If all attempts fail, the item is quarantined and a
-`json_record_parse_diagnostics` row is emitted with attempted families,
-family-specific validation summaries, and `final_status = "quarantined"`. If a
-fallback family accepts the item or the accepted family differs from the
-reported family, an accepted diagnostic row is emitted with parser lineage.
-
-Recommendation for Stage 3: keep `reported_schema_version` and
-`reported_schema_family` for lineage and for dbt family-specific rules. Once
-Pydantic becomes structural-only, the fallback loop no longer meaningfully
-distinguishes value-rule families, so accepted-row fallback diagnostics should
-be simplified or repurposed. Keep quarantine diagnostics for structural parse
-failures.
+If structural validation fails, the item is quarantined and a
+`json_record_parse_diagnostics` row is emitted with the parser family lineage,
+validation summary, and `final_status = "quarantined"`. Value-level,
+conditional, enum, and format issues now reach Bronze and are diagnosed by dbt
+validation models.
 
 ## Current Gaps To Add In dbt
 

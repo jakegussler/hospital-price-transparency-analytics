@@ -20,15 +20,14 @@ monetary arithmetic — that boundary belongs to dbt.
 
 Both JSON and CSV Bronze preserve numeric-looking source values as raw text
 (Polars `Utf8`) instead of coercing them, keeping Bronze source-faithful. The
-JSON parser drops `ijson`'s `use_float=True` so numbers stay `Decimal` through
-Pydantic validation, then serializes accepted values to their plain string form
-for Bronze. In both formats, monetary amounts are cast to `decimal(18, 4)` in
-dbt staging before they flow into Silver.
+JSON parser serializes source scalar values to their plain string form for
+Bronze. In both formats, monetary amounts are cast to `decimal(18, 4)` in dbt
+staging before they flow into Silver.
 
-JSON records are still validated by Pydantic before Bronze. Numeric fields that
-the CMS model requires must parse as a valid `Decimal`, so records with invalid
-numbers are quarantined rather than written to an accepted Bronze row; the
-text-preservation change only affects the representation of *accepted* values.
+JSON records are shape-checked by Pydantic before Bronze, but Pydantic no
+longer parses or validates numeric fields. Invalid numbers are preserved as raw
+text in accepted Bronze rows and are rejected or warned by the dbt validation
+layer described in ADR 0011.
 
 Use `hpt_safe_decimal` for currency-like amount columns:
 
@@ -66,9 +65,9 @@ larger parser rewrite.
   `val__standard_charge_violations`, `val__payer_rate_violations`, and
   `val__drug_violations` models preserve the same `numeric_cast_failed`
   diagnostic vocabulary and drive reject-severity Silver filtering.
-- JSON keeps its stronger validation path: Pydantic still enforces numeric
-  validity before Bronze output, and invalid records are quarantined as JSONL
-  and recorded in `json_record_parse_diagnostics`. Because invalid JSON numbers
-  are quarantined whole, an equivalent JSON cast-diagnostics staging model would
-  only catch accepted records whose text somehow fails staging casts, so none is
-  added.
+- JSON now follows the same source-faithful numeric path as CSV: malformed
+  numeric values survive as raw text in Bronze. Pydantic quarantine is reserved
+  for structural JSON records that cannot be exploded into Bronze rows, while
+  `val__standard_charge_violations`, `val__payer_rate_violations`, and
+  `val__drug_violations` catch numeric parse failures and drive reject-severity
+  Silver filtering.

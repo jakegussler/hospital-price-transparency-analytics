@@ -5,10 +5,12 @@ including JSON, CSV Tall, and CSV Wide layouts. The checked-in format templates
 under `docs/format_templates/` are the local reference files.
 
 JSON parsing supports CMS schema families `2.1`, `2.2`, and `3.0`. The parser
-starts with the source-reported `version` family and then attempts compatible
-fallback families per record when validation fails. Fallback-accepted records
-are ingested with parser lineage fields and a diagnostics row rather than being
-quarantined solely because the source version label and record structure differ.
+records the source-reported `version` family as lineage and uses structural
+Pydantic models only to decide whether a record can be exploded into Bronze
+rows. It also infers record-level schema family from version-specific fields
+such as v2.2 `estimated_amount` and v3.0 count/percentile fields, so mixed
+schema records can be ingested and flagged without value-level fallback
+validation. CMS value, enum, conditional, and format rules are enforced in dbt.
 
 ## Shared Header Concepts
 
@@ -50,13 +52,13 @@ Parser rules:
 - Read charge-level modifier references from
   `standard_charges[].modifier_code`.
 - Preserve arrays as child tables when they are structural source arrays.
-- Validate charge records with Pydantic models using the applicable CMS schema
-  family where practical.
-- Write invalid charge records to quarantine rather than failing the full file
-  when row-level validation can isolate the issue.
-- For `standard_charge_information`, attempt families in this order:
-  `3.0 -> 2.2 -> 2.1` for reported v3, `2.2 -> 3.0 -> 2.1` for reported v2.2,
-  `2.1 -> 2.2 -> 3.0` for reported v2.1, and newest-to-oldest for unknown.
+- Shape-check charge records with Pydantic models. Quarantine only records whose
+  required containers or scalar/container shapes prevent Bronze row fanout.
+- Infer record-level schema family from version-specific payer fields and set
+  `schema_version_mismatch` when that inferred family differs from the reported
+  file family.
+- Preserve value-level CMS problems in Bronze and let dbt validation reject or
+  warn on them before Silver.
 - v2.2 payer algorithm/percentage rows preserve `estimated_amount`; v3
   algorithm/percentage rows preserve `count` and percentile fields.
 

@@ -243,25 +243,26 @@ CSV Bronze table:
 - Bronze stores `modifier_code` strings on `standard_charge_modifiers`; it does
   not resolve them to `modifier_code_id`.
 - JSON `standard_charge_information` rows include reported and parser schema
-  family fields. When a row parses only under a non-reported schema family, the
-  row is retained and `json_record_parse_diagnostics` records the fallback.
+  family fields for lineage. Pydantic structural validation is now
+  family-agnostic, so parser family is inferred from version-specific fields
+  rather than from value-level fallback validation. For example, a record in a
+  reported v3.0 file that uses v2.2-style `estimated_amount` instead of v3.0
+  count/percentile fields is retained with `parser_schema_family = '2.2'`,
+  `schema_version_mismatch = true`, and an accepted
+  `json_record_parse_diagnostics` row. Structural parse failures are still
+  quarantined before Bronze row fanout.
 - Both JSON and CSV Bronze store numeric-looking source values (charges,
   percentiles, units) as raw text (`Utf8`). dbt staging is the numeric type
   boundary: it casts currency-like amount fields to `decimal(18, 4)` via
   `hpt_safe_decimal` and percentages/units to `double` via `hpt_safe_double`
   before Silver modeling; see `docs/decisions/0010-monetary-precision.md`.
-- JSON and CSV differ in how invalid numbers are surfaced. JSON validates each
-  record with Pydantic before Bronze, so a record with an invalid numeric field
-  is quarantined as JSONL and recorded in the `json_record_parse_diagnostics`
-  Bronze table — invalid JSON numbers generally never reach an accepted Bronze
-  row. CSV performs no such validation; its malformed numeric values survive as
-  raw text in Bronze and are queryable through the dbt
-  `stg_bronze__csv_numeric_parse_diagnostics` staging model, which emits one row
-  per non-empty raw value that fails the staging cast. The broader dbt
-  validation schema now supersedes that CSV-only diagnostic for Silver
-  filtering: `val__standard_charge_violations`, `val__payer_rate_violations`,
-  and `val__drug_violations` emit one row per malformed numeric value across
-  JSON and CSV where Bronze row evidence exists.
+- JSON and CSV now surface invalid numbers through the dbt validation layer.
+  Malformed numeric values survive as raw text in Bronze and are queryable
+  through `val__standard_charge_violations`, `val__payer_rate_violations`, and
+  `val__drug_violations`, which emit one row per malformed numeric value across
+  JSON and CSV where Bronze row evidence exists. The older
+  `stg_bronze__csv_numeric_parse_diagnostics` model remains for compatibility
+  but no longer defines the validation boundary by itself.
 - Bronze preserves source values and parser lineage. Hospital, payer, plan,
   charge-item, code, and modifier normalization belongs in Silver.
 - Bronze and staging are not filtered by validation. Reject-severity validation
