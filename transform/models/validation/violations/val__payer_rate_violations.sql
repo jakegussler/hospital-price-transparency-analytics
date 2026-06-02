@@ -16,6 +16,8 @@ with json_rates as (
         hs.source_format,
         {{ hpt_source_format_family('hs.source_format') }} as source_format_family,
         sci.reported_schema_family,
+        sci.parser_schema_family,
+        coalesce(sci.parser_schema_family, sci.reported_schema_family) as effective_schema_family,
         sci.charge_item_id as source_charge_item_id,
         pi.standard_charge_id as source_standard_charge_id,
         cast(pi.payer_ordinal as integer) as payer_ordinal,
@@ -57,6 +59,8 @@ csv_raw as (
         {{ hpt_clean_text('b.source_format') }} as source_format,
         'csv' as source_format_family,
         '3.0' as reported_schema_family,
+        '3.0' as parser_schema_family,
+        '3.0' as effective_schema_family,
         cast(null as varchar) as source_charge_item_id,
         cast(null as varchar) as source_standard_charge_id,
         cast(null as integer) as payer_ordinal,
@@ -113,6 +117,8 @@ rates as (
         source_format,
         source_format_family,
         reported_schema_family,
+        parser_schema_family,
+        effective_schema_family,
         source_charge_item_id,
         source_standard_charge_id,
         payer_ordinal,
@@ -376,7 +382,7 @@ violations as (
         'Schema family 2.2 percentage or algorithm rates without dollar amount require estimated_amount.'
     from rate_flags
     where source_format_family = 'json'
-        and reported_schema_family = '2.2'
+        and effective_schema_family = '2.2'
         and (has_percentage or has_algorithm)
         and not has_dollar
         and not has_estimated_amount
@@ -392,7 +398,7 @@ violations as (
         'conditional_required_field_missing',
         'Schema family 3.0 percentage or algorithm rates require count.'
     from rate_flags
-    where reported_schema_family = '3.0'
+    where effective_schema_family = '3.0'
         and (has_percentage or has_algorithm)
         and clean_count is null
 
@@ -407,7 +413,7 @@ violations as (
         'count_format_invalid',
         'Count must be 0, 1 through 10, or a whole number 11 or greater without thousands separators.'
     from rate_flags
-    where reported_schema_family = '3.0'
+    where effective_schema_family = '3.0'
         and clean_count is not null
         and not (
             clean_count = '0'
@@ -433,7 +439,7 @@ violations as (
         'conditional_required_field_missing',
         'Schema family 3.0 nonzero-count percentage or algorithm rates require median, 10th, and 90th percentile amounts.'
     from rate_flags
-    where reported_schema_family = '3.0'
+    where effective_schema_family = '3.0'
         and (has_percentage or has_algorithm)
         and clean_count is not null
         and clean_count != '0'
@@ -456,7 +462,7 @@ violations as (
         'conditional_required_field_missing',
         'Count zero for percentage or algorithm rates requires payer or generic explanatory notes.'
     from rate_flags
-    where reported_schema_family = '3.0'
+    where effective_schema_family = '3.0'
         and (has_percentage or has_algorithm)
         and clean_count = '0'
         and not has_payer_notes

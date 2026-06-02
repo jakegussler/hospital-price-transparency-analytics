@@ -1,0 +1,99 @@
+version: 2
+
+unit_tests:
+  - name: payer_rate_uses_parser_schema_family_for_versioned_conditionals
+    description: >
+      A JSON payer row from a v3.0-declared file can still be parsed as a v2.2
+      record. Version-specific payer-rate rules should branch on the detected
+      per-record parser family while preserving the reported header family.
+    model: val__payer_rate_violations
+    given:
+      - input: source('bronze', 'payers_information')
+        format: sql
+        rows: |
+          select
+              'snapshot-parser-family' as snapshot_id,
+              'standard-charge-1' as standard_charge_id,
+              0 as payer_ordinal,
+              'Acme Health' as payer_name,
+              'PPO' as plan_name,
+              'percent of total billed charges' as methodology,
+              cast(null as varchar) as standard_charge_dollar,
+              '80' as standard_charge_percentage,
+              cast(null as varchar) as standard_charge_algorithm,
+              cast(null as varchar) as estimated_amount,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes
+      - input: source('bronze', 'standard_charges')
+        format: sql
+        rows: |
+          select
+              'snapshot-parser-family' as snapshot_id,
+              'standard-charge-1' as standard_charge_id,
+              'charge-item-1' as charge_item_id,
+              cast(null as varchar) as additional_generic_notes
+      - input: source('bronze', 'csv_charge_rows')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as source_format,
+              cast(null as integer) as row_ordinal,
+              cast(null as varchar) as payer_name,
+              cast(null as varchar) as plan_name,
+              cast(null as varchar) as methodology,
+              cast(null as varchar) as standard_charge_negotiated_dollar,
+              cast(null as varchar) as standard_charge_negotiated_percentage,
+              cast(null as varchar) as standard_charge_negotiated_algorithm,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes,
+              cast(null as varchar) as additional_generic_notes
+          where false
+      - input: ref('stg_bronze__standard_charge_info')
+        format: sql
+        rows: |
+          select
+              'snapshot-parser-family' as snapshot_id,
+              'charge-item-1' as charge_item_id,
+              '3.0' as reported_schema_family,
+              '2.2' as parser_schema_family
+      - input: ref('stg_bronze__hospital_mrf_snapshots')
+        format: sql
+        rows: |
+          select
+              'snapshot-parser-family' as snapshot_id,
+              'hospital-1' as hospital_id,
+              'json' as source_format
+      - input: ref('cms_validation_rules')
+        format: sql
+        rows: |
+          select
+              'v2_2_percentage_or_algorithm_requires_estimated_amount' as rule_id,
+              'v2.2 estimate required' as rule_name,
+              'reject' as severity,
+              'payer_rate' as grain,
+              'v2.2 citation' as cms_citation
+          union all
+          select
+              'v3_percentage_or_algorithm_requires_count' as rule_id,
+              'v3 count required' as rule_name,
+              'reject' as severity,
+              'payer_rate' as grain,
+              'v3 citation' as cms_citation
+    expect:
+      rows:
+        - snapshot_id: snapshot-parser-family
+          source_format_family: json
+          reported_schema_family: "3.0"
+          source_charge_item_id: charge-item-1
+          source_standard_charge_id: standard-charge-1
+          payer_ordinal: 0
+          rule_id: v2_2_percentage_or_algorithm_requires_estimated_amount
+          column_name: estimated_amount
+          diagnostic_type: conditional_required_field_missing
