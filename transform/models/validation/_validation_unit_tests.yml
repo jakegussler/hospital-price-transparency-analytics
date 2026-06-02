@@ -97,3 +97,191 @@ unit_tests:
           rule_id: v2_2_percentage_or_algorithm_requires_estimated_amount
           column_name: estimated_amount
           diagnostic_type: conditional_required_field_missing
+
+  - name: charge_item_schema_version_mismatch_warns_once
+    description: >
+      A JSON charge item whose accepted parser shape disagrees with the header
+      version emits exactly one warn-severity charge-item violation.
+    model: val__charge_item_violations
+    given:
+      - input: ref('stg_bronze__standard_charge_info')
+        format: sql
+        rows: |
+          select
+              'snapshot-schema-mismatch' as snapshot_id,
+              'charge-item-1' as charge_item_id,
+              'Mismatch item' as raw_description,
+              'mismatch item' as clean_description,
+              0 as item_ordinal,
+              '3.0.0' as reported_schema_version,
+              '3.0' as reported_schema_family,
+              '2.2' as parser_schema_family,
+              '2.2.1' as parser_schema_version,
+              true as schema_version_mismatch
+      - input: ref('stg_bronze__hospital_mrf_snapshots')
+        format: sql
+        rows: |
+          select
+              'snapshot-schema-mismatch' as snapshot_id,
+              'hospital-1' as hospital_id,
+              'json' as source_format
+      - input: ref('stg_bronze__drug_information')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as charge_item_id,
+              cast(null as double) as drug_unit,
+              cast(null as varchar) as clean_drug_unit_type
+          where false
+      - input: ref('stg_bronze__code_information')
+        format: sql
+        rows: |
+          select
+              'snapshot-schema-mismatch' as snapshot_id,
+              'charge-item-1' as charge_item_id,
+              1 as code_ordinal,
+              'cpt' as clean_code_type
+      - input: ref('stg_bronze__standard_charges')
+        format: sql
+        rows: |
+          select
+              'snapshot-schema-mismatch' as snapshot_id,
+              'charge-item-1' as charge_item_id,
+              'standard-charge-1' as standard_charge_id
+      - input: ref('stg_bronze__csv_charge_rows')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as source_format,
+              cast(null as integer) as row_ordinal,
+              cast(null as varchar) as raw_description,
+              cast(null as varchar) as clean_description,
+              cast(null as double) as drug_unit,
+              cast(null as varchar) as clean_drug_unit_type,
+              cast(null as varchar) as code_1,
+              cast(null as varchar) as code_1_type
+          where false
+      - input: ref('cms_code_types')
+        format: sql
+        rows: |
+          select
+              'cpt' as code_type,
+              false as requires_drug_information
+      - input: ref('cms_validation_rules')
+        format: sql
+        rows: |
+          select
+              'schema_version_header_record_mismatch' as rule_id,
+              'Schema version header/record mismatch' as rule_name,
+              'warn' as severity,
+              'charge_item' as grain,
+              'schema citation' as cms_citation
+    expect:
+      rows:
+        - snapshot_id: snapshot-schema-mismatch
+          source_format_family: json
+          reported_schema_family: "3.0"
+          source_charge_item_id: charge-item-1
+          rule_id: schema_version_header_record_mismatch
+          severity: warn
+          grain: charge_item
+          column_name: schema_version_mismatch
+          diagnostic_type: schema_version_mismatch
+          is_rejected: false
+
+  - name: charge_item_schema_version_mismatch_warn_does_not_reject
+    description: >
+      The schema-version mismatch rule is warn severity, so it must not produce
+      a charge-item rejection key.
+    model: val__charge_item_rejections
+    given:
+      - input: ref('val__all_violations')
+        format: sql
+        rows: |
+          select
+              'snapshot-schema-mismatch' as snapshot_id,
+              'hospital-1' as hospital_id,
+              'json' as source_format,
+              'json' as source_format_family,
+              'charge-item-1' as source_charge_item_id,
+              cast(null as integer) as row_ordinal,
+              'schema_version_header_record_mismatch' as rule_id,
+              'warn' as severity,
+              'schema_version_mismatch' as diagnostic_type,
+              'Header-declared schema version disagrees with the accepted parser shape for this JSON charge item.' as message,
+              'charge_item' as grain
+    expect:
+      rows: []
+
+  - name: charge_item_schema_version_mismatch_remains_in_silver
+    description: >
+      A mismatched JSON charge item remains present in Silver when no
+      reject-severity charge-item rejection is emitted.
+    model: slv_base__charge_items
+    given:
+      - input: ref('stg_bronze__standard_charge_info')
+        format: sql
+        rows: |
+          select
+              'snapshot-schema-mismatch' as snapshot_id,
+              'charge-item-1' as charge_item_id,
+              'Mismatch item' as raw_description,
+              'mismatch item' as clean_description,
+              0 as item_ordinal,
+              '3.0.0' as reported_schema_version,
+              '3.0' as reported_schema_family,
+              '2.2' as parser_schema_family,
+              '2.2.1' as parser_schema_version,
+              true as schema_version_mismatch
+      - input: ref('slv_base__hospital_snapshots')
+        format: sql
+        rows: |
+          select
+              'snapshot-schema-mismatch' as snapshot_id,
+              'hospital-1' as hospital_id,
+              'json' as source_format
+      - input: ref('stg_bronze__drug_information')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as charge_item_id,
+              cast(null as double) as drug_unit,
+              cast(null as varchar) as raw_drug_unit_type,
+              cast(null as varchar) as clean_drug_unit_type
+          where false
+      - input: ref('slv_base__csv_charge_row_items')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as silver_charge_item_id,
+              cast(null as varchar) as snapshot_id,
+              cast(null as integer) as row_ordinal,
+              cast(null as varchar) as source_format,
+              cast(null as varchar) as raw_description,
+              cast(null as varchar) as clean_description,
+              cast(null as double) as drug_unit,
+              cast(null as varchar) as raw_drug_unit_type,
+              cast(null as varchar) as clean_drug_unit_type,
+              cast(null as varchar) as charge_item_signature
+          where false
+      - input: ref('val__charge_item_rejections')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as source_format_family,
+              cast(null as varchar) as source_charge_item_id,
+              cast(null as integer) as row_ordinal
+          where false
+    expect:
+      rows:
+        - snapshot_id: snapshot-schema-mismatch
+          hospital_id: hospital-1
+          source_format: json
+          source_charge_item_id: charge-item-1
+          reported_schema_version: "3.0.0"
+          parser_schema_version: "2.2.1"
+          schema_version_mismatch: true

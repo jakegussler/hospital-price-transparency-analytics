@@ -9,6 +9,10 @@ json_items as (
         hs.source_format,
         {{ hpt_source_format_family('hs.source_format') }} as source_format_family,
         sci.reported_schema_family,
+        sci.reported_schema_version,
+        sci.parser_schema_family,
+        sci.parser_schema_version,
+        sci.schema_version_mismatch,
         sci.charge_item_id as source_charge_item_id,
         cast(null as integer) as row_ordinal,
         sci.raw_description,
@@ -52,6 +56,10 @@ csv_item_rollup as (
         r.source_format,
         'csv' as source_format_family,
         '3.0' as reported_schema_family,
+        cast(null as varchar) as reported_schema_version,
+        cast(null as varchar) as parser_schema_family,
+        cast(null as varchar) as parser_schema_version,
+        cast(null as boolean) as schema_version_mismatch,
         cast(null as varchar) as source_charge_item_id,
         r.row_ordinal,
         r.raw_description,
@@ -80,6 +88,10 @@ items as (
         source_format,
         source_format_family,
         reported_schema_family,
+        reported_schema_version,
+        parser_schema_family,
+        parser_schema_version,
+        schema_version_mismatch,
         source_charge_item_id,
         row_ordinal,
         raw_description,
@@ -115,6 +127,39 @@ violations as (
     where reported_schema_family in ('2.2', '3.0')
         and has_drug_information_code
         and (drug_unit is null or clean_drug_unit_type is null)
+
+    union all
+
+    select
+        snapshot_id,
+        hospital_id,
+        source_format,
+        source_format_family,
+        reported_schema_family,
+        source_charge_item_id,
+        cast(null as varchar) as source_standard_charge_id,
+        cast(null as integer) as payer_ordinal,
+        row_ordinal,
+        cast(null as integer) as source_rate_ordinal,
+        cast(null as integer) as code_ordinal,
+        cast(null as varchar) as modifier_code_id,
+        'schema_version_header_record_mismatch' as rule_id,
+        'schema_version_mismatch' as column_name,
+        concat(
+            'reported_schema_version=',
+            coalesce(reported_schema_version, '<null>'),
+            '; parser_schema_version=',
+            coalesce(parser_schema_version, '<null>'),
+            '; reported_schema_family=',
+            coalesce(reported_schema_family, '<null>'),
+            '; parser_schema_family=',
+            coalesce(parser_schema_family, '<null>')
+        ) as raw_value,
+        'schema_version_mismatch' as diagnostic_type,
+        'Header-declared schema version disagrees with the accepted parser shape for this JSON charge item.' as message
+    from items
+    where source_format_family = 'json'
+        and coalesce(schema_version_mismatch, false)
 
     union all
 

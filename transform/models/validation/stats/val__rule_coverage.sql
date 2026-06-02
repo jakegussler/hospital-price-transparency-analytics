@@ -17,6 +17,7 @@ with coverage as (
             ) then 'val__header_violations'
             when rule_id in (
                 'standard_charge_information_required_shape',
+                'schema_version_header_record_mismatch',
                 'required_arrays_non_empty'
             ) then 'val__charge_item_violations'
             when rule_id = 'modifier_information_required_shape'
