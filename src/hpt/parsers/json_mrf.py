@@ -76,8 +76,8 @@ class ParsedChargeItem:
     reported_schema_family: str | None
     parser_schema_family: str | None
     parser_schema_version: str | None
-    attempted_schema_families: list[str]
     errors_by_family: dict[str, dict[str, Any]]
+    conflicting_version_signals: bool = False
 
     @property
     def schema_version_mismatch(self) -> bool:
@@ -377,7 +377,6 @@ class JsonMrfParser(BaseParser):
                         section=section,
                         ordinal=item_ordinal,
                         parsed=parsed,
-                        final_status="quarantined",
                     )
                     accumulator["json_record_parse_diagnostics"].append(diagnostic)
                     self._quarantine(
@@ -385,19 +384,8 @@ class JsonMrfParser(BaseParser):
                         item_ordinal,
                         raw_item,
                         parsed.errors_by_family,
-                        attempted_schema_families=parsed.attempted_schema_families,
                     )
                     continue
-
-                if parsed.schema_version_mismatch:
-                    accumulator["json_record_parse_diagnostics"].append(
-                        self._diagnostic_record(
-                            section=section,
-                            ordinal=item_ordinal,
-                            parsed=parsed,
-                            final_status="accepted",
-                        )
-                    )
 
                 flat = self._flatten_sci(parsed.model, item_ordinal, parsed)
                 for table_name, rows in flat.items():
@@ -453,15 +441,11 @@ class JsonMrfParser(BaseParser):
         if reported_schema_version is not None:
             reported_schema_version = str(reported_schema_version)
         reported_schema_family = normalize_json_schema_family(reported_schema_version)
-        parser_schema_family = _infer_record_schema_family(
+        parser_schema_family, conflicting_version_signals = _infer_record_schema_family(
             raw_item,
             default_family=reported_schema_family or "3.0",
         )
         parser_schema_version = parser_schema_version_for_family(parser_schema_family)
-        attempted_schema_families = _schema_family_lineage(
-            reported_schema_family,
-            parser_schema_family,
-        )
         errors_by_family: dict[str, dict[str, Any]] = {}
 
         try:
@@ -475,18 +459,18 @@ class JsonMrfParser(BaseParser):
                 reported_schema_family=reported_schema_family,
                 parser_schema_family=parser_schema_family,
                 parser_schema_version=parser_schema_version,
-                attempted_schema_families=attempted_schema_families,
                 errors_by_family=errors_by_family,
+                conflicting_version_signals=conflicting_version_signals,
             )
 
         return ParsedChargeItem(
             model=None,
             reported_schema_version=reported_schema_version,
             reported_schema_family=reported_schema_family,
-            parser_schema_family=None,
-            parser_schema_version=None,
-            attempted_schema_families=attempted_schema_families,
+            parser_schema_family=parser_schema_family,
+            parser_schema_version=parser_schema_version,
             errors_by_family=errors_by_family,
+            conflicting_version_signals=conflicting_version_signals,
         )
 
     def _diagnostic_record(
@@ -495,7 +479,6 @@ class JsonMrfParser(BaseParser):
         section: str,
         ordinal: int,
         parsed: ParsedChargeItem,
-        final_status: str,
     ) -> dict[str, Any]:
         return {
             "snapshot_id": self.snapshot_meta["snapshot_id"],
@@ -503,13 +486,12 @@ class JsonMrfParser(BaseParser):
             "record_ordinal": ordinal,
             "reported_schema_version": parsed.reported_schema_version,
             "reported_schema_family": parsed.reported_schema_family,
-            "accepted_schema_family": parsed.parser_schema_family,
-            "accepted_schema_version": parsed.parser_schema_version,
+            "parser_schema_family": parsed.parser_schema_family,
+            "parser_schema_version": parsed.parser_schema_version,
             "schema_version_mismatch": parsed.schema_version_mismatch,
-            "attempted_schema_families": json.dumps(parsed.attempted_schema_families),
+            "conflicting_version_signals": parsed.conflicting_version_signals,
             "failure_count": len(parsed.errors_by_family),
             "error_summary": json.dumps(parsed.errors_by_family, default=str),
-            "final_status": final_status,
             "diagnosed_at": datetime.now(UTC).isoformat(),
         }
 
@@ -538,6 +520,7 @@ class JsonMrfParser(BaseParser):
                 "parser_schema_family": parsed.parser_schema_family,
                 "parser_schema_version": parsed.parser_schema_version,
                 "schema_version_mismatch": parsed.schema_version_mismatch,
+                "conflicting_version_signals": parsed.conflicting_version_signals,
             }
         )
 
@@ -629,8 +612,6 @@ class JsonMrfParser(BaseParser):
         ordinal: int,
         raw: Any,
         exc: Exception | dict[str, Any],
-        *,
-        attempted_schema_families: list[str] | None = None,
     ) -> None:
         """Write a failed item to ``quarantine/snapshot_id=<id>/<section>.jsonl``."""
         snapshot_id = self.snapshot_meta["snapshot_id"]
@@ -644,8 +625,7 @@ class JsonMrfParser(BaseParser):
             "error": str(exc),
             "raw": raw,
         }
-        if attempted_schema_families is not None:
-            record["attempted_schema_families"] = attempted_schema_families
+        if isinstance(exc, dict):
             record["errors_by_schema_family"] = exc
         with q_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, default=str) + "\n")
@@ -712,34 +692,40 @@ def _validation_error_summary(exc: ValidationError) -> dict[str, Any]:
     }
 
 
-def _schema_family_lineage(
-    reported_schema_family: str | None,
-    parser_schema_family: str | None,
-) -> list[str]:
-    """Return compact lineage for diagnostics without implying validation attempts."""
-    lineage = [
-        family
-        for family in (reported_schema_family, parser_schema_family)
-        if family is not None
-    ]
-    return list(dict.fromkeys(lineage))
-
-
 def _infer_record_schema_family(
     raw_item: Any,
     *,
     default_family: str,
-) -> str:
-    """Infer record-level schema family from version-specific payer fields.
+) -> tuple[str, bool]:
+    """Infer the record-level CMS schema family from version-discriminating payer fields.
 
-    Stage 3 removed value-level schema validation, but schema lineage is still
-    useful. CMS 2.2 percentage/algorithm rows use ``estimated_amount`` where
-    CMS 3.0 uses ``count`` and allowed-amount percentile fields. Those field
-    families are structural enough to infer a mixed-version row without
-    rejecting it.
+    Signals are detected only on payers that carry a percentage or algorithm
+    contract (``standard_charge_percentage`` or ``standard_charge_algorithm``
+    non-None), because those are the only rows where version-specific summary
+    fields appear.
+
+    - **V2.2 signal**: ``estimated_amount`` is non-None. This field exists only
+      in CMS V2.2.x; it is absent from V2.1.0 and V3.0.0.
+    - **V3.0 signal**: any of ``count``, ``median_amount``, ``10th_percentile``,
+      or ``90th_percentile`` is non-None. These fields exist only in CMS V3.0.0.
+    - **V2.1**: carries neither discriminator set and is therefore **not
+      positively detectable** by this heuristic. V2.1 records produce no signal
+      and fall through to ``default_family`` (typically the header-reported
+      family).
+
+    Precedence and return value ``(resolved_family, conflicting_version_signals)``:
+
+    - Only V3.0 signal → ``("3.0", False)``.
+    - Only V2.2 signal → ``("2.2", False)``.
+    - No signal → ``(default_family, False)``.
+    - Both signals → ``("3.0", True)``.  When V2.2 and V3.0 signals co-exist in
+      the same item the record is internally inconsistent (payer rows from two
+      incompatible schema versions mixed in one object).  V3 wins as the resolved
+      family; the ``True`` flag lets callers mark the record for downstream
+      inspection without quarantining it — Bronze stays source-faithful.
     """
     if not isinstance(raw_item, dict):
-        return default_family
+        return default_family, False
 
     has_v2_2_signal = False
     has_v3_signal = False
@@ -769,11 +755,13 @@ def _infer_record_schema_family(
             ):
                 has_v3_signal = True
 
+    if has_v3_signal and has_v2_2_signal:
+        return "3.0", True
     if has_v3_signal:
-        return "3.0"
+        return "3.0", False
     if has_v2_2_signal:
-        return "2.2"
-    return default_family
+        return "2.2", False
+    return default_family, False
 
 
 def _iter_dicts(value: Any) -> Iterator[dict[str, Any]]:

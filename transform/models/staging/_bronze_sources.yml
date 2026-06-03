@@ -131,7 +131,7 @@ sources:
               - not_null
 
       - name: json_record_parse_diagnostics
-        description: "Structural quarantine diagnostics for JSON records that cannot be exploded into Bronze rows."
+        description: "Structural diagnostics for JSON records quarantined before they can be exploded into Bronze rows."
 
       - name: modifiers
         description: "Top-level modifier dimension from JSON ``modifier_information``."

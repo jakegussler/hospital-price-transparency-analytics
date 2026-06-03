@@ -4,15 +4,13 @@ with diagnostics as (
         hs.hospital_id,
         hs.source_format,
         {{ hpt_source_format_family('hs.source_format') }} as source_format_family,
-        coalesce(d.reported_schema_family, d.accepted_schema_family, {{ hpt_schema_family_from_version('hs.schema_version') }}) as reported_schema_family,
+        coalesce(d.reported_schema_family, d.parser_schema_family, {{ hpt_schema_family_from_version('hs.schema_version') }}) as reported_schema_family,
         d.record_ordinal,
         d.section,
-        d.error_summary,
-        d.final_status
+        d.error_summary
     from {{ ref('stg_bronze__json_record_parse_diagnostics') }} d
     left join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on d.snapshot_id = hs.snapshot_id
-    where d.final_status = 'quarantined'
 ),
 
 structural_rules as (

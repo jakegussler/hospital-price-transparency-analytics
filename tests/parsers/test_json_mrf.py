@@ -15,6 +15,7 @@ from hpt.parsers.json_mrf import (
     BATCH_SIZE,
     JsonMrfParser,
     _df,
+    _infer_record_schema_family,
     _iso,
     _to_text,
 )
@@ -721,13 +722,7 @@ class TestChargeParsing:
         assert charge_df["reported_schema_family"][0] == "3.0"
         assert charge_df["parser_schema_family"][0] == "2.2"
         assert charge_df["schema_version_mismatch"][0] is True
-        assert len(diagnostic_df) == 1
-        assert diagnostic_df["final_status"][0] == "accepted"
-        assert diagnostic_df["failure_count"][0] == 0
-        assert json.loads(diagnostic_df["attempted_schema_families"][0]) == [
-            "3.0",
-            "2.2",
-        ]
+        assert diagnostic_df.is_empty()
         assert not (quarantine_root / "snapshot_id=snap-001").exists()
 
     def test_value_level_violations_land_in_bronze_not_quarantine(self, tmp_path):
@@ -819,7 +814,7 @@ class TestChargeParsing:
         assert "error" in record
         assert "raw" in record
 
-    def test_all_schema_attempts_fail_emit_diagnostics(self, tmp_path):
+    def test_structural_failures_emit_diagnostics(self, tmp_path):
         quarantine_root = tmp_path / "quarantine"
         mrf_path = tmp_path / "mrf.json"
         bad_sci = {"description": "Bad"}
@@ -833,10 +828,185 @@ class TestChargeParsing:
         diagnostic_df = _collect_table(batches[2:], "json_record_parse_diagnostics")
 
         assert len(diagnostic_df) == 1
-        assert diagnostic_df["final_status"][0] == "quarantined"
-        assert diagnostic_df["accepted_schema_family"][0] is None
+        assert diagnostic_df["section"][0] == "standard_charge_information"
+        assert diagnostic_df["record_ordinal"][0] == 0
+        assert diagnostic_df["parser_schema_family"][0] == "3.0"
         assert diagnostic_df["failure_count"][0] == 1
-        assert json.loads(diagnostic_df["attempted_schema_families"][0]) == ["3.0"]
+        assert "3.0" in json.loads(diagnostic_df["error_summary"][0])
+
+
+# ---------------------------------------------------------------------------
+# _infer_record_schema_family unit tests
+# ---------------------------------------------------------------------------
+
+
+def _sci_with_payers(*payers: dict) -> dict:
+    """Build a minimal raw SCI dict with the given payer dicts."""
+    return {
+        "description": "Test",
+        "code_information": [{"code": "CPT001", "type": "CPT"}],
+        "standard_charges": [
+            {
+                "setting": "outpatient",
+                "payers_information": list(payers),
+            }
+        ],
+    }
+
+
+_PAYER_WITH_V2_2_SIGNAL = {
+    "payer_name": "Aetna",
+    "plan_name": "PPO",
+    "methodology": "other",
+    "standard_charge_algorithm": "contract rate",
+    "estimated_amount": 100.0,
+}
+
+_PAYER_WITH_V3_SIGNAL = {
+    "payer_name": "BlueCross",
+    "plan_name": "HMO",
+    "methodology": "other",
+    "standard_charge_algorithm": "contract rate",
+    "count": 50,
+    "median_amount": 120.0,
+}
+
+_PAYER_NO_SIGNAL = {
+    "payer_name": "United",
+    "plan_name": "PPO",
+    "methodology": "fee schedule",
+    "standard_charge_dollar": 200.0,
+}
+
+
+class TestInferRecordSchemaFamily:
+    def test_pure_v2_2_signal_returns_2_2_no_conflict(self):
+        raw = _sci_with_payers(_PAYER_WITH_V2_2_SIGNAL)
+        family, conflicting = _infer_record_schema_family(raw, default_family="3.0")
+        assert family == "2.2"
+        assert conflicting is False
+
+    def test_pure_v3_signal_returns_3_0_no_conflict(self):
+        raw = _sci_with_payers(_PAYER_WITH_V3_SIGNAL)
+        family, conflicting = _infer_record_schema_family(raw, default_family="2.2")
+        assert family == "3.0"
+        assert conflicting is False
+
+    def test_no_signal_returns_default_family(self):
+        # Payer with only fee-schedule fields carries no version discriminator.
+        raw = _sci_with_payers(_PAYER_NO_SIGNAL)
+        family, conflicting = _infer_record_schema_family(raw, default_family="3.0")
+        assert family == "3.0"
+        assert conflicting is False
+
+    def test_no_signal_2_1_header_uses_header_fallback(self):
+        # V2.1 has no discriminating fields; the header default propagates through.
+        raw = _sci_with_payers(_PAYER_NO_SIGNAL)
+        family, conflicting = _infer_record_schema_family(raw, default_family="2.1")
+        assert family == "2.1"
+        assert conflicting is False
+
+    def test_both_signals_resolves_to_3_0_with_conflict_flag(self):
+        # One payer emits a V2.2 field, another emits a V3.0 field — internally
+        # inconsistent record. V3 wins; conflict flag is set.
+        raw = _sci_with_payers(_PAYER_WITH_V2_2_SIGNAL, _PAYER_WITH_V3_SIGNAL)
+        family, conflicting = _infer_record_schema_family(raw, default_family="3.0")
+        assert family == "3.0"
+        assert conflicting is True
+
+    def test_both_signals_single_payer_resolves_to_3_0_with_conflict_flag(self):
+        # A single payer with both estimated_amount and count simultaneously.
+        payer = {
+            **_PAYER_WITH_V2_2_SIGNAL,
+            "count": 10,
+            "median_amount": 110.0,
+        }
+        raw = _sci_with_payers(payer)
+        family, conflicting = _infer_record_schema_family(raw, default_family="3.0")
+        assert family == "3.0"
+        assert conflicting is True
+
+    def test_non_dict_item_returns_default_family(self):
+        family, conflicting = _infer_record_schema_family("not a dict", default_family="3.0")
+        assert family == "3.0"
+        assert conflicting is False
+
+    def test_percentile_only_signal_detects_v3(self):
+        payer = {
+            "payer_name": "Cigna",
+            "plan_name": "PPO",
+            "methodology": "other",
+            "standard_charge_percentage": 80.0,
+            "10th_percentile": 90.0,
+            "90th_percentile": 150.0,
+        }
+        raw = _sci_with_payers(payer)
+        family, conflicting = _infer_record_schema_family(raw, default_family="2.2")
+        assert family == "3.0"
+        assert conflicting is False
+
+
+# ---------------------------------------------------------------------------
+# Conflicting-version-signals integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestConflictingVersionSignalsIntegration:
+    def test_conflicting_signals_flagged_in_bronze_not_quarantined(self, tmp_path):
+        """A record with both V2.2 and V3.0 signals resolves to 3.0 and sets the
+        conflicting_version_signals column without being quarantined."""
+        quarantine_root = tmp_path / "quarantine"
+        mrf_path = tmp_path / "mrf.json"
+        conflicting_sci = {
+            "description": "Conflicting item",
+            "code_information": [{"code": "CPT001", "type": "CPT"}],
+            "standard_charges": [
+                {
+                    "setting": "outpatient",
+                    "payers_information": [
+                        _PAYER_WITH_V2_2_SIGNAL,
+                        _PAYER_WITH_V3_SIGNAL,
+                    ],
+                }
+            ],
+        }
+        _write_mrf(mrf_path, _minimal_mrf(standard_charge_information=[conflicting_sci]))
+        parser = _make_parser(quarantine_root)
+
+        batches = list(parser.parse(mrf_path))
+        charge_df = _collect_table(batches[2:], "standard_charge_info")
+        diagnostic_df = _collect_table(batches[2:], "json_record_parse_diagnostics")
+
+        assert charge_df["parser_schema_family"][0] == "3.0"
+        assert charge_df["conflicting_version_signals"][0] is True
+        assert charge_df["schema_version_mismatch"][0] is False
+        assert diagnostic_df.is_empty()
+        assert not (quarantine_root / "snapshot_id=snap-001").exists()
+
+    def test_non_conflicting_record_has_false_flag(self, tmp_path):
+        """A clean V2.2 record reported under a V3 header has schema_version_mismatch
+        set but conflicting_version_signals is False."""
+        quarantine_root = tmp_path / "quarantine"
+        mrf_path = tmp_path / "mrf.json"
+        v2_2_sci = {
+            "description": "V2.2 item",
+            "code_information": [{"code": "CPT001", "type": "CPT"}],
+            "standard_charges": [
+                {
+                    "setting": "outpatient",
+                    "payers_information": [_PAYER_WITH_V2_2_SIGNAL],
+                }
+            ],
+        }
+        _write_mrf(mrf_path, _minimal_mrf(standard_charge_information=[v2_2_sci]))
+        parser = _make_parser(quarantine_root)  # snapshot_meta has version=3.0.0
+
+        batches = list(parser.parse(mrf_path))
+        charge_df = _collect_table(batches[2:], "standard_charge_info")
+
+        assert charge_df["parser_schema_family"][0] == "2.2"
+        assert charge_df["schema_version_mismatch"][0] is True
+        assert charge_df["conflicting_version_signals"][0] is False
 
 
 # ---------------------------------------------------------------------------
