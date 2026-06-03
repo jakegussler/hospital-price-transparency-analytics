@@ -131,13 +131,11 @@ erDiagram
     int record_ordinal
     string reported_schema_version
     string reported_schema_family
-    string accepted_schema_family
-    string accepted_schema_version
+    string parser_schema_family
+    string parser_schema_version
     boolean schema_version_mismatch
-    string attempted_schema_families
     int failure_count
     string error_summary
-    string final_status
     string diagnosed_at
   }
 
@@ -248,9 +246,9 @@ CSV Bronze table:
   rather than from value-level fallback validation. For example, a record in a
   reported v3.0 file that uses v2.2-style `estimated_amount` instead of v3.0
   count/percentile fields is retained with `parser_schema_family = '2.2'`,
-  `schema_version_mismatch = true`, and an accepted
-  `json_record_parse_diagnostics` row. Structural parse failures are still
-  quarantined before Bronze row fanout.
+  `schema_version_mismatch = true`; dbt surfaces that as a warn-severity
+  charge-item validation row. `json_record_parse_diagnostics` is reserved for
+  structural parse failures that are quarantined before Bronze row fanout.
 - Both JSON and CSV Bronze store numeric-looking source values (charges,
   percentiles, units) as raw text (`Utf8`). dbt staging is the numeric type
   boundary: it casts currency-like amount fields to `decimal(18, 4)` via

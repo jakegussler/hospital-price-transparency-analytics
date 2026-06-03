@@ -379,14 +379,14 @@ v2.2 percentage/algorithm rows use `estimated_amount`, while v3.0 rows use
 `count`, `median_amount`, `10th_percentile`, and `90th_percentile`.
 
 Accepted records keep both `reported_schema_family` and inferred
-`parser_schema_family`. When they differ, `schema_version_mismatch` is true and
-an accepted `json_record_parse_diagnostics` row is emitted for lineage.
+`parser_schema_family`. When they differ, `schema_version_mismatch` is true on
+`standard_charge_info`; the dbt charge-item validation model turns that flag
+into a warn-severity violation.
 
 If structural validation fails, the item is quarantined and a
-`json_record_parse_diagnostics` row is emitted with the parser family lineage,
-validation summary, and `final_status = "quarantined"`. Value-level,
-conditional, enum, and format issues now reach Bronze and are diagnosed by dbt
-validation models.
+`json_record_parse_diagnostics` row is emitted with the reported/parser schema
+family context and validation summary. Value-level, conditional, enum, and
+format issues now reach Bronze and are diagnosed by dbt validation models.
 
 ## Current Gaps To Add In dbt
 

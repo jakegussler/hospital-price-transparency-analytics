@@ -74,6 +74,11 @@ Bronze JSON table families:
 - `modifiers`
 - `modifier_payer_info`
 
+`json_record_parse_diagnostics` is limited to charge records that fail the
+structural gate and are quarantined before Bronze row fanout. Accepted
+mixed-version rows carry schema-family lineage on `standard_charge_info`
+instead.
+
 ## CSV Tall Layout
 
 CSV Tall files use the first three rows differently from charge rows:
