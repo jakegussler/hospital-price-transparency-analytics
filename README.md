@@ -154,6 +154,11 @@ Most local runs work with defaults. The main overrides are:
 | `HPT_QUARANTINE_ROOT` | Parser validation failures | `data/quarantine` |
 | `HPT_REGISTRY_PATH` | Optional hospital registry override | bundled registry |
 | `HPT_DUCKDB_PATH` | dbt DuckDB database path | `data/hpt.duckdb` |
+| `HPT_STAGING_FILTER_ENABLED` | Optional dbt staging `LIMIT` / `USING SAMPLE` switch | `true` |
+| `HPT_STAGING_FILTER_METHOD` | dbt staging filter method, `limit` or `sample` | `limit` |
+| `hpt_staging_filter_sample_mode` | dbt staging sample mode, `rows` or `percent` | `rows` |
+| `HPT_STAGING_FILTER_ROWS` | Default staging filter row count | `100000` |
+| `hpt_staging_filter_sample_percentage` | Default staging Bernoulli sample percentage | `10` |
 
 See `docs/configuration.md` for all environment variables, precedence rules, and
 HTTP client settings.

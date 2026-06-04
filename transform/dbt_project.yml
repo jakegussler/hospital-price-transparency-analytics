@@ -16,6 +16,13 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+vars:
+  hpt_staging_filter_enabled: "{{ env_var('HPT_STAGING_FILTER_ENABLED', 'true') }}"
+  hpt_staging_filter_method: "{{ env_var('HPT_STAGING_FILTER_METHOD', 'limit') }}" # limit or sample
+  hpt_staging_filter_sample_mode: "{{ env_var('HPT_STAGING_FILTER_SAMPLE_MODE', 'rows') }}" # rows or percent
+  hpt_staging_filter_sample_percentage: "{{ env_var('HPT_STAGING_FILTER_SAMPLE_PERCENTAGE', '10') }}"
+  hpt_staging_filter_rows: "{{ env_var('HPT_STAGING_FILTER_ROWS', '100000') }}"
+
 models:
   hospital_price_transparency:
     staging:

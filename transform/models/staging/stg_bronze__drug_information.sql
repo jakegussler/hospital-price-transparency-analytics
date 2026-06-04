@@ -4,6 +4,6 @@ select
     {{ hpt_safe_double('unit') }} as drug_unit,
     type as raw_drug_unit_type,
     {{ hpt_clean_text('type') }} as clean_drug_unit_type
-from {{ source('bronze', 'drug_information') }}
+from {{ hpt_staging_source(source('bronze', 'drug_information')) }}
 where 1 = 1
     {{ hpt_snapshot_filter() }}
