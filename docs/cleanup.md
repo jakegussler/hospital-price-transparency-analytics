@@ -23,6 +23,31 @@ called out in a later implementation task.
   in staging; ingest at least one file of each format, or guard those sources,
   before running dbt.
 
+## Snapshot Scoping Notes
+
+- `hpt_staging_source` (limit/sample) and `snapshot_ids` scoping are mutually
+  exclusive by precedence: when the `snapshot_ids` var is non-empty, the staging
+  macro emits the bare relation so the `hpt_snapshot_filter()` `WHERE` clause can
+  prune Bronze hive partitions. The limit/sample dev guard only applies to
+  unscoped runs.
+- Snapshot-scoped runs (`hpt run-dbt`) exclude dbt **unit tests**
+  (`--exclude-resource-type unit_test`). Unit-test fixtures pin their own
+  `snapshot_id` values, which the snapshot filter would strip; they are
+  snapshot-agnostic logic checks and still run fully under unscoped
+  `make dbt-build` / CI.
+- Cross-model integrity tests (`reconcile_*`, cross-model `relationships_*`) can
+  fail under a **partial** scoped selector (e.g. `pipeline_charge_data`) when a
+  referenced model lives outside the selector and therefore retains a different
+  snapshot's data from a prior build (e.g. `slv_base__type2_npis` vs a freshly
+  scoped `slv_base__hospital_snapshots`). For a fully coherent rebuild, run the
+  scoped build over the whole graph (no `--selector`); partition pruning still
+  bounds memory.
+- `reconcile_csv_rows_to_standard_charges` reports a small number of CSV charge
+  rows (8 observed for `ballad-jcmc`) that map to no Silver standard charge and
+  are not captured by any rejection model. This is a real source-data gap that
+  the dev-default staging `limit` previously masked; snapshot scoping (full
+  scan, no limit) surfaces it. Not yet root-caused.
+
 ## Planning Notes
 
 - `docs/notes/` contains useful historical planning and research, but it should

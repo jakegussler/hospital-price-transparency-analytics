@@ -51,7 +51,21 @@ make dbt-run
 make dbt-test
 make dbt-build
 make dbt-build-selector DBT_SELECTOR=silver
+
+# Snapshot-scoped dbt run (prunes Bronze partitions, bounds memory)
+make dbt-seed                                    # seeds first (one-time / on change)
+make dbt-run-hospitals HOSPITAL_IDS=ballad-jcmc  # build pipeline_charge_data for those hospitals
+hpt run-dbt --hospital-ids a,b --snapshot-ids <uuid> --command build --selector pipeline_charge_data
 ```
+
+`hpt run-dbt` resolves `--hospital-ids` to their current snapshot, merges any
+explicit `--snapshot-ids`, and passes them as the `snapshot_ids` dbt var. That
+var prunes Bronze hive partitions and bypasses the staging limit/sample. It
+excludes dbt unit tests (their fixtures pin snapshot_ids). A **partial**
+selector can leave out-of-selector models stale and trip cross-model
+`reconcile_*`/`relationships_*` tests; for a fully coherent rebuild pass an
+empty `--selector ""` (whole graph, still partition-pruned). See
+`docs/development/snapshot-scoped-runs.md`.
 
 dbt selectors available: `staging`, `silver_base`, `silver_core`,
 `silver_review_queue`, `silver`, `validation`,
