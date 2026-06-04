@@ -115,3 +115,90 @@ models:
           - accepted_values:
               arguments:
                 values: ["needs_review"]
+
+  - name: slv_review_queue__plan_context_candidates
+    description: >
+      Review queue of known canonical payer and clean plan name combinations
+      whose plan context classification is weak or missing. This model focuses
+      curation on high-value payer/plan pairs where payer identity is already
+      resolved but context rules still leave unknown market segment, no context
+      rule, or low-confidence context.
+    config:
+      tags: ["silver_review_queue", "silver", "payer_normalization", "plan_normalization"]
+    columns:
+      - name: plan_context_candidate_key
+        description: "Stable key for the canonical payer and clean plan combination."
+        tests:
+          - not_null
+          - unique
+      - name: canonical_payer_id
+        description: "Resolved broad canonical payer identity for the candidate row set."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('canonical_payers')
+                field: canonical_payer_id
+      - name: canonical_payer_name
+        description: "Display name for the resolved broad canonical payer."
+      - name: clean_plan_name
+        description: "Deterministically cleaned lowercase plan name for this context candidate."
+        tests:
+          - not_null
+      - name: example_display_plan_name
+        description: "Example analyst-friendly title-case plan name observed for this candidate."
+      - name: example_raw_plan_name
+        description: "Example raw plan name observed for this candidate."
+      - name: example_clean_payer_name
+        description: "Example cleaned payer name observed with this candidate."
+      - name: example_raw_payer_name
+        description: "Example raw payer name observed with this candidate."
+      - name: example_state
+        description: "Example hospital snapshot state observed with this candidate, when present."
+      - name: payer_rate_rows
+        description: "Number of Silver Core payer-rate rows represented by this weak plan-context candidate."
+        tests:
+          - not_null
+      - name: unknown_market_segment_rows
+        description: "Number of represented rows where market_segment remains unknown."
+        tests:
+          - not_null
+      - name: no_context_rule_rows
+        description: "Number of represented rows without an accepted payer-context rule match."
+        tests:
+          - not_null
+      - name: low_confidence_context_rows
+        description: "Number of represented rows matched only by a low-confidence context rule."
+        tests:
+          - not_null
+      - name: null_plan_type_rows
+        description: "Number of represented rows where plan_type is not populated."
+        tests:
+          - not_null
+      - name: hospital_count
+        description: "Number of hospitals where this weak plan-context candidate appears."
+        tests:
+          - not_null
+      - name: snapshot_count
+        description: "Number of hospital MRF snapshots where this weak plan-context candidate appears."
+        tests:
+          - not_null
+      - name: source_format_count
+        description: "Number of source formats where this weak plan-context candidate appears."
+        tests:
+          - not_null
+      - name: state_count
+        description: "Number of states where this weak plan-context candidate appears."
+        tests:
+          - not_null
+      - name: clean_payer_name_count
+        description: "Number of distinct cleaned payer names observed with this canonical payer and plan pair."
+        tests:
+          - not_null
+      - name: review_queue_status
+        description: "Review status for this queue row. This model only emits needs_review rows."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["needs_review"]
