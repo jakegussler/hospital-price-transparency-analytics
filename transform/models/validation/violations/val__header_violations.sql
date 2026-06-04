@@ -146,13 +146,13 @@ violations as (
         and (
             (
                 source_format_family = 'json'
-                and not regexp_matches({{ hpt_clean_display_text('raw_published_last_updated_on') }}, '^\\d{4}-\\d{2}-\\d{2}$')
+                and not regexp_matches({{ hpt_clean_display_text('raw_published_last_updated_on') }}, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
             )
             or (
                 source_format_family = 'csv'
                 and not (
-                    regexp_matches({{ hpt_clean_display_text('raw_published_last_updated_on') }}, '^\\d{4}-\\d{2}-\\d{2}$')
-                    or regexp_matches({{ hpt_clean_display_text('raw_published_last_updated_on') }}, '^\\d{1,2}/\\d{1,2}/\\d{4}$')
+                    regexp_matches({{ hpt_clean_display_text('raw_published_last_updated_on') }}, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+                    or regexp_matches({{ hpt_clean_display_text('raw_published_last_updated_on') }}, '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$')
                 )
             )
         )
@@ -200,7 +200,7 @@ violations as (
         raw_npi, 'identifier_format_invalid',
         'Type 2 NPI must be exactly ten digits.'
     from npi_values
-    where clean_npi is null or not regexp_matches(clean_npi, '^\\d{10}$')
+    where clean_npi is null or not regexp_matches(clean_npi, '^[0-9]{10}$')
 
     union all
 
