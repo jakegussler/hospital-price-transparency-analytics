@@ -12,6 +12,9 @@ select
 from {{ ref('cms_validation_rules') }} r
 left join {{ ref('val__all_violations') }} v
     on r.rule_id = v.rule_id
+    and v.snapshot_id in (
+        {{ hpt_current_snapshot_ids_sql() }}
+    )
 group by
     r.rule_id,
     r.rule_name,

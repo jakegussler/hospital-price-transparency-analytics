@@ -17,11 +17,7 @@ clean-targets:
   - "dbt_packages"
 
 vars:
-  hpt_staging_filter_enabled: "{{ env_var('HPT_STAGING_FILTER_ENABLED', 'true') }}"
-  hpt_staging_filter_method: "{{ env_var('HPT_STAGING_FILTER_METHOD', 'limit') }}" # limit or sample
-  hpt_staging_filter_sample_mode: "{{ env_var('HPT_STAGING_FILTER_SAMPLE_MODE', 'rows') }}" # rows or percent
-  hpt_staging_filter_sample_percentage: "{{ env_var('HPT_STAGING_FILTER_SAMPLE_PERCENTAGE', '10') }}"
-  hpt_staging_filter_rows: "{{ env_var('HPT_STAGING_FILTER_ROWS', '100000') }}"
+  hpt_silver_retention_mode: "{{ env_var('HPT_SILVER_RETENTION_MODE', 'current_only') }}"
 
 models:
   hospital_price_transparency:
@@ -55,10 +51,14 @@ models:
       stg_bronze__csv_charge_rows:
         +tags: ["pipeline_charge_data"]
     silver:
-      +materialized: table
+      +materialized: incremental
+      +incremental_strategy: delete+insert
+      +unique_key: snapshot_id
+      +on_schema_change: append_new_columns
       base:
         +tags: ["silver_base", "silver"]
         slv_base__hospitals:
+          +materialized: table
           +tags: ["pipeline_snapshot_metadata", "pipeline_charge_data"]
         slv_base__hospital_snapshots:
           +tags: ["pipeline_snapshot_metadata", "pipeline_charge_data"]
@@ -82,9 +82,15 @@ models:
           +tags: ["pipeline_charge_data"]
       core:
         +tags: ["silver_core", "silver"]
+      review_queue:
+        +materialized: table
+        +tags: ["silver_review_queue", "silver"]
     validation:
       +schema: validation
-      +materialized: table
+      +materialized: incremental
+      +incremental_strategy: delete+insert
+      +unique_key: snapshot_id
+      +on_schema_change: append_new_columns
       +tags: ["validation"]
       violations:
         +tags: ["pipeline_charge_data"]
@@ -92,6 +98,10 @@ models:
         +tags: ["pipeline_charge_data"]
       stats:
         +tags: ["pipeline_charge_data"]
+        val__rule_coverage:
+          +materialized: table
+        val_stats__rule_summary:
+          +materialized: table
 
 seeds:
   hospital_price_transparency:

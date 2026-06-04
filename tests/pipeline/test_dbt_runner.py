@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import UTC, datetime
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
 from hpt.ingest.snapshot import SnapshotRecord
 from hpt.pipeline import dbt_runner
-from hpt.pipeline.dbt_runner import resolve_snapshot_ids, run_dbt_for_snapshots
+from hpt.pipeline.dbt_runner import (
+    resolve_snapshot_ids,
+    run_dbt_for_snapshots,
+    run_dbt_full_rebuild,
+)
 
 # ---------------------------------------------------------------------------
 # Test doubles
@@ -49,13 +54,15 @@ class FakeResult:
 class RecordingRunner:
     """Stand-in for dbtRunner that records each invoke() call."""
 
-    def __init__(self, success: bool = True) -> None:
+    def __init__(self, success: bool = True, successes: list[bool] | None = None) -> None:
         self.success = success
+        self.successes = list(successes or [])
         self.calls: list[list[str]] = []
 
     def invoke(self, args: list[str]) -> FakeResult:
         self.calls.append(args)
-        return FakeResult(self.success)
+        success = self.successes.pop(0) if self.successes else self.success
+        return FakeResult(success)
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +111,7 @@ def patched_storage(monkeypatch: pytest.MonkeyPatch) -> FakeSnapshotManager:
     """Patch storage/snapshot construction so no real I/O happens."""
     manager = FakeSnapshotManager({"h1": "snap-h1"})
 
+    monkeypatch.delenv(dbt_runner.RETENTION_MODE_ENV, raising=False)
     fake_cfg = SimpleNamespace(raw_base_uri="file:///tmp/raw")
     monkeypatch.setattr(dbt_runner.StorageConfig, "from_env", classmethod(lambda cls: fake_cfg))
     monkeypatch.setattr(dbt_runner, "BronzeStorage", lambda *a, **k: object())
@@ -113,9 +121,16 @@ def patched_storage(monkeypatch: pytest.MonkeyPatch) -> FakeSnapshotManager:
 
 def _patch_runner(monkeypatch: pytest.MonkeyPatch, runner: RecordingRunner) -> None:
     """Patch the lazily-imported dbtRunner symbol."""
-    import dbt.cli.main as dbt_main
+    dbt_module = ModuleType("dbt")
+    cli_module = ModuleType("dbt.cli")
+    main_module = ModuleType("dbt.cli.main")
+    main_module.dbtRunner = lambda: runner
+    cli_module.main = main_module
+    dbt_module.cli = cli_module
 
-    monkeypatch.setattr(dbt_main, "dbtRunner", lambda: runner)
+    monkeypatch.setitem(sys.modules, "dbt", dbt_module)
+    monkeypatch.setitem(sys.modules, "dbt.cli", cli_module)
+    monkeypatch.setitem(sys.modules, "dbt.cli.main", main_module)
 
 
 def test_run_passes_resolved_snapshot_ids_as_vars(
@@ -129,7 +144,7 @@ def test_run_passes_resolved_snapshot_ids_as_vars(
     )
 
     assert exit_code == 0
-    assert len(runner.calls) == 1
+    assert len(runner.calls) == 2
     args = runner.calls[0]
     assert args[0] == "build"
     assert "--selector" in args
@@ -140,6 +155,8 @@ def test_run_passes_resolved_snapshot_ids_as_vars(
     # Unit tests are excluded from scoped build/test runs.
     assert "--exclude-resource-type" in args
     assert args[args.index("--exclude-resource-type") + 1] == "unit_test"
+    assert runner.calls[1][:2] == ["run-operation", "hpt_prune_stale_snapshots"]
+    assert "--vars" not in runner.calls[1]
 
 
 def test_run_does_not_exclude_unit_tests_for_run_command(
@@ -150,6 +167,7 @@ def test_run_does_not_exclude_unit_tests_for_run_command(
 
     run_dbt_for_snapshots(hospital_ids="h1", command="run")
     assert "--exclude-resource-type" not in runner.calls[0]
+    assert runner.calls[1][:2] == ["run-operation", "hpt_prune_stale_snapshots"]
 
 
 def test_run_seeds_only_when_requested(
@@ -159,11 +177,11 @@ def test_run_seeds_only_when_requested(
     _patch_runner(monkeypatch, runner)
 
     run_dbt_for_snapshots(hospital_ids="h1", include_seeds=False)
-    assert [c[0] for c in runner.calls] == ["build"]
+    assert [c[0] for c in runner.calls] == ["build", "run-operation"]
 
     runner.calls.clear()
     run_dbt_for_snapshots(hospital_ids="h1", include_seeds=True)
-    assert [c[0] for c in runner.calls] == ["seed", "build"]
+    assert [c[0] for c in runner.calls] == ["seed", "build", "run-operation"]
 
 
 def test_run_omits_selector_when_none(
@@ -183,3 +201,99 @@ def test_run_returns_one_on_dbt_failure(
     _patch_runner(monkeypatch, runner)
 
     assert run_dbt_for_snapshots(hospital_ids="h1") == 1
+    assert [c[0] for c in runner.calls] == ["build"]
+
+
+def test_run_skips_prune_when_retaining_all_snapshots(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+    monkeypatch.setenv(dbt_runner.RETENTION_MODE_ENV, "all_snapshots")
+
+    assert run_dbt_for_snapshots(hospital_ids="h1") == 0
+    assert [c[0] for c in runner.calls] == ["build", "run-operation"]
+    assert runner.calls[1][:2] == ["run-operation", "hpt_prune_stale_snapshots"]
+
+
+def test_run_does_not_prune_test_command(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+
+    assert run_dbt_for_snapshots(hospital_ids="h1", command="test") == 0
+    assert [c[0] for c in runner.calls] == ["test"]
+
+
+def test_scoped_run_rejects_full_refresh(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+
+    with pytest.raises(ValueError, match="Scoped dbt runs cannot use --full-refresh"):
+        run_dbt_for_snapshots(hospital_ids="h1", extra_args=["--full-refresh"])
+
+    assert runner.calls == []
+
+
+def test_run_returns_one_when_prune_fails(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner(successes=[True, False])
+    _patch_runner(monkeypatch, runner)
+
+    assert run_dbt_for_snapshots(hospital_ids="h1") == 1
+    assert [c[0] for c in runner.calls] == ["build", "run-operation"]
+
+
+def test_full_rebuild_uses_full_refresh_without_snapshot_vars(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+
+    assert run_dbt_full_rebuild(selector=None) == 0
+
+    assert [c[0] for c in runner.calls] == ["build", "run-operation"]
+    build_args = runner.calls[0]
+    assert "--full-refresh" in build_args
+    assert "--vars" not in build_args
+    assert "--selector" not in build_args
+
+
+def test_full_rebuild_can_seed_and_select(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+
+    assert run_dbt_full_rebuild(selector="silver", include_seeds=True) == 0
+
+    assert [c[0] for c in runner.calls] == ["seed", "build", "run-operation"]
+    assert "--selector" in runner.calls[1]
+    assert runner.calls[1][runner.calls[1].index("--selector") + 1] == "silver"
+
+
+def test_full_rebuild_rejects_non_materializing_command(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+
+    with pytest.raises(ValueError, match="Full rebuild only supports"):
+        run_dbt_full_rebuild(command="test")
+
+    assert runner.calls == []
+
+
+def test_invalid_retention_mode_raises(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+    monkeypatch.setenv(dbt_runner.RETENTION_MODE_ENV, "invalid")
+
+    with pytest.raises(ValueError, match="HPT_SILVER_RETENTION_MODE"):
+        run_dbt_for_snapshots(hospital_ids="h1")

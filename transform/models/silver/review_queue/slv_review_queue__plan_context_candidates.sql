@@ -20,6 +20,9 @@ with weak_plan_context as (
         on pr.snapshot_id = snapshots.snapshot_id
     where pr.canonical_payer_id is not null
         and pr.clean_plan_name is not null
+        and pr.snapshot_id in (
+            {{ hpt_current_snapshot_ids_sql() }}
+        )
         and (
             pr.market_segment = 'unknown'
             or pr.payer_context_match_basis = 'no_context_rule'

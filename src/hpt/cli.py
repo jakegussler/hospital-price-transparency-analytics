@@ -19,6 +19,7 @@ from hpt.pipeline.dbt_runner import (
     DEFAULT_COMMAND,
     DEFAULT_SELECTOR,
     run_dbt_for_snapshots,
+    run_dbt_full_rebuild,
 )
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospitals, load_registry
@@ -112,8 +113,7 @@ def export_hospitals_seed(
         file_okay=True,
         dir_okay=False,
         help=(
-            "CSV path to write. Defaults to transform/seeds/hospitals.csv "
-            "under the project root."
+            "CSV path to write. Defaults to transform/seeds/hospitals.csv under the project root."
         ),
         show_default=False,
     ),
@@ -189,6 +189,11 @@ def run_dbt(
         "--seeds/--no-seeds",
         help="Run dbt seed before the main command.",
     ),
+    full_rebuild: bool = typer.Option(
+        False,
+        "--full-rebuild",
+        help=("Run a true full-refresh rebuild: no snapshot scope and dbt --full-refresh enabled."),
+    ),
     log_level: str = typer.Option(
         "INFO",
         "--log-level",
@@ -199,14 +204,27 @@ def run_dbt(
     configure_logging(log_level=log_level)
     log = get_logger("cli.run_dbt")
     try:
-        exit_code = run_dbt_for_snapshots(
-            hospital_ids=hospital_ids,
-            snapshot_ids=snapshot_ids,
-            command=command,
-            selector=selector or None,
-            include_seeds=seeds,
-            log=log,
-        )
+        if full_rebuild:
+            if hospital_ids or snapshot_ids:
+                raise typer.BadParameter(
+                    "--full-rebuild cannot be combined with --hospital-ids or "
+                    "--snapshot-ids because it intentionally runs unscoped."
+                )
+            exit_code = run_dbt_full_rebuild(
+                command=command,
+                selector=selector or None,
+                include_seeds=seeds,
+                log=log,
+            )
+        else:
+            exit_code = run_dbt_for_snapshots(
+                hospital_ids=hospital_ids,
+                snapshot_ids=snapshot_ids,
+                command=command,
+                selector=selector or None,
+                include_seeds=seeds,
+                log=log,
+            )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     raise typer.Exit(code=exit_code)
@@ -536,7 +554,7 @@ def download(
         "INFO",
         "--log-level",
         help="Set the logging level.",
-    )
+    ),
 ) -> None:
     """Download source MRF files."""
 

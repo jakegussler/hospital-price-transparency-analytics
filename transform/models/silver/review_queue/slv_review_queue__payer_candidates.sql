@@ -15,6 +15,9 @@ with unmatched_payers as (
         on pr.snapshot_id = snapshots.snapshot_id
     where pr.clean_payer_name is not null
         and core.canonical_payer_id is null
+        and pr.snapshot_id in (
+            {{ hpt_current_snapshot_ids_sql() }}
+        )
 ),
 
 grouped as (
