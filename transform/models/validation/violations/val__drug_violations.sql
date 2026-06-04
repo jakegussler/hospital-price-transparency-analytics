@@ -17,7 +17,7 @@ with json_drugs as (
     inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on d.snapshot_id = hs.snapshot_id
     where 1 = 1
-        {{ hpt_snapshot_filter() }}
+        {{ hpt_snapshot_filter('d') }}
 ),
 
 csv_drugs as (

@@ -49,7 +49,7 @@ with json_rates as (
     inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on pi.snapshot_id = hs.snapshot_id
     where 1 = 1
-        {{ hpt_snapshot_filter() }}
+        {{ hpt_snapshot_filter('pi') }}
 ),
 
 csv_raw as (
@@ -85,7 +85,7 @@ csv_raw as (
     inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on b.snapshot_id = hs.snapshot_id
     where 1 = 1
-        {{ hpt_snapshot_filter() }}
+        {{ hpt_snapshot_filter('b') }}
 ),
 
 csv_rates as (

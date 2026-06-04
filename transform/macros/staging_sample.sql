@@ -1,22 +1,34 @@
 {% macro hpt_staging_source(relation, method=None, sample_mode=None, percentage=None, rows=None) -%}
-    {%- set enabled = env_var('HPT_STAGING_FILTER_ENABLED', 'true') | lower -%}
-    {%- if enabled in ['1', 'true', 't', 'yes', 'y', 'on'] -%}
-        {%- set resolved_method = (
-            method if method is not none else var('hpt_staging_filter_method', 'limit')
-        ) | lower -%}
+    {%- set snapshot_ids = var('snapshot_ids', []) -%}
+    {%- if snapshot_ids is string -%}
+        {%- set snapshot_ids = [snapshot_ids] if snapshot_ids else [] -%}
+    {%- endif -%}
 
-        {%- if resolved_method == 'sample' -%}
-            {{ relation }} {{ hpt_staging_sample(sample_mode, percentage, rows) }}
-        {%- elif resolved_method == 'limit' -%}
-            {{ hpt_staging_limit(relation, rows) }}
-        {%- else -%}
-            {{ exceptions.raise_compiler_error(
-                "hpt_staging_source method must be 'limit' or 'sample', got '"
-                ~ resolved_method ~ "'."
-            ) }}
-        {%- endif -%}
-    {%- else -%}
+    {#- Snapshot scoping takes precedence: emit the bare relation so the
+        hpt_snapshot_filter() WHERE clause prunes hive partitions instead of
+        the limit/sample wrapper masking it. -#}
+    {%- if snapshot_ids | length > 0 -%}
         {{ relation }}
+    {%- else -%}
+        {%- set enabled = env_var('HPT_STAGING_FILTER_ENABLED', 'true') | lower -%}
+        {%- if enabled in ['1', 'true', 't', 'yes', 'y', 'on'] -%}
+            {%- set resolved_method = (
+                method if method is not none else var('hpt_staging_filter_method', 'limit')
+            ) | lower -%}
+
+            {%- if resolved_method == 'sample' -%}
+                {{ relation }} {{ hpt_staging_sample(sample_mode, percentage, rows) }}
+            {%- elif resolved_method == 'limit' -%}
+                {{ hpt_staging_limit(relation, rows) }}
+            {%- else -%}
+                {{ exceptions.raise_compiler_error(
+                    "hpt_staging_source method must be 'limit' or 'sample', got '"
+                    ~ resolved_method ~ "'."
+                ) }}
+            {%- endif -%}
+        {%- else -%}
+            {{ relation }}
+        {%- endif -%}
     {%- endif -%}
 {%- endmacro %}
 

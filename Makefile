@@ -1,4 +1,5 @@
 .PHONY: install install-dev test lint format download ingest export-hospitals-seed \
+	dbt-run-hospitals require-hospital-ids \
 	dbt-deps dbt-run dbt-run-selector dbt-test dbt-test-selector \
 	dbt-seed dbt-seed-selector dbt-build dbt-build-selector \
 	dbt-build-validation \
@@ -32,6 +33,14 @@ ingest:
 
 export-hospitals-seed:
 	hpt export-hospitals-seed
+
+# Snapshot-scoped dbt run: resolves HOSPITAL_IDS to their current snapshots and
+# scopes the dbt build to just those snapshots (prunes Bronze partitions).
+dbt-run-hospitals: require-hospital-ids
+	hpt run-dbt --hospital-ids "$(HOSPITAL_IDS)" --command build --selector pipeline_charge_data
+
+require-hospital-ids:
+	@test -n "$(HOSPITAL_IDS)" || (printf '%s\n' 'Set HOSPITAL_IDS, for example: make dbt-run-hospitals HOSPITAL_IDS=some-hospital' >&2; exit 2)
 
 # --- dbt -------------------------------------------------------------------
 

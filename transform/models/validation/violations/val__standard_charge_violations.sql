@@ -14,7 +14,7 @@ with json_payer_rollup as (
         bool_or({{ hpt_clean_display_text('pi.standard_charge_algorithm') }} is not null) as has_payer_algorithm
     from {{ source('bronze', 'payers_information') }} pi
     where 1 = 1
-        {{ hpt_snapshot_filter() }}
+        {{ hpt_snapshot_filter('pi') }}
     group by pi.snapshot_id, pi.standard_charge_id
 ),
 
@@ -51,7 +51,7 @@ json_charges as (
         on sc.snapshot_id = pr.snapshot_id
         and sc.standard_charge_id = pr.standard_charge_id
     where 1 = 1
-        {{ hpt_snapshot_filter() }}
+        {{ hpt_snapshot_filter('sc') }}
 ),
 
 csv_charges as (

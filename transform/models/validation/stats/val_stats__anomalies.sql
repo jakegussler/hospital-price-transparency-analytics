@@ -23,7 +23,7 @@ with json_rate_context as (
         and sc.charge_item_id = sci.charge_item_id
     inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on pi.snapshot_id = hs.snapshot_id
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    where 1 = 1 {{ hpt_snapshot_filter('pi') }}
 ),
 
 csv_rate_context as (
@@ -57,7 +57,7 @@ csv_rate_context as (
     from {{ source('bronze', 'csv_charge_rows') }} b
     inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on b.snapshot_id = hs.snapshot_id
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    where 1 = 1 {{ hpt_snapshot_filter('b') }}
 ),
 
 rate_context as (

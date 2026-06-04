@@ -15,6 +15,11 @@ from hpt.ingest.download import Outcome, download_all
 from hpt.ingest.snapshot import SnapshotManager, SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
 from hpt.logging.log import LoggingRunPaths, configure_logging, get_logger
+from hpt.pipeline.dbt_runner import (
+    DEFAULT_COMMAND,
+    DEFAULT_SELECTOR,
+    run_dbt_for_snapshots,
+)
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospitals, load_registry
 from hpt.registry.models import HospitalSource
@@ -149,6 +154,62 @@ def export_hospitals_seed_logic(
 
     typer.echo(f"Wrote hospitals seed: {written_path}")
     return 0
+
+
+@cli.command("run-dbt")
+def run_dbt(
+    hospital_ids: str | None = typer.Option(
+        None,
+        "--hospital-ids",
+        help=(
+            "Comma-separated hospital IDs. Each is resolved to its current "
+            "snapshot and scoped into the dbt run."
+        ),
+    ),
+    snapshot_ids: str | None = typer.Option(
+        None,
+        "--snapshot-ids",
+        help=(
+            "Comma-separated snapshot IDs to pin explicitly (for example to "
+            "rebuild a historical snapshot). Merged with hospital-resolved IDs."
+        ),
+    ),
+    command: str = typer.Option(
+        DEFAULT_COMMAND,
+        "--command",
+        help="dbt command to run (for example build, run, test).",
+    ),
+    selector: str = typer.Option(
+        DEFAULT_SELECTOR,
+        "--selector",
+        help="dbt selector to scope models. Pass an empty string to disable.",
+    ),
+    seeds: bool = typer.Option(
+        False,
+        "--seeds/--no-seeds",
+        help="Run dbt seed before the main command.",
+    ),
+    log_level: str = typer.Option(
+        "INFO",
+        "--log-level",
+        help="Set the logging level.",
+    ),
+) -> None:
+    """Run a snapshot-scoped dbt command against the transform/ project."""
+    configure_logging(log_level=log_level)
+    log = get_logger("cli.run_dbt")
+    try:
+        exit_code = run_dbt_for_snapshots(
+            hospital_ids=hospital_ids,
+            snapshot_ids=snapshot_ids,
+            command=command,
+            selector=selector or None,
+            include_seeds=seeds,
+            log=log,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    raise typer.Exit(code=exit_code)
 
 
 def _load_hospitals_for_target(
