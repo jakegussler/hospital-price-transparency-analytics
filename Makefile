@@ -1,5 +1,6 @@
 .PHONY: install install-dev test lint format download ingest export-hospitals-seed \
-	dbt-run-hospitals require-hospital-ids \
+	dbt-run-hospitals dbt-incremental dbt-rebuild \
+	require-hospital-ids require-dbt-incremental-scope \
 	dbt-deps dbt-run dbt-run-selector dbt-test dbt-test-selector \
 	dbt-seed dbt-seed-selector dbt-build dbt-build-selector \
 	dbt-build-validation \
@@ -39,8 +40,21 @@ export-hospitals-seed:
 dbt-run-hospitals: require-hospital-ids
 	hpt run-dbt --hospital-ids "$(HOSPITAL_IDS)" --command build --selector pipeline_charge_data
 
+dbt-incremental: require-dbt-incremental-scope
+	hpt run-dbt \
+		$(if $(HOSPITAL_IDS),--hospital-ids "$(HOSPITAL_IDS)") \
+		$(if $(SNAPSHOT_IDS),--snapshot-ids "$(SNAPSHOT_IDS)") \
+		--command build \
+		--selector "$(or $(DBT_SELECTOR),pipeline_charge_data)"
+
+dbt-rebuild:
+	hpt run-dbt --full-rebuild --command build --selector ""
+
 require-hospital-ids:
 	@test -n "$(HOSPITAL_IDS)" || (printf '%s\n' 'Set HOSPITAL_IDS, for example: make dbt-run-hospitals HOSPITAL_IDS=some-hospital' >&2; exit 2)
+
+require-dbt-incremental-scope:
+	@test -n "$(HOSPITAL_IDS)$(SNAPSHOT_IDS)" || (printf '%s\n' 'Set HOSPITAL_IDS or SNAPSHOT_IDS, for example: make dbt-incremental HOSPITAL_IDS=some-hospital' >&2; exit 2)
 
 # --- dbt -------------------------------------------------------------------
 
