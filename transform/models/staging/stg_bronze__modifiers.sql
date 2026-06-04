@@ -7,6 +7,6 @@ select
     {{ hpt_clean_text('description') }} as clean_description,
     setting as raw_setting,
     {{ hpt_clean_text('setting') }} as clean_setting
-from {{ hpt_staging_source(source('bronze', 'modifiers')) }}
+from {{ source('bronze', 'modifiers') }}
 where 1 = 1
     {{ hpt_snapshot_filter() }}

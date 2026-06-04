@@ -19,6 +19,6 @@ select
     {{ hpt_safe_decimal('ninetieth_percentile') }} as ninetieth_percentile,
     count as raw_count,
     additional_payer_notes
-from {{ hpt_staging_source(source('bronze', 'payers_information'), rows=1000000) }}
+from {{ source('bronze', 'payers_information') }}
 where 1 = 1
     {{ hpt_snapshot_filter() }}

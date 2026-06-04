@@ -7,6 +7,6 @@ select
     {{ hpt_clean_text('plan_name') }} as clean_plan_name,
     description as raw_description,
     {{ hpt_clean_text('description') }} as clean_description
-from {{ hpt_staging_source(source('bronze', 'modifier_payer_info')) }}
+from {{ source('bronze', 'modifier_payer_info') }}
 where 1 = 1
     {{ hpt_snapshot_filter() }}

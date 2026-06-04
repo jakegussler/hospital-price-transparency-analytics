@@ -12,6 +12,6 @@ select
     billing_class as raw_billing_class,
     {{ hpt_clean_text('billing_class') }} as clean_billing_class,
     additional_generic_notes
-from {{ hpt_staging_source(source('bronze', 'standard_charges')) }}
+from {{ source('bronze', 'standard_charges') }}
 where 1 = 1
     {{ hpt_snapshot_filter() }}

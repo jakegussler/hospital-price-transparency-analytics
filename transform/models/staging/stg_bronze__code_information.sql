@@ -6,6 +6,6 @@ select
     {{ hpt_clean_display_text('code') }} as clean_code,
     type as raw_code_type,
     {{ hpt_clean_text('type') }} as clean_code_type
-from {{ hpt_staging_source(source('bronze', 'code_information')) }}
+from {{ source('bronze', 'code_information') }}
 where 1 = 1
     {{ hpt_snapshot_filter() }}

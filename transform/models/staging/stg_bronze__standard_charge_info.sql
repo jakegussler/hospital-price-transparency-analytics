@@ -19,6 +19,6 @@ select
             'boolean'
         ) }} as boolean
     ) as schema_version_mismatch
-from {{ hpt_staging_source(source('bronze', 'standard_charge_info')) }}
+from {{ source('bronze', 'standard_charge_info') }}
 where 1 = 1
     {{ hpt_snapshot_filter() }}

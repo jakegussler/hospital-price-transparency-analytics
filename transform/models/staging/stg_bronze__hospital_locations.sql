@@ -5,6 +5,6 @@ select
     {{ hpt_clean_text('location_name') }} as clean_location_name,
     hospital_address as raw_hospital_address,
     {{ hpt_clean_display_text('hospital_address') }} as clean_hospital_address
-from {{ hpt_staging_source(source('bronze', 'hospital_locations')) }}
+from {{ source('bronze', 'hospital_locations') }}
 where 1 = 1
     {{ hpt_snapshot_filter() }}

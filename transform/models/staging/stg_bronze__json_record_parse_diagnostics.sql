@@ -11,7 +11,7 @@
         cast(failure_count as integer) as failure_count,
         error_summary,
         {{ hpt_safe_timestamp('diagnosed_at') }} as diagnosed_at
-    from {{ hpt_staging_source(source('bronze', 'json_record_parse_diagnostics')) }}
+    from {{ source('bronze', 'json_record_parse_diagnostics') }}
     where 1 = 1
         {{ hpt_snapshot_filter() }}
 {% else %}
