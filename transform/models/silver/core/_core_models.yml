@@ -70,6 +70,12 @@ models:
           - relationships:
               to: ref('canonical_payers')
               field: canonical_payer_id
+      - name: raw_plan_name
+        description: "Source-reported plan name attached to this payer-rate row, preserved without normalization."
+      - name: clean_plan_name
+        description: "Deterministically cleaned lowercase plan name used for payer-context matching."
+      - name: display_plan_name
+        description: "Analyst-friendly title-case plan name derived from the source-reported plan name."
       - name: payer_match_basis
         tests:
           - not_null

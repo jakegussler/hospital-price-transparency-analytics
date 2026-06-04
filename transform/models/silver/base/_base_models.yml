@@ -162,6 +162,12 @@ models:
         tests:
           - accepted_values:
               values: ["2.1", "2.2", "3.0"]
+      - name: raw_plan_name
+        description: "Source-reported plan name attached to this payer-rate row, preserved without normalization."
+      - name: clean_plan_name
+        description: "Deterministically cleaned lowercase plan name used for payer-context matching."
+      - name: display_plan_name
+        description: "Analyst-friendly title-case plan name derived from the source-reported plan name."
 
   - name: slv_base__modifiers
     description: "JSON modifier definitions and modifier payer metadata when available."

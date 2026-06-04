@@ -32,3 +32,17 @@
 {% macro hpt_clean_display_text(expression) -%}
     {{ hpt_clean_text(expression, lowercase=false) }}
 {%- endmacro %}
+
+{% macro hpt_title_case_text(expression) -%}
+    {%- set cleaned = hpt_clean_text(expression) -%}
+    case
+        when {{ cleaned }} is null then null
+        else array_to_string(
+            list_transform(
+                string_split({{ cleaned }}, ' '),
+                word -> upper(substr(word, 1, 1)) || lower(substr(word, 2))
+            ),
+            ' '
+        )
+    end
+{%- endmacro %}
