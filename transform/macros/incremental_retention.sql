@@ -31,7 +31,7 @@
 {%- endmacro %}
 
 
-{% macro hpt_bronze_hospital_mrf_snapshots_sql() -%}
+{% macro hpt_resolved_snapshot_state_sql() -%}
     {%- if execute and not hpt_has_bronze_files('hospital_mrf_snapshots') -%}
         {{ exceptions.raise_compiler_error(
             "Cannot resolve current Silver snapshots because no Bronze "
@@ -40,23 +40,59 @@
         ) }}
     {%- endif -%}
 
+    {#-
+        Currentness is derived here, not stored. Per hospital, the snapshot with
+        the most recent valid_from is current; every older snapshots valid_to is
+        the valid_from of the snapshot that superseded it. Reads Bronze unscoped
+        (no hpt_snapshot_filter) so the per-hospital window is always complete,
+        even on snapshot-scoped runs.
+    -#}
     {%- set bronze_root = env_var('HPT_BRONZE_ROOT', '../data/bronze') -%}
+    with raw as (
+        select
+            snapshot_id,
+            hospital_id,
+            try_cast(valid_from as timestamp) as valid_from,
+            try_cast(ingested_at as timestamp) as ingested_at
+        from read_parquet(
+            '{{ bronze_root }}/hospital_mrf_snapshots/**/*.parquet',
+            hive_partitioning=true,
+            union_by_name=true
+        )
+    ),
+
+    ranked as (
+        select
+            snapshot_id,
+            hospital_id,
+            row_number() over (
+                partition by hospital_id
+                order by valid_from desc nulls last,
+                         ingested_at desc nulls last,
+                         snapshot_id desc
+            ) as recency_rank,
+            lead(valid_from) over (
+                partition by hospital_id
+                order by valid_from asc nulls first,
+                         ingested_at asc nulls first,
+                         snapshot_id asc
+            ) as superseded_at
+        from raw
+    )
+
     select
         snapshot_id,
-        is_current_snapshot,
-        valid_to
-    from read_parquet(
-        '{{ bronze_root }}/hospital_mrf_snapshots/**/*.parquet',
-        hive_partitioning=true,
-        union_by_name=true
-    )
+        hospital_id,
+        (recency_rank = 1) as is_current_snapshot,
+        case when recency_rank = 1 then null else superseded_at end as valid_to
+    from ranked
 {%- endmacro %}
 
 
 {% macro hpt_current_snapshot_ids_sql() -%}
     select distinct snapshot_id
     from (
-        {{ hpt_bronze_hospital_mrf_snapshots_sql() }}
+        {{ hpt_resolved_snapshot_state_sql() }}
     ) current_snapshots
     where is_current_snapshot = true
 {%- endmacro %}
@@ -97,10 +133,9 @@
         update {{ existing_relation }} as target
         set
             is_current_snapshot = source.is_current_snapshot,
-            raw_valid_to = source.valid_to,
             valid_to = source.valid_to
         from (
-            {{ hpt_bronze_hospital_mrf_snapshots_sql() }}
+            {{ hpt_resolved_snapshot_state_sql() }}
         ) source
         where target.snapshot_id = source.snapshot_id
     {%- endset -%}
