@@ -12,7 +12,7 @@ files to local analytical models.
 
 ```text
 registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
-         -> Bronze Parquet -> dbt/DuckDB -> planned Silver/Gold models
+         -> Bronze Parquet -> dbt/DuckDB -> validation + Silver -> planned Gold
 ```
 
 ## Key Source Areas
@@ -34,8 +34,8 @@ registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
 - Raw storage and snapshot metadata use `fsspec`.
 - Local runtime data under `data/` should not be committed.
 - `docs/notes/` is historical source material, not the primary current docs.
-- Airflow, Docker, Terraform, Silver, and Gold are planned or skeletal unless
-  implementation files are added.
+- Airflow, Docker, Terraform, and Gold are planned or skeletal unless
+  implementation files are added. Silver foundation models are implemented.
 
 ## Useful References
 

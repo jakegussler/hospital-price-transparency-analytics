@@ -13,7 +13,7 @@ The Bronze layer is a **source-faithful representation** of CMS Machine-Readable
 ### Core principles
 
 - **No transformation** — column values reflect what the source file contained, including nulls, inconsistencies, and duplicates.
-- **Numeric values are preserved as text** — amount, unit, and percentage columns are stored as `Utf8` in both JSON and CSV Bronze so the exact source digits survive. dbt staging is the numeric type boundary: `hpt_safe_decimal` casts currency-like amounts to `decimal(18, 4)` and `hpt_safe_double` casts percentages/units to `double`. See `docs/decisions/0010-monetary-precision.md`. (JSON still validates numeric fields with Pydantic before Bronze, so invalid numbers are quarantined rather than written as accepted rows.)
+- **Numeric values are preserved as text** — amount, unit, and percentage columns are stored as `Utf8` in both JSON and CSV Bronze so the exact source digits survive. dbt staging is the numeric type boundary: `hpt_safe_decimal` casts currency-like amounts to `decimal(18, 4)` and `hpt_safe_double` casts percentages/units to `double`. See `docs/decisions/0010-monetary-precision.md`.
 - **No relational resolution** — Bronze parsers do not perform lookup joins. Raw code strings remain raw code strings.
 - **Surrogate keys are pipeline-generated** — the source files contain no natural PKs at the charge-item level. Keys are generated deterministically so that re-ingesting the same file always produces the same keys.
 

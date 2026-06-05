@@ -231,6 +231,9 @@ CSV Bronze table:
   `general_contract_provisions` when absent, or `modifiers` for a file with no
   modifier dimension) are written as zero-row Parquet files so their partition
   directory always exists and downstream dbt `read_parquet` globs do not fail.
+  This only applies after a parser has emitted that table key for a snapshot; a
+  corpus that never emits an entire format-specific table family can still leave
+  no matching files for that Bronze source.
 - `general_contract_provisions` is source-faithful: a provisions object missing
   its required `provisions` text is preserved (not quarantined), and the dbt
   `general_contract_provisions_required_shape` rule flags it in

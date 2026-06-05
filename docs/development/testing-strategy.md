@@ -97,7 +97,9 @@ Known gaps as of this documentation pass:
 
 - No end-to-end test that downloads, ingests, reads Bronze through dbt, and
   validates DuckDB output.
-- No implemented Silver/Gold model tests because those models are not built yet.
+- Gold model tests are not present because Gold models are not implemented yet.
+  Silver and validation models have dbt tests; add or update focused tests when
+  changing model grain, rejection behavior, or cross-model relationships.
 
 ## Docs-Only Changes
 
