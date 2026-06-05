@@ -100,6 +100,8 @@ make dbt-run
 make dbt-test
 make dbt-build-selector DBT_SELECTOR=silver
 make dbt-build-selector DBT_SELECTOR=pipeline_charge_data
+make dbt-incremental HOSPITAL_IDS=ballad-jcmc
+make dbt-rebuild
 ```
 
 The profile reads:
@@ -113,6 +115,16 @@ install, seed, run, test, build, list, compile, and clean. Selector targets take
 `staging`, `silver_base`, `silver_core`, and `silver`, plus pipeline selectors for
 `pipeline_snapshot_metadata` and `pipeline_charge_data`, in
 `transform/selectors.yml`.
+
+`make dbt-incremental` delegates to `hpt run-dbt`, resolves
+`HOSPITAL_IDS`/`SNAPSHOT_IDS`, and runs a snapshot-scoped incremental build.
+`make dbt-rebuild` is the canonical full rebuild from all Bronze: it runs
+without `snapshot_ids` and passes dbt `--full-refresh`.
+
+`HPT_SILVER_RETENTION_MODE=current_only` is the default. It prunes non-current
+snapshot rows from snapshot-grained Silver and validation tables after
+successful materializing runs. Set `HPT_SILVER_RETENTION_MODE=all_snapshots` to
+retain historical Silver/validation rows.
 
 Layer tags live in `transform/dbt_project.yml`. Pipeline selectors reuse the
 pipeline tags there so a single selector can span staging and Silver models for

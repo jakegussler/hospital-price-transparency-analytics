@@ -42,6 +42,11 @@ Validation is the queryable data-quality boundary between Bronze/staging and
 Silver. It turns the CMS rule registry into row-level violation tables,
 rejection keysets, and monitoring statistics.
 
+Snapshot-grained validation models are materialized incrementally with
+`delete+insert` on `snapshot_id`. Cross-snapshot aggregate statistics such as
+`val_stats__rule_summary` remain full-refresh tables because their distinct
+counts span the loaded corpus.
+
 Validation responsibilities:
 
 - Emit one row per failing value in `val__*_violations` models.
@@ -86,6 +91,21 @@ Expected responsibilities:
 
 Silver should remain close enough to source data that issues can be traced back
 to a specific `snapshot_id`, source file, and row or ordinal.
+
+Snapshot-grained Silver Base and Silver Core tables are materialized
+incrementally with `delete+insert` on `snapshot_id`. Staging remains views, the
+registry-backed `slv_base__hospitals` dimension remains a full-refresh table,
+and review queue models remain full-refresh tables because they aggregate across
+snapshots.
+
+Silver retention is controlled by `HPT_SILVER_RETENTION_MODE`:
+
+- `current_only` (default) prunes non-current `snapshot_id`s from
+  snapshot-grained Silver and validation tables after a successful materializing
+  dbt run.
+- `all_snapshots` keeps accumulated snapshot history in Silver and validation.
+
+Bronze always preserves all parsed snapshots regardless of Silver retention.
 
 See `docs/architecture/silver-schema.md` for the implemented Silver base schema,
 including the full pipeline DAG, column schemas, and a comparison against the

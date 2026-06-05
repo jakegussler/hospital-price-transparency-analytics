@@ -10,6 +10,14 @@ called out in a later implementation task.
   this for now)
 - Silver Base, Silver Core, and review queue models are implemented and
   documented in `docs/architecture/silver-schema.md`.
+- Review queue models and `val_stats__rule_summary` remain full-refresh dbt
+  tables by design. They compute cross-snapshot distinct counts, so naive
+  snapshot-grained incremental `delete+insert` would be incorrect.
+- `slv_base__hospital_snapshots` is incremental, so current-state metadata for
+  previously loaded snapshots must be synchronized after materializing runs.
+  `hpt_prune_stale_snapshots` updates `is_current_snapshot` and `valid_to` from
+  Bronze `hospital_mrf_snapshots` before pruning or skipping prune; do not
+  change current-snapshot filters to rely on stale Silver metadata.
 - The JSON streaming parser validates individual `standard_charge_information`
   and `modifier_information` objects structurally, but it still does not run the
   root `CMSMRFJson` model over entire files. Header/root required-shape gaps are
@@ -25,11 +33,9 @@ called out in a later implementation task.
 
 ## Snapshot Scoping Notes
 
-- `hpt_staging_source` (limit/sample) and `snapshot_ids` scoping are mutually
-  exclusive by precedence: when the `snapshot_ids` var is non-empty, the staging
-  macro emits the bare relation so the `hpt_snapshot_filter()` `WHERE` clause can
-  prune Bronze hive partitions. The limit/sample dev guard only applies to
-  unscoped runs.
+- Staging models read Bronze source relations directly. When the `snapshot_ids`
+  var is non-empty, `hpt_snapshot_filter()` emits a `snapshot_id in (...)`
+  predicate so DuckDB can prune Bronze hive partitions.
 - Snapshot-scoped runs (`hpt run-dbt`) exclude dbt **unit tests**
   (`--exclude-resource-type unit_test`). Unit-test fixtures pin their own
   `snapshot_id` values, which the snapshot filter would strip; they are
@@ -37,11 +43,10 @@ called out in a later implementation task.
   `make dbt-build` / CI.
 - Cross-model integrity tests (`reconcile_*`, cross-model `relationships_*`) can
   fail under a **partial** scoped selector (e.g. `pipeline_charge_data`) when a
-  referenced model lives outside the selector and therefore retains a different
-  snapshot's data from a prior build (e.g. `slv_base__type2_npis` vs a freshly
-  scoped `slv_base__hospital_snapshots`). For a fully coherent rebuild, run the
-  scoped build over the whole graph (no `--selector`); partition pruning still
-  bounds memory.
+  referenced model lives outside the selector and therefore retains rows from a
+  different build context (e.g. `slv_base__type2_npis` vs a freshly scoped
+  `slv_base__hospital_snapshots`). For a fully coherent scoped update, run over
+  the whole graph (no `--selector`); partition pruning still bounds memory.
 - `reconcile_csv_rows_to_standard_charges` reports a small number of CSV charge
   rows (8 observed for `ballad-jcmc`) that map to no Silver standard charge and
   are not captured by any rejection model. This is a real source-data gap that

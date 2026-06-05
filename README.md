@@ -46,6 +46,8 @@ The current implementation includes:
 - Silver Base models for hospitals, snapshots, locations, NPIs, charge items,
   codes, standard charges, payer rates, and modifiers.
 - Silver Core payer-rate models with payer alias and payer/plan context matching.
+- Incremental dbt materialization for snapshot-grained Silver and validation
+  tables, with configurable current-only or all-snapshot retention.
 - Review queue models for unmatched payer and payer/plan candidates.
 - pytest coverage for configuration, registry validation, download, storage,
   snapshots, parser behavior, Parquet writing, and ingest orchestration.
@@ -101,7 +103,8 @@ Build the DuckDB warehouse with dbt:
 ```bash
 make export-hospitals-seed
 make dbt-seed
-make dbt-run
+make dbt-rebuild
+make dbt-incremental HOSPITAL_IDS=ballad-jcmc
 make dbt-test
 ```
 
@@ -135,6 +138,8 @@ make dbt-seed
 make dbt-run
 make dbt-test
 make dbt-build
+make dbt-rebuild
+make dbt-incremental HOSPITAL_IDS=ballad-jcmc
 make dbt-build-selector DBT_SELECTOR=silver
 make dbt-build-selector DBT_SELECTOR=pipeline_charge_data
 ```
@@ -154,11 +159,7 @@ Most local runs work with defaults. The main overrides are:
 | `HPT_QUARANTINE_ROOT` | Parser validation failures | `data/quarantine` |
 | `HPT_REGISTRY_PATH` | Optional hospital registry override | bundled registry |
 | `HPT_DUCKDB_PATH` | dbt DuckDB database path | `data/hpt.duckdb` |
-| `HPT_STAGING_FILTER_ENABLED` | Optional dbt staging `LIMIT` / `USING SAMPLE` switch | `true` |
-| `HPT_STAGING_FILTER_METHOD` | dbt staging filter method, `limit` or `sample` | `limit` |
-| `hpt_staging_filter_sample_mode` | dbt staging sample mode, `rows` or `percent` | `rows` |
-| `HPT_STAGING_FILTER_ROWS` | Default staging filter row count | `100000` |
-| `hpt_staging_filter_sample_percentage` | Default staging Bernoulli sample percentage | `10` |
+| `HPT_SILVER_RETENTION_MODE` | Silver/validation retention, `current_only` or `all_snapshots` | `current_only` |
 
 See `docs/configuration.md` for all environment variables, precedence rules, and
 HTTP client settings.

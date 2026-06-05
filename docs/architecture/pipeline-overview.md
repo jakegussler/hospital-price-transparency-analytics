@@ -46,9 +46,10 @@ Important modules:
 - `src/hpt/parsers/csv_wide.py`
 - `src/hpt/loaders/parquet.py`
 
-`transform/` is the dbt project. It currently defines external Bronze Parquet
-sources for DuckDB. Silver and Gold model directories exist, but production
-models are not implemented yet.
+`transform/` is the dbt project. It defines external Bronze Parquet sources for
+DuckDB, staging views, validation models, Silver Base/Core models, and review
+queue models. Snapshot-grained Silver and validation tables are incremental;
+Gold models are still planned.
 
 ## Download Flow
 
@@ -99,12 +100,22 @@ Key behavior:
 dbt reads Bronze Parquet through `dbt-duckdb` external source definitions in
 `transform/models/staging/_bronze_sources.yml`.
 
-Expected direction:
+Implemented behavior:
 
 - Staging views read Bronze sources without changing grain.
-- Silver tables normalize charge items, codes, hospitals, payers, plans,
-  modifiers, dates, and source-specific quirks.
-- Gold tables answer analysis questions such as price variation, hospital
+- Snapshot-grained Silver and validation tables use dbt incremental
+  `delete+insert` keyed by `snapshot_id`, so scoped dbt runs replace the current
+  batch without dropping unrelated snapshots.
+- `HPT_SILVER_RETENTION_MODE=current_only` is the default product mode. After a
+  successful `hpt run-dbt` materializing run, dbt prunes rows whose
+  `snapshot_id` is no longer current according to Bronze
+  `hospital_mrf_snapshots`.
+- `HPT_SILVER_RETENTION_MODE=all_snapshots` keeps accumulated Silver and
+  validation rows for historical analysis.
+- Review queue models and cross-snapshot validation summaries remain
+  full-refresh tables because their distinct counts span all retained Silver
+  rows.
+- Gold tables will answer analysis questions such as price variation, hospital
   comparisons, payer comparisons, and compliance reporting.
 
 ## Boundaries

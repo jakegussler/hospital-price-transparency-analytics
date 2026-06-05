@@ -3,22 +3,20 @@
 The pricing pipeline can exhaust memory when dbt scans every Bronze snapshot at
 once. Snapshot scoping restricts a dbt run to one or more `snapshot_id`s so
 DuckDB prunes Bronze hive partitions instead of reading the whole corpus.
+Snapshot-grained Silver and validation tables are incremental, so scoped runs
+replace rows for the selected snapshots and preserve unrelated retained rows.
 
 ## How it works
 
-Two macros cooperate through the `snapshot_ids` dbt var:
+Staging models read Bronze source relations directly. One macro handles
+snapshot scoping through the `snapshot_ids` dbt var:
 
 - `hpt_snapshot_filter(table_alias=None)` emits
   `and <alias>.snapshot_id in (...)` in staging `WHERE` clauses when
   `snapshot_ids` is non-empty (otherwise nothing).
-- `hpt_staging_source(...)` checks `snapshot_ids` **first**. When it is set, the
-  macro emits the bare relation so the filter's predicate reaches the
-  `read_parquet(...)` scan and prunes partitions. When it is empty, the usual
-  dev-default `limit`/`using sample` guard applies
-  (`HPT_STAGING_FILTER_ENABLED`).
 
-So scoping and the limit/sample guard are mutually exclusive: a scoped run reads
-the *full* data for the selected snapshots, with no row cap, but only those
+Scoped runs read the *full* data for the selected snapshots, with no row cap,
+but only those partitions. Unscoped direct dbt runs read all available Bronze
 partitions.
 
 When you call `hpt_snapshot_filter()` inside a join where more than one table
@@ -35,6 +33,7 @@ make dbt-seed
 hpt run-dbt --hospital-ids ballad-jcmc --command build --selector pipeline_charge_data
 # or:
 make dbt-run-hospitals HOSPITAL_IDS=ballad-jcmc
+make dbt-incremental HOSPITAL_IDS=ballad-jcmc
 
 # Pin explicit historical snapshots, or mix both. Inputs are merged + deduped.
 hpt run-dbt --snapshot-ids 7ca24003-...,209991a1-... --command build
@@ -44,8 +43,36 @@ hpt run-dbt --hospital-ids a,b --snapshot-ids 7ca24003-... --command run --no-se
 `hpt run-dbt` flags: `--hospital-ids` (resolved to each hospital's current
 snapshot), `--snapshot-ids` (pinned explicitly), `--command` (default `build`),
 `--selector` (default `pipeline_charge_data`; pass `""` to disable),
-`--seeds/--no-seeds`, `--log-level`. It exits non-zero if no snapshot IDs
-resolve or if dbt fails.
+`--full-rebuild`, `--seeds/--no-seeds`, `--log-level`. It exits non-zero if no
+snapshot IDs resolve, if dbt fails, or if the post-run retention operation
+fails.
+
+Do not pass `--full-refresh` through a scoped `hpt run-dbt` invocation. The
+runner rejects that combination because dbt would rebuild incremental tables
+from only the scoped rows. Use the full rebuild path instead:
+
+```bash
+make dbt-rebuild
+# or:
+hpt run-dbt --full-rebuild --selector ""
+```
+
+The full rebuild path runs with no `snapshot_ids` var and passes dbt
+`--full-refresh`.
+
+## Retention
+
+`HPT_SILVER_RETENTION_MODE` controls the final retained rows after
+materializing runs:
+
+- `current_only` (default) runs `hpt_prune_stale_snapshots` after successful
+  `build` or `run` commands. The prune reads current snapshot IDs directly from
+  Bronze `hospital_mrf_snapshots`, not from incremental Silver metadata.
+- `all_snapshots` skips pruning and keeps accumulated Silver/validation rows.
+  The retention operation still syncs `slv_base__hospital_snapshots` current
+  flags from Bronze.
+
+Bronze Parquet is never pruned by this setting.
 
 ### Verify the scope landed
 
@@ -54,7 +81,8 @@ cd transform && dbt show --profiles-dir . --inline \
   "select snapshot_id, count(*) from {{ ref('slv_base__payer_rates') }} group by 1"
 ```
 
-You should see exactly the snapshot(s) you passed.
+In `current_only` mode, you should see the retained current snapshot rows. In
+`all_snapshots` mode, historical snapshot rows remain accumulated.
 
 ## Things to know
 
@@ -62,14 +90,18 @@ You should see exactly the snapshot(s) you passed.
   `--exclude-resource-type unit_test` for `build`/`test`. Unit-test fixtures pin
   their own `snapshot_id`s, which the filter would strip. Run the full unit-test
   suite unscoped via `make dbt-build` / CI.
-- **Cross-snapshot analysis must happen in one invocation.** Silver models are
-  `materialized: table` and CTAS-replace each run, so a run scoped to snapshot A
-  overwrites a prior run scoped to B. To compare A and B, pass both:
-  `--snapshot-ids A,B`.
+- **Cross-snapshot history requires `all_snapshots`.** Default `current_only`
+  mode prunes non-current snapshot rows after materializing runs. To compare
+  historical snapshots in Silver, set `HPT_SILVER_RETENTION_MODE=all_snapshots`
+  before building those snapshots.
 - **Partial selectors can leave stale neighbors.** A scoped `pipeline_charge_data`
-  build only rebuilds that subgraph; models outside it keep their previous
-  snapshot's rows. Cross-model `reconcile_*` / `relationships_*` tests then flag
-  the mismatch. For a fully coherent rebuild, scope the whole graph
-  (`--selector ""`) — partition pruning still bounds memory.
+  build only updates that subgraph; models outside it keep their previous rows.
+  Cross-model `reconcile_*` / `relationships_*` tests can flag the mismatch. For
+  a fully coherent scoped update, scope the whole graph (`--selector ""`) —
+  partition pruning still bounds memory.
+- **Seed mapping changes require explicit reprocessing.** Updating
+  `payer_aliases`, `payer_context_rules`, or `canonical_payers` does not
+  retro-apply to already materialized `slv_core__payer_rates` rows. Reprocess
+  affected snapshots explicitly, or run a full rebuild.
 - See `docs/cleanup.md` for the known `reconcile_csv_rows_to_standard_charges`
   data gap that scoping surfaces.

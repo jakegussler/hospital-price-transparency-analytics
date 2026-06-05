@@ -1,6 +1,20 @@
 # 0006: Model All Snapshots In Silver
 
-Status: accepted
+Status: amended by `docs/planning/incremental-implementation-plan.md`
+
+## Amendment
+
+The original lineage decision still holds for Bronze: parsed Bronze Parquet
+preserves all snapshots. Silver and validation are now configurable:
+
+- `HPT_SILVER_RETENTION_MODE=current_only` is the default product mode and
+  prunes non-current snapshot rows after materializing dbt runs.
+- `HPT_SILVER_RETENTION_MODE=all_snapshots` keeps accumulated Silver and
+  validation history when historical analysis or parser regression work needs
+  it.
+
+Snapshot-grained Silver models still use `snapshot_id` as the incremental batch
+key and preserve source lineage for retained rows.
 
 ## Context
 
@@ -13,11 +27,12 @@ The project needs historical comparison, incremental loading, and lineage back
 to individual source files. Modeling only the current snapshot would make the
 first queries simpler but would discard the structure needed for those goals.
 
-## Decision
+## Original Decision
 
-Silver models include all snapshots by default. Current-only views or Gold
-models can be built on top when a use case only needs the latest file per
-hospital.
+Silver models were originally planned to include all snapshots by default.
+Current-only views or Gold models could be built on top when a use case only
+needed the latest file per hospital. The amendment above replaces that default
+with configurable Silver/validation retention.
 
 Use `snapshot_id` as the unit of lineage, reconciliation, and future incremental
 work.

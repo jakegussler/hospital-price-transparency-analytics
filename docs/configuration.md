@@ -23,11 +23,7 @@ HPT keeps runtime configuration as small immutable dataclasses in
 | `HPT_HTTP_RETRIES` | `ClientConfig.retries` | `3` | HTTP transport retry count. |
 | `HPT_USER_AGENT` | `ClientConfig.user_agent` | `hpt-pipeline/0.1` | User-Agent sent to publishers. |
 | `HPT_DUCKDB_PATH` | dbt `profiles.yml` | `../data/hpt.duckdb` from `transform/` | DuckDB database path used by dbt. |
-| `HPT_STAGING_FILTER_ENABLED` | dbt staging filter macro | `true` | Hard on/off switch for applying `LIMIT` or `USING SAMPLE` to staging source reads. This is read directly by the macro and cannot be overridden by macro arguments. |
-| `HPT_STAGING_FILTER_METHOD` | dbt `hpt_staging_filter_method` var | `limit` | Default staging source filter method. Use `limit` or `sample`; individual macro calls may override this with `method='LIMIT'` or `method='SAMPLE'`. |
-| `hpt_staging_filter_sample_mode` | dbt `hpt_staging_filter_sample_mode` var | `rows` | Default sampling mode when the filter method is `sample`. Use `rows` for row-count sampling or `percent` for Bernoulli percentage sampling. |
-| `HPT_STAGING_FILTER_ROWS` | dbt `hpt_staging_filter_rows` var | `100000` | Default row count for `LIMIT` and row-count sampling. `stg_bronze__payers_information` overrides this to `1000000`. |
-| `hpt_staging_filter_sample_percentage` | dbt `hpt_staging_filter_sample_percentage` var | `10` | Default percentage when `HPT_STAGING_FILTER_METHOD=sample` and `hpt_staging_filter_sample_mode=percent`. |
+| `HPT_SILVER_RETENTION_MODE` | dbt `hpt_silver_retention_mode` var and `hpt run-dbt` retention behavior | `current_only` | Use `current_only` to prune non-current snapshot rows after materializing dbt runs, or `all_snapshots` to retain accumulated Silver/validation history while still syncing snapshot current flags from Bronze. |
 
 ## Important Distinction
 
@@ -57,11 +53,20 @@ external Bronze Parquet sources. Python ingest uses the same `HPT_BRONZE_ROOT`
 name, so a single override points both ingest output and dbt reads at the same
 Bronze directory for local development.
 
-Staging models apply DuckDB `LIMIT` or `USING SAMPLE` filters to Bronze source
-reads by default. Set `HPT_STAGING_FILTER_ENABLED=false` to disable the filter.
-The default method is `limit` with `HPT_STAGING_FILTER_ROWS=100000`, except for
-`stg_bronze__payers_information`, which uses `1000000` rows. Set
-`HPT_STAGING_FILTER_METHOD=sample` to use sampling instead. For sampling,
-`hpt_staging_filter_sample_mode=rows` uses row-count sampling and
-`hpt_staging_filter_sample_mode=percent` with `hpt_staging_filter_sample_percentage=<number>`
-uses Bernoulli percentage sampling.
+Staging models read Bronze source relations directly. Snapshot-scoped runs pass
+the `snapshot_ids` dbt var so `hpt_snapshot_filter()` can push a
+`snapshot_id in (...)` predicate into staging queries and let DuckDB prune
+Bronze hive partitions. Unscoped direct dbt runs scan all available Bronze
+partitions.
+
+Snapshot-grained Silver and validation models are incremental. A true rebuild
+from all Bronze requires both of the following:
+
+1. No `snapshot_ids` dbt var.
+2. dbt `--full-refresh`.
+
+Use `make dbt-rebuild` or `hpt run-dbt --full-rebuild --selector ""` for that
+path. Normal scoped incremental runs should use `hpt run-dbt --hospital-ids ...`
+or `hpt run-dbt --snapshot-ids ...`; the runner rejects scoped
+`--full-refresh` because it would replace incremental tables with only the
+scoped rows.

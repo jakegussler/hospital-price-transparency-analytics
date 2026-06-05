@@ -71,6 +71,32 @@ Check:
 - Commands are run from `transform/` with `--profiles-dir .` if using the local
   checked-in profile.
 
+## Scoped dbt Run Drops Or Keeps Unexpected Snapshots
+
+Snapshot-grained Silver and validation tables are incremental. A scoped
+`hpt run-dbt` call replaces rows for the selected `snapshot_id`s and then, by
+default, prunes non-current snapshots.
+
+Check:
+
+- `HPT_SILVER_RETENTION_MODE`. The default `current_only` keeps only current
+  snapshots; set `all_snapshots` before running if you need historical Silver
+  rows retained.
+- Whether the run used `hpt run-dbt --full-rebuild` or `make dbt-rebuild` for a
+  true full-refresh. Scoped runs intentionally reject `--full-refresh`.
+- Whether `HPT_BRONZE_ROOT` points to Bronze metadata with current
+  `hospital_mrf_snapshots`; the prune reads current status from Bronze, not from
+  incremental Silver.
+
+## Full Rebuild Still Looks Scoped
+
+A true full rebuild from all Bronze needs no `snapshot_ids` and dbt
+`--full-refresh`. Use:
+
+```bash
+make dbt-rebuild
+```
+
 ## Registry Override Is Ignored
 
 Use either the CLI flag:
@@ -87,4 +113,3 @@ export HPT_REGISTRY_PATH=path/to/hospitals.yml
 ```
 
 Confirm the file follows the active registry model in `src/hpt/registry/models.py`.
-

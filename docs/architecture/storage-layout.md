@@ -107,6 +107,21 @@ HPT_DUCKDB_PATH
 DuckDB should read Bronze Parquet through dbt external source definitions rather
 than by copying Bronze data into ad hoc local tables.
 
+Snapshot-grained Silver and validation tables inside DuckDB are incremental
+dbt tables. Normal scoped runs replace rows for the requested `snapshot_id`s
+using `delete+insert`; they do not recreate the table from only that scoped
+batch.
+
+Retention is a dbt/runtime choice:
+
+- `HPT_SILVER_RETENTION_MODE=current_only` keeps only rows for current Bronze
+  snapshots after the post-run retention operation.
+- `HPT_SILVER_RETENTION_MODE=all_snapshots` keeps accumulated Silver and
+  validation history.
+
+Use `make dbt-rebuild` for a true full-refresh rebuild from all Bronze Parquet.
+That path runs dbt `--full-refresh` without a `snapshot_ids` var.
+
 ## Local vs Future Object Storage
 
 `HPT_RAW_STORAGE_BASE_URI` accepts `fsspec` URIs such as `file://`, `s3://`, and
