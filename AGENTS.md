@@ -75,8 +75,9 @@ is changed to provide it.
   changes.
 - Update `docs/development/` when commands, tests, debugging workflows, or
   tooling expectations change.
-- Record known inconsistencies in `docs/cleanup.md` unless fixing them in the
-  same change.
+- Record unresolved follow-ups, risks, or known mismatches in `docs/cleanup.md`
+  unless fixing them in the same change. Do not use it for general architecture
+  notes or status summaries.
 
 ## Testing Expectations
 

@@ -88,9 +88,7 @@ The parser zips rows 1 and 2 together as `{header_key: value}`, then applies the
 | `source_format` | Pipeline-generated | `csv_tall` or `csv_wide` |
 | `file_hash` | Pipeline-generated | SHA-256 of raw file bytes; from metadata subfolder |
 | `ingested_at` | Pipeline-generated | UTC timestamp at parse time |
-| `is_current_snapshot` | Pipeline-generated | Set by ingestion controller |
-| `valid_from` | Pipeline-generated | Set by ingestion controller |
-| `valid_to` | Pipeline-generated | Null at Bronze |
+| `valid_from` | Pipeline-generated | Set by ingestion controller; recency key for dbt-derived currentness |
 | `reported_hospital_name` | Row 1-2 | Key: `hospital_name` |
 | `published_last_updated_on` | Row 1-2 | Key: `last_updated_on`; stored as `pa.string()` to tolerate non-ISO-8601 values |
 | `schema_version` | Row 1-2 | Key: `version` |
@@ -259,9 +257,7 @@ The `modifier_information` array is also top-level and must be fully read before
 | `source_format` | Pipeline-generated | `"json"` |
 | `file_hash` | Pipeline-generated | |
 | `ingested_at` | Pipeline-generated | |
-| `is_current_snapshot` | Pipeline-generated | |
 | `valid_from` | Pipeline-generated | |
-| `valid_to` | Pipeline-generated | Null at Bronze |
 | `reported_hospital_name` | `hospital_name` | |
 | `published_last_updated_on` | `last_updated_on` | Stored as `pa.string()` |
 | `schema_version` | `version` | |
@@ -393,9 +389,7 @@ source_file_name           ------->   attestation
 source_format              one dict   confirm_attestation
 file_hash                             attester_name
 ingested_at                           reported_state
-is_current_snapshot                   license_number
-valid_from
-valid_to (null)
+valid_from                            license_number
                  |
                  v
     hospital_mrf_snapshots  (one row written per ingested file)

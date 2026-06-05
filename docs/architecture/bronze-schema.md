@@ -26,9 +26,7 @@ erDiagram
     string ingested_at
     string published_last_updated_on
     string schema_version
-    boolean is_current_snapshot
     string valid_from
-    string valid_to
     string attestation
     string confirm_attestation
     string attester_name

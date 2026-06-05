@@ -31,7 +31,8 @@ CMS identifier, NPI, state license number, or source-reported hospital name.
 ## Snapshot
 
 A versioned record of a downloaded MRF file. Snapshots preserve file hash,
-source URL, source filename, ingest timestamp, and current/expired status.
+source URL, source filename, and ingest timestamp. Currentness is not stored on
+the snapshot; it is derived downstream in dbt from `valid_from` recency.
 
 ## Current Snapshot
 

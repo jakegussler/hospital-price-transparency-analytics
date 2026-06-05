@@ -83,9 +83,7 @@ These tables are populated identically regardless of source format. The CSV pars
 | `ingested_at` | `Utf8` | | Pipeline-generated | ISO 8601 timestamp; cast to `Datetime` at Silver |
 | `published_last_updated_on` | `Utf8` | | Source-derived | From MRF header field `last_updated_on` |
 | `schema_version` | `Utf8` | | Source-derived | CMS schema version declared in the file |
-| `is_current_snapshot` | `Boolean` | | Pipeline-generated | True if this is the most recently ingested snapshot for this hospital |
-| `valid_from` | `Utf8` | | Pipeline-generated | SCD2 range start; ISO 8601 |
-| `valid_to` | `Utf8` | | Pipeline-generated | SCD2 range end; null if current |
+| `valid_from` | `Utf8` | | Pipeline-generated | ISO 8601; download/valid-from timestamp. Recency key for dbt-derived currentness. Currentness (`is_current_snapshot`) and `valid_to` are **not stored**; dbt derives them from `valid_from` recency |
 | `attestation` | `Utf8` | | Source-derived | Nullable |
 | `confirm_attestation` | `Utf8` | | Source-derived | Nullable |
 | `attester_name` | `Utf8` | | Source-derived | Nullable |

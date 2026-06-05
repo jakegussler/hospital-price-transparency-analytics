@@ -52,11 +52,13 @@ Snapshot metadata tracks:
 - `file_hash`
 - `ingested_at`
 - `valid_from`
-- `valid_to`
-- `is_current_snapshot`
 
-The metadata behaves like a Type-2 slowly changing dimension. A new snapshot is
-created when downloaded file bytes differ from the current snapshot hash.
+Snapshot metadata is **append-only**: a new snapshot is written when downloaded
+file bytes differ from the latest snapshot hash, and prior records are left
+untouched. Currentness is not stored — dbt derives `is_current_snapshot` and
+`valid_to` downstream from `valid_from` recency per hospital. Python resolves
+"the latest snapshot" by the same recency ordering so ingest knows which file to
+parse.
 
 ## Bronze Parquet
 

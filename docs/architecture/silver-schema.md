@@ -155,11 +155,10 @@ snapshot and casts raw date strings to typed columns.
 | `raw_published_last_updated_on` | varchar | |
 | `published_last_updated_on` | date | |
 | `schema_version` | varchar | |
-| `is_current_snapshot` | boolean | |
+| `is_current_snapshot` | boolean | Derived (not stored): latest `valid_from` per hospital |
 | `raw_valid_from` | varchar | |
 | `valid_from` | date | |
-| `raw_valid_to` | varchar | |
-| `valid_to` | date | |
+| `valid_to` | date | Derived: `valid_from` of the superseding snapshot; null if current |
 | `attestation` | varchar | |
 | `confirm_attestation` | varchar | |
 | `attester_name` | varchar | |

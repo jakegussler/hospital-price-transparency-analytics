@@ -52,8 +52,8 @@ Storage and snapshot changes:
 
 - Hive-style path construction.
 - fsspec read/write behavior.
-- Current snapshot selection.
-- Type-2 snapshot expiration.
+- Latest-snapshot resolution by `valid_from` recency (currentness is derived in
+  dbt, not stored, so there is no Python-side expiration to test).
 - Hash-based unchanged behavior.
 
 Parser changes:

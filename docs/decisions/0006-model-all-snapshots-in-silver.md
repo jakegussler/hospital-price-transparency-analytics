@@ -56,6 +56,8 @@ to new or selected snapshots.
 - Development filters should be pushed into early CTEs so DuckDB can prune
   partitioned Parquet files.
 - `is_current_snapshot` should be treated as an attribute for current-only
-  views, not as a default filter in base Silver.
+  views, not as a default filter in base Silver. (Update: it is now a *derived*
+  attribute — computed in dbt by `hpt_resolved_snapshot_state_sql` from
+  `valid_from` recency rather than stored in Bronze. See `docs/cleanup.md`.)
 - Snapshot-scoped Silver IDs should not be reused as cross-snapshot canonical
   service item IDs.
