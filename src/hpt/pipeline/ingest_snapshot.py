@@ -244,9 +244,7 @@ def _snapshot_meta(
         "source_format": source_format,
         "file_hash": snapshot.file_hash,
         "ingested_at": snapshot.ingested_at,
-        "is_current_snapshot": snapshot.is_current_snapshot,
         "valid_from": snapshot.valid_from,
-        "valid_to": snapshot.valid_to,
         "schema_version": schema_version,
     }
 

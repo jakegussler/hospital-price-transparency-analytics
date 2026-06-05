@@ -21,9 +21,7 @@ _SNAPSHOT_META = {
     "source_format": "csv_tall",
     "file_hash": "abc123",
     "ingested_at": datetime(2025, 1, 1, tzinfo=UTC),
-    "is_current_snapshot": True,
     "valid_from": datetime(2025, 1, 1, tzinfo=UTC),
-    "valid_to": None,
     "schema_version": "3.0.0",
 }
 

@@ -33,9 +33,7 @@ _SNAPSHOT_META = {
     "source_format": "json",
     "file_hash": "abc123",
     "ingested_at": datetime(2025, 1, 1, tzinfo=UTC),
-    "is_current_snapshot": True,
     "valid_from": datetime(2025, 1, 1, tzinfo=UTC),
-    "valid_to": None,
     "schema_version": "3.0.0",
 }
 
@@ -241,7 +239,7 @@ class TestHeaderBatch:
         assert snap_df["hospital_id"][0] == "test-hosp"
         assert snap_df["reported_hospital_name"][0] == "City General"
         assert snap_df["reported_state"][0] == "FL"
-        assert snap_df["is_current_snapshot"][0] is True
+        assert snap_df["valid_from"][0] is not None
 
     def test_v2_header_fields_populate_affirmation_and_locations(self, tmp_path):
         mrf_path = tmp_path / "mrf.json"

@@ -27,9 +27,9 @@ class BaseParser(ABC):
         Pipeline-generated snapshot fields produced by
         :class:`hpt.ingest.snapshot.SnapshotManager`. Expected keys:
         ``snapshot_id``, ``source_url``, ``source_file_name``, ``file_hash``,
-        ``ingested_at``, ``is_current_snapshot``, ``valid_from``, ``valid_to``.
-        The parser merges these with source-derived header fields to produce
-        the ``hospital_mrf_snapshots`` row.
+        ``ingested_at``, ``valid_from``. The parser merges these with
+        source-derived header fields to produce the ``hospital_mrf_snapshots``
+        row. Snapshot currentness is derived downstream by dbt, not stored here.
     quarantine_root:
         Directory where records that fail Pydantic validation are written
         as JSONL for later inspection. One subdirectory per ``snapshot_id``.

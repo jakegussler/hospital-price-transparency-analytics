@@ -1,4 +1,9 @@
-"""Tests for SnapshotManager: Type-2 SCD transitions."""
+"""Tests for SnapshotManager: append-only writes, latest-by-recency resolution.
+
+Snapshot currentness is owned by dbt, which derives it from ``valid_from``
+recency. Python only appends immutable records and resolves "the latest
+snapshot" so ingest knows which file to parse and download can dedupe by hash.
+"""
 
 from __future__ import annotations
 
@@ -35,9 +40,8 @@ class TestFirstSnapshot:
             file_hash="aaa111",
             ingested_at=ts,
         )
-        assert snap.is_current_snapshot is True
         assert snap.valid_from == ts
-        assert snap.valid_to is None
+        assert snap.ingested_at == ts
         assert snap.hospital_id == "h1"
         assert snap.file_hash == "aaa111"
 
@@ -53,8 +57,8 @@ class TestFirstSnapshot:
         assert manager.current_hash("h1") == "aaa111"
 
 
-class TestType2Transition:
-    def test_new_snapshot_expires_old(self, manager):
+class TestLatestResolution:
+    def test_latest_snapshot_wins(self, manager):
         t1 = datetime(2025, 6, 1, 12, 0, tzinfo=UTC)
         t2 = datetime(2025, 6, 2, 12, 0, tzinfo=UTC)
 
@@ -78,10 +82,9 @@ class TestType2Transition:
         assert current is not None
         assert current.snapshot_id == snap2.snapshot_id
         assert current.file_hash == "hash_v2"
-        assert current.is_current_snapshot is True
-        assert current.valid_to is None
 
-    def test_expired_snapshot_has_valid_to(self, manager, storage):
+    def test_prior_snapshot_left_untouched(self, manager, storage):
+        """Writes are append-only: a new snapshot never rewrites the old file."""
         t1 = datetime(2025, 6, 1, 12, 0, tzinfo=UTC)
         t2 = datetime(2025, 6, 2, 12, 0, tzinfo=UTC)
 
@@ -105,10 +108,13 @@ class TestType2Transition:
         with storage.open(old_path, "rb") as fh:
             table = pq.read_table(fh)
         row = table.to_pydict()
-        assert row["is_current_snapshot"][0] is False
-        assert row["valid_to"][0] == t2
+        # The first record is unchanged and carries no stored currentness flag.
+        assert row["valid_from"][0] == t1
+        assert row["file_hash"][0] == "hash_v1"
+        assert "is_current_snapshot" not in row
+        assert "valid_to" not in row
 
-    def test_three_snapshots_only_last_is_current(self, manager):
+    def test_three_snapshots_latest_is_resolved(self, manager):
         for i in range(3):
             manager.write_snapshot(
                 hospital_id="h1",

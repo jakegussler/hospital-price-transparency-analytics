@@ -173,9 +173,7 @@ def build_snapshot_record(
         "published_last_updated_on": _none_if_blank(header.get("last_updated_on")),
         "schema_version": _none_if_blank(header.get("version"))
         or snapshot_meta.get("schema_version"),
-        "is_current_snapshot": bool(snapshot_meta.get("is_current_snapshot", True)),
         "valid_from": _iso(snapshot_meta.get("valid_from")),
-        "valid_to": _iso(snapshot_meta.get("valid_to")),
         "attestation": attestation["attestation"],
         "confirm_attestation": attestation["confirm_attestation"],
         "attester_name": _none_if_blank(header.get("attester_name")),

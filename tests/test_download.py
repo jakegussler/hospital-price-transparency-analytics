@@ -90,7 +90,7 @@ class TestFirstFetch:
         assert result.file_hash == hashlib.sha256(MRF_BYTES_V1).hexdigest()
         assert result.bytes_transferred == len(MRF_BYTES_V1)
         assert result.snapshot is not None
-        assert result.snapshot.is_current_snapshot is True
+        assert result.snapshot.valid_from is not None
 
     def test_raw_file_exists_on_disk(self, httpx_mock, storage, snapshots, client_cfg):
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V1)

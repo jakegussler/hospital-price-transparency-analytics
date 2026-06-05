@@ -45,9 +45,7 @@ def _make_snapshot(
         source_file_name=source_file_name,
         file_hash=file_hash,
         ingested_at=ingested_at,
-        is_current_snapshot=True,
         valid_from=ingested_at,
-        valid_to=None,
     )
 
 
@@ -220,7 +218,7 @@ class TestSnapshotMeta:
         assert meta["source_format"] == "json"
         assert meta["file_hash"] == snap.file_hash
         assert meta["ingested_at"] == snap.ingested_at
-        assert meta["is_current_snapshot"] == snap.is_current_snapshot
+        assert meta["valid_from"] == snap.valid_from
         assert meta["schema_version"] == "3.0.0"
 
     def test_schema_version_none_when_not_detected(self):
