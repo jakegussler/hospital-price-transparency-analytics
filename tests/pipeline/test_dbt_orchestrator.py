@@ -1,0 +1,357 @@
+"""Tests for hpt.pipeline.dbt_orchestrator."""
+
+from __future__ import annotations
+
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from hpt.pipeline import dbt_orchestrator
+from hpt.pipeline.dbt_config import RETENTION_MODE_ENV, DbtRunConfig, DbtRunMode
+from hpt.pipeline.dbt_orchestrator import DbtOrchestrator, resolve_snapshot_ids
+
+from ._dbt_doubles import FakeSnapshotManager, RecordingRunner, patch_dbt_runner
+
+
+def _commands(runner: RecordingRunner) -> list[str]:
+    return [call[0] for call in runner.calls]
+
+
+def _vars(call: list[str]) -> dict:
+    return json.loads(call[call.index("--vars") + 1])
+
+
+def _selector(call: list[str]) -> str | None:
+    return call[call.index("--selector") + 1] if "--selector" in call else None
+
+
+# ---------------------------------------------------------------------------
+# resolve_snapshot_ids
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_string_snapshot_ids_to_list() -> None:
+    result = resolve_snapshot_ids(None, "snap-a, snap-b", FakeSnapshotManager({}))
+    assert result == ["snap-a", "snap-b"]
+
+
+def test_resolve_merges_explicit_and_hospital_snapshots() -> None:
+    snapshots = FakeSnapshotManager({"h1": "snap-h1", "h2": "snap-h2"})
+    result = resolve_snapshot_ids("h1,h2", ["snap-x"], snapshots)
+    # Explicit first, then resolved hospital snapshots, order preserved.
+    assert result == ["snap-x", "snap-h1", "snap-h2"]
+
+
+def test_resolve_dedupes_overlapping_ids() -> None:
+    snapshots = FakeSnapshotManager({"h1": "snap-shared"})
+    assert resolve_snapshot_ids("h1", ["snap-shared"], snapshots) == ["snap-shared"]
+
+
+def test_resolve_skips_hospital_without_snapshot() -> None:
+    snapshots = FakeSnapshotManager({"h1": "snap-h1", "h2": None})
+    assert resolve_snapshot_ids("h1,h2", None, snapshots) == ["snap-h1"]
+
+
+def test_resolve_raises_when_empty() -> None:
+    with pytest.raises(ValueError):
+        resolve_snapshot_ids("h2", None, FakeSnapshotManager({"h2": None}))
+
+
+# ---------------------------------------------------------------------------
+# Fixtures: patch storage/snapshot construction so no real I/O happens.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def patched_storage(monkeypatch: pytest.MonkeyPatch) -> FakeSnapshotManager:
+    manager = FakeSnapshotManager({"h1": "snap-h1"})
+    monkeypatch.delenv(RETENTION_MODE_ENV, raising=False)
+    fake_cfg = SimpleNamespace(raw_base_uri="file:///tmp/raw")
+    monkeypatch.setattr(
+        dbt_orchestrator.StorageConfig, "from_env", classmethod(lambda cls: fake_cfg)
+    )
+    monkeypatch.setattr(dbt_orchestrator, "BronzeStorage", lambda *a, **k: object())
+    monkeypatch.setattr(dbt_orchestrator, "SnapshotManager", lambda *a, **k: manager)
+    return manager
+
+
+def _patch_two_hospitals(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Registry + snapshot manager covering h1 -> snap-h1 and h2 -> snap-h2."""
+    manager = FakeSnapshotManager({"h1": "snap-h1", "h2": "snap-h2"})
+    monkeypatch.setattr(dbt_orchestrator, "SnapshotManager", lambda *a, **k: manager)
+    monkeypatch.setattr(
+        dbt_orchestrator,
+        "load_registry",
+        lambda *a, **k: [SimpleNamespace(hospital_id="h1"), SimpleNamespace(hospital_id="h2")],
+    )
+
+
+def _run(config: DbtRunConfig, monkeypatch: pytest.MonkeyPatch, runner: RecordingRunner) -> int:
+    patch_dbt_runner(monkeypatch, runner)
+    return DbtOrchestrator(config).run()
+
+
+# ---------------------------------------------------------------------------
+# Single-pass: SCOPED
+# ---------------------------------------------------------------------------
+
+
+def test_run_passes_resolved_snapshot_ids_as_vars(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    config = DbtRunConfig(hospital_ids="h1", command="build", selectors="pipeline_charge_data")
+    assert _run(config, monkeypatch, runner) == 0
+
+    assert len(runner.calls) == 2
+    args = runner.calls[0]
+    assert args[0] == "build"
+    assert _selector(args) == "pipeline_charge_data"
+    assert "--project-dir" in args and "--profiles-dir" in args
+    assert _vars(args) == {"snapshot_ids": ["snap-h1"]}
+    assert args[args.index("--exclude-resource-type") + 1] == "unit_test"
+    assert runner.calls[1][:2] == ["run-operation", "hpt_prune_stale_snapshots"]
+    assert "--vars" not in runner.calls[1]
+
+
+def test_run_does_not_exclude_unit_tests_for_run_command(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    assert _run(DbtRunConfig(hospital_ids="h1", command="run"), monkeypatch, runner) == 0
+    assert "--exclude-resource-type" not in runner.calls[0]
+    assert runner.calls[1][:2] == ["run-operation", "hpt_prune_stale_snapshots"]
+
+
+def test_run_seeds_only_when_requested(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    assert _run(DbtRunConfig(hospital_ids="h1"), monkeypatch, runner) == 0
+    assert _commands(runner) == ["build", "run-operation"]
+
+    runner.calls.clear()
+    assert _run(DbtRunConfig(hospital_ids="h1", include_seeds=True), monkeypatch, runner) == 0
+    assert _commands(runner) == ["seed", "build", "run-operation"]
+
+
+def test_run_omits_selector_when_none(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _run(DbtRunConfig(hospital_ids="h1"), monkeypatch, runner)
+    assert "--selector" not in runner.calls[0]
+
+
+def test_run_returns_one_on_dbt_failure(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner(success=False)
+    assert _run(DbtRunConfig(hospital_ids="h1"), monkeypatch, runner) == 1
+    assert _commands(runner) == ["build"]
+
+
+def test_run_still_prunes_when_retaining_all_snapshots(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    # Python always invokes the prune op for materializing commands; the macro
+    # itself honours retention mode. So the run-operation is still issued.
+    monkeypatch.setenv(RETENTION_MODE_ENV, "all_snapshots")
+    runner = RecordingRunner()
+    assert _run(DbtRunConfig(hospital_ids="h1"), monkeypatch, runner) == 0
+    assert _commands(runner) == ["build", "run-operation"]
+
+
+def test_run_does_not_prune_test_command(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    assert _run(DbtRunConfig(hospital_ids="h1", command="test"), monkeypatch, runner) == 0
+    assert _commands(runner) == ["test"]
+
+
+def test_run_returns_one_when_prune_fails(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner(successes=[True, False])
+    assert _run(DbtRunConfig(hospital_ids="h1"), monkeypatch, runner) == 1
+    assert _commands(runner) == ["build", "run-operation"]
+
+
+def test_single_pass_iterates_selectors(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    config = DbtRunConfig(hospital_ids="h1", command="build", selectors="silver_base,silver_core")
+    assert _run(config, monkeypatch, runner) == 0
+
+    # One build per selector (same snapshot scope), then a single prune.
+    assert _commands(runner) == ["build", "build", "run-operation"]
+    assert _selector(runner.calls[0]) == "silver_base"
+    assert _selector(runner.calls[1]) == "silver_core"
+    assert _vars(runner.calls[0]) == {"snapshot_ids": ["snap-h1"]}
+    assert _vars(runner.calls[1]) == {"snapshot_ids": ["snap-h1"]}
+
+
+def test_single_pass_aborts_remaining_selectors_on_failure(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner(successes=[False])
+    config = DbtRunConfig(hospital_ids="h1", command="build", selectors="silver_base,silver_core")
+    assert _run(config, monkeypatch, runner) == 1
+    assert _commands(runner) == ["build"]
+
+
+# ---------------------------------------------------------------------------
+# Single-pass: ALL_CURRENT
+# ---------------------------------------------------------------------------
+
+
+def test_all_current_resolves_registry_hospitals(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    monkeypatch.setattr(
+        dbt_orchestrator, "load_registry", lambda *a, **k: [SimpleNamespace(hospital_id="h1")]
+    )
+    runner = RecordingRunner()
+    assert (
+        _run(DbtRunConfig(mode=DbtRunMode.ALL_CURRENT, command="build"), monkeypatch, runner) == 0
+    )
+    assert _vars(runner.calls[0]) == {"snapshot_ids": ["snap-h1"]}
+
+
+# ---------------------------------------------------------------------------
+# Full rebuild
+# ---------------------------------------------------------------------------
+
+
+def test_full_rebuild_uses_full_refresh_without_snapshot_vars(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    assert (
+        _run(DbtRunConfig(mode=DbtRunMode.FULL_REBUILD, command="build"), monkeypatch, runner) == 0
+    )
+    assert _commands(runner) == ["build", "run-operation"]
+    build_args = runner.calls[0]
+    assert "--full-refresh" in build_args
+    assert "--vars" not in build_args
+    assert "--selector" not in build_args
+
+
+def test_full_rebuild_can_seed_and_select(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    config = DbtRunConfig(
+        mode=DbtRunMode.FULL_REBUILD, command="build", selectors="silver", include_seeds=True
+    )
+    assert _run(config, monkeypatch, runner) == 0
+    assert _commands(runner) == ["seed", "build", "run-operation"]
+    assert _selector(runner.calls[1]) == "silver"
+
+
+def test_full_rebuild_iterates_selectors(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    config = DbtRunConfig(
+        mode=DbtRunMode.FULL_REBUILD, command="build", selectors="silver_base,silver_core"
+    )
+    assert _run(config, monkeypatch, runner) == 0
+    assert _commands(runner) == ["build", "build", "run-operation"]
+    assert _selector(runner.calls[0]) == "silver_base"
+    assert _selector(runner.calls[1]) == "silver_core"
+    assert all("--full-refresh" in c for c in runner.calls[:2])
+    assert all("--vars" not in c for c in runner.calls[:2])
+
+
+# ---------------------------------------------------------------------------
+# Per-snapshot iteration
+# ---------------------------------------------------------------------------
+
+
+def test_per_snapshot_runs_dbt_once_per_snapshot(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    _patch_two_hospitals(monkeypatch)
+    runner = RecordingRunner()
+    assert (
+        _run(DbtRunConfig(mode=DbtRunMode.PER_SNAPSHOT, command="build"), monkeypatch, runner) == 0
+    )
+
+    assert _commands(runner) == ["build", "build", "run-operation"]
+    assert _vars(runner.calls[0]) == {"snapshot_ids": ["snap-h1"]}
+    assert _vars(runner.calls[1]) == {"snapshot_ids": ["snap-h2"]}
+    assert "--full-refresh" not in runner.calls[0]
+    assert runner.calls[2][:2] == ["run-operation", "hpt_prune_stale_snapshots"]
+
+
+def test_per_snapshot_seeds_once_and_full_refreshes_first_only(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    _patch_two_hospitals(monkeypatch)
+    runner = RecordingRunner()
+    config = DbtRunConfig(
+        mode=DbtRunMode.PER_SNAPSHOT, command="build", include_seeds=True, full_refresh=True
+    )
+    assert _run(config, monkeypatch, runner) == 0
+
+    assert _commands(runner) == ["seed", "build", "build", "run-operation"]
+    assert "--full-refresh" in runner.calls[1]
+    assert "--full-refresh" not in runner.calls[2]
+
+
+def test_per_snapshot_stops_on_first_failure(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    _patch_two_hospitals(monkeypatch)
+    runner = RecordingRunner(successes=[False])
+    assert (
+        _run(DbtRunConfig(mode=DbtRunMode.PER_SNAPSHOT, command="build"), monkeypatch, runner) == 1
+    )
+    assert _commands(runner) == ["build"]
+
+
+def test_per_snapshot_iterates_selectors_full_refresh_first_per_selector(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    _patch_two_hospitals(monkeypatch)
+    runner = RecordingRunner()
+    config = DbtRunConfig(
+        mode=DbtRunMode.PER_SNAPSHOT,
+        command="build",
+        selectors="silver_base,silver_core",
+        full_refresh=True,
+    )
+    assert _run(config, monkeypatch, runner) == 0
+
+    # selector-outer, snapshot-inner: each selector gets full-refresh on its first snapshot.
+    assert _commands(runner) == ["build", "build", "build", "build", "run-operation"]
+    assert _selector(runner.calls[0]) == "silver_base"
+    assert _vars(runner.calls[0]) == {"snapshot_ids": ["snap-h1"]}
+    assert "--full-refresh" in runner.calls[0]
+    assert _selector(runner.calls[1]) == "silver_base"
+    assert _vars(runner.calls[1]) == {"snapshot_ids": ["snap-h2"]}
+    assert "--full-refresh" not in runner.calls[1]
+    assert _selector(runner.calls[2]) == "silver_core"
+    assert _vars(runner.calls[2]) == {"snapshot_ids": ["snap-h1"]}
+    assert "--full-refresh" in runner.calls[2]
+    assert _selector(runner.calls[3]) == "silver_core"
+    assert "--full-refresh" not in runner.calls[3]
+
+
+# ---------------------------------------------------------------------------
+# Snapshot injection (no storage construction needed)
+# ---------------------------------------------------------------------------
+
+
+def test_injected_snapshot_manager_skips_storage(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(RETENTION_MODE_ENV, raising=False)
+    runner = RecordingRunner()
+    patch_dbt_runner(monkeypatch, runner)
+    snapshots = FakeSnapshotManager({"h1": "snap-h1"})
+    config = DbtRunConfig(hospital_ids="h1", command="build")
+    assert DbtOrchestrator(config, snapshots=snapshots).run() == 0
+    assert _vars(runner.calls[0]) == {"snapshot_ids": ["snap-h1"]}

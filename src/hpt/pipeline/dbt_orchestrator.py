@@ -1,0 +1,205 @@
+"""Orchestrate snapshot-scoped dbt runs.
+
+``DbtOrchestrator`` decides *which* dbt actions run and *in what order* for a
+given :class:`~hpt.pipeline.dbt_config.DbtRunConfig`. It resolves snapshot IDs
+(from the registry and ``SnapshotManager``), dispatches on the run mode, and
+iterates over selectors (and, for per-snapshot mode, snapshots), delegating every
+actual dbt invocation to :class:`~hpt.pipeline.dbt_manager.DbtManager`.
+
+Hospital IDs are resolved to their current snapshot; explicit snapshot IDs pin
+historical snapshots. The stale-snapshot prune runs once after a materializing
+run completes.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from hpt.ingest.config import StorageConfig
+from hpt.ingest.snapshot import SnapshotManager
+from hpt.ingest.storage import BronzeStorage
+from hpt.pipeline.dbt_config import DbtRunConfig, DbtRunMode
+from hpt.pipeline.dbt_manager import DbtManager
+from hpt.registry.loader import load_registry
+from hpt.utils.string_utils import to_clean_list
+
+logger = logging.getLogger(__name__)
+
+# Modes that target every hospital's current snapshot rather than explicit inputs.
+_REGISTRY_MODES = (DbtRunMode.ALL_CURRENT, DbtRunMode.PER_SNAPSHOT)
+
+
+def resolve_snapshot_ids(
+    hospital_ids: list[str] | str | None,
+    snapshot_ids: list[str] | str | None,
+    snapshots: SnapshotManager,
+    log: logging.Logger | None = None,
+) -> list[str]:
+    """Merge explicit snapshot_ids with the current snapshot for each hospital_id.
+
+    Hospitals with no current snapshot are warned and skipped. Order is preserved
+    and duplicates are removed (explicit snapshot_ids first, then resolved ones).
+    Raises ``ValueError`` if the merged set is empty.
+    """
+    log = log or logger
+    resolved: list[str] = list(to_clean_list(snapshot_ids))
+
+    for hospital_id in to_clean_list(hospital_ids):
+        snapshot = snapshots.get_current_snapshot(hospital_id)
+        if snapshot is None:
+            log.warning("no_current_snapshot", extra={"hospital_id": hospital_id})
+            continue
+        resolved.append(snapshot.snapshot_id)
+
+    # Dedupe while preserving order.
+    deduped = list(dict.fromkeys(resolved))
+    if not deduped:
+        raise ValueError(
+            "No snapshot IDs resolved. Provide --snapshot-ids and/or --hospital-ids "
+            "that have a current snapshot in raw storage."
+        )
+    return deduped
+
+
+class DbtOrchestrator:
+    """Runs the dbt actions for a :class:`DbtRunConfig` and returns an exit code."""
+
+    def __init__(
+        self,
+        config: DbtRunConfig,
+        *,
+        log: logging.Logger | None = None,
+        snapshots: SnapshotManager | None = None,
+    ) -> None:
+        self._config = config
+        self._log = log or logger
+        self._snapshots = snapshots
+        self._manager = DbtManager(config.transform_dir, self._log)
+
+    def run(self) -> int:
+        """Dispatch on the run mode and return a process-style exit code."""
+        mode = self._config.mode
+        if mode is DbtRunMode.FULL_REBUILD:
+            return self._run_full_rebuild()
+        if mode is DbtRunMode.PER_SNAPSHOT:
+            return self._run_per_snapshot()
+        return self._run_single_pass()
+
+    # -- flows -----------------------------------------------------------------
+
+    def _run_single_pass(self) -> int:
+        """SCOPED / ALL_CURRENT: one run scoping every resolved snapshot at once."""
+        cfg = self._config
+        ids = self._resolve_snapshots()
+        self._log.info(
+            "dbt_run_start",
+            extra={
+                "mode": cfg.mode.value,
+                "command": cfg.command,
+                "selectors": cfg.selectors,
+                "snapshot_count": len(ids),
+                "snapshot_ids": ids,
+                "include_seeds": cfg.include_seeds,
+                "transform_dir": str(cfg.transform_dir),
+            },
+        )
+        if cfg.include_seeds and not self._manager.seed():
+            return 1
+        for selector in cfg.selector_iter:
+            if not self._manager.execute(
+                cfg.command,
+                snapshot_ids=ids,
+                selector=selector,
+                extra_args=cfg.extra_args,
+            ):
+                return 1
+        if cfg.is_materializing and not self._manager.prune_stale_snapshots():
+            return 1
+        self._log.info("dbt_run_complete", extra={"command": cfg.command})
+        return 0
+
+    def _run_per_snapshot(self) -> int:
+        """PER_SNAPSHOT: iterate snapshots (per selector) to bound peak memory.
+
+        ``full_refresh`` applies ``--full-refresh`` to the first snapshot of each
+        selector only -- rebuilding that selector's incremental tables from
+        scratch so later snapshots append rather than overwrite. The prune runs
+        once after every snapshot is built.
+        """
+        cfg = self._config
+        ids = self._resolve_snapshots()
+        self._log.info(
+            "dbt_per_snapshot_start",
+            extra={
+                "command": cfg.command,
+                "selectors": cfg.selectors,
+                "snapshot_count": len(ids),
+                "snapshot_ids": ids,
+                "include_seeds": cfg.include_seeds,
+                "full_refresh": cfg.full_refresh,
+                "transform_dir": str(cfg.transform_dir),
+            },
+        )
+        if cfg.include_seeds and not self._manager.seed():
+            return 1
+        for selector in cfg.selector_iter:
+            for index, snapshot_id in enumerate(ids):
+                if not self._manager.execute(
+                    cfg.command,
+                    snapshot_ids=[snapshot_id],
+                    selector=selector,
+                    full_refresh=cfg.full_refresh and index == 0,
+                    extra_args=cfg.extra_args,
+                ):
+                    return 1
+        if cfg.is_materializing and not self._manager.prune_stale_snapshots():
+            return 1
+        self._log.info("dbt_per_snapshot_complete", extra={"command": cfg.command})
+        return 0
+
+    def _run_full_rebuild(self) -> int:
+        """FULL_REBUILD: unscoped dbt --full-refresh, once per selector."""
+        cfg = self._config
+        self._log.info(
+            "dbt_full_rebuild_start",
+            extra={
+                "command": cfg.command,
+                "selectors": cfg.selectors,
+                "include_seeds": cfg.include_seeds,
+                "transform_dir": str(cfg.transform_dir),
+                "retention_mode": cfg.retention_mode,
+            },
+        )
+        if cfg.include_seeds and not self._manager.seed():
+            return 1
+        for selector in cfg.selector_iter:
+            if not self._manager.execute(
+                cfg.command,
+                selector=selector,
+                full_refresh=True,
+                extra_args=cfg.extra_args,
+            ):
+                return 1
+        if cfg.is_materializing and not self._manager.prune_stale_snapshots():
+            return 1
+        self._log.info("dbt_full_rebuild_complete", extra={"command": cfg.command})
+        return 0
+
+    # -- internals -------------------------------------------------------------
+
+    def _resolve_snapshots(self) -> list[str]:
+        """Resolve the snapshot IDs this run targets, sourcing hospitals per mode."""
+        snapshots = self._snapshots
+        if snapshots is None:
+            storage_cfg = StorageConfig.from_env()
+            storage = BronzeStorage(storage_cfg.raw_base_uri)
+            snapshots = SnapshotManager(storage)
+
+        if self._config.mode in _REGISTRY_MODES:
+            hospital_ids = [hospital.hospital_id for hospital in load_registry()]
+            explicit_ids: list[str] | None = None
+        else:
+            hospital_ids = self._config.hospital_ids
+            explicit_ids = self._config.snapshot_ids
+
+        return resolve_snapshot_ids(hospital_ids, explicit_ids, snapshots, log=self._log)

@@ -15,14 +15,8 @@ from hpt.ingest.download import Outcome, download_all
 from hpt.ingest.snapshot import SnapshotManager, SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
 from hpt.logging.log import LoggingRunPaths, configure_logging, get_logger
-from hpt.pipeline.dbt_runner import (
-    DEFAULT_COMMAND,
-    DEFAULT_SELECTOR,
-    run_dbt_for_all_current_snapshots,
-    run_dbt_for_snapshots,
-    run_dbt_full_rebuild,
-    run_dbt_per_current_snapshot,
-)
+from hpt.pipeline.dbt_config import DEFAULT_COMMAND, DEFAULT_SELECTOR, DbtRunConfig
+from hpt.pipeline.dbt_orchestrator import DbtOrchestrator
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospitals, load_registry
 from hpt.registry.models import HospitalSource
@@ -184,7 +178,10 @@ def run_dbt(
     selector: str = typer.Option(
         DEFAULT_SELECTOR,
         "--selector",
-        help="dbt selector to scope models. Pass an empty string to disable.",
+        help=(
+            "dbt selector(s) to scope models. Comma-separated selectors are run "
+            "one at a time, in order. Pass an empty string to disable."
+        ),
     ),
     seeds: bool = typer.Option(
         False,
@@ -227,59 +224,20 @@ def run_dbt(
     configure_logging(log_level=log_level)
     log = get_logger("cli.run_dbt")
     try:
-        if full_rebuild:
-            if hospital_ids or snapshot_ids or all_hospitals or per_snapshot or full_refresh:
-                raise typer.BadParameter(
-                    "--full-rebuild cannot be combined with --hospital-ids, --snapshot-ids, "
-                    "--all-hospitals, --per-snapshot, or --full-refresh because it "
-                    "intentionally runs unscoped with its own --full-refresh."
-                )
-            exit_code = run_dbt_full_rebuild(
-                command=command,
-                selector=selector or None,
-                include_seeds=seeds,
-                log=log,
-            )
-        elif per_snapshot:
-            if hospital_ids or snapshot_ids or all_hospitals:
-                raise typer.BadParameter(
-                    "--per-snapshot runs every current snapshot; do not combine it with "
-                    "--hospital-ids, --snapshot-ids, or --all-hospitals."
-                )
-            exit_code = run_dbt_per_current_snapshot(
-                command=command,
-                selector=selector or None,
-                include_seeds=seeds,
-                full_refresh=full_refresh,
-                log=log,
-            )
-        elif all_hospitals:
-            if hospital_ids or snapshot_ids:
-                raise typer.BadParameter(
-                    "--all-hospitals cannot be combined with --hospital-ids or --snapshot-ids."
-                )
-            if full_refresh:
-                raise typer.BadParameter("--full-refresh requires --per-snapshot.")
-            exit_code = run_dbt_for_all_current_snapshots(
-                command=command,
-                selector=selector or None,
-                include_seeds=seeds,
-                log=log,
-            )
-        else:
-            if full_refresh:
-                raise typer.BadParameter("--full-refresh requires --per-snapshot.")
-            exit_code = run_dbt_for_snapshots(
-                hospital_ids=hospital_ids,
-                snapshot_ids=snapshot_ids,
-                command=command,
-                selector=selector or None,
-                include_seeds=seeds,
-                log=log,
-            )
+        config = DbtRunConfig.from_cli(
+            hospital_ids=hospital_ids,
+            snapshot_ids=snapshot_ids,
+            command=command,
+            selector=selector,
+            seeds=seeds,
+            all_hospitals=all_hospitals,
+            per_snapshot=per_snapshot,
+            full_refresh=full_refresh,
+            full_rebuild=full_rebuild,
+        )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-    raise typer.Exit(code=exit_code)
+    raise typer.Exit(code=DbtOrchestrator(config, log=log).run())
 
 
 def _load_hospitals_for_target(

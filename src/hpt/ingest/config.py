@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from hpt.utils.paths import get_default_data_root, to_storage_uri
-from hpt.utils.string_utils import convert_string_to_list
+from hpt.utils.string_utils import to_clean_list
 
 
 def _env_float(name: str, default: str) -> float:
@@ -28,11 +28,10 @@ def _registry_path_from_env(path: Path | None = None) -> Path | None:
 def _normalize_hospital_ids(
     hospital_ids: list[str] | str | None,
 ) -> list[str] | None:
+    # ``None`` means "all hospitals" and must be preserved, distinct from ``[]``.
     if hospital_ids is None:
         return None
-    if isinstance(hospital_ids, str):
-        return convert_string_to_list(hospital_ids)
-    return [hospital_id.strip().lower() for hospital_id in hospital_ids if hospital_id.strip()]
+    return to_clean_list(hospital_ids)
 
 
 @dataclass(frozen=True)
