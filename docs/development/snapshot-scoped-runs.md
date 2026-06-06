@@ -43,9 +43,11 @@ hpt run-dbt --hospital-ids a,b --snapshot-ids 7ca24003-... --command run --no-se
 `hpt run-dbt` flags: `--hospital-ids` (resolved to each hospital's current
 snapshot), `--snapshot-ids` (pinned explicitly), `--command` (default `build`),
 `--selector` (default `pipeline_charge_data`; pass `""` to disable),
-`--full-rebuild`, `--seeds/--no-seeds`, `--log-level`. It exits non-zero if no
-snapshot IDs resolve, if dbt fails, or if the post-run retention operation
-fails.
+`--all-hospitals` (scope every registry hospital's current snapshot into one
+run), `--per-snapshot` (iterate every current snapshot one run at a time),
+`--full-refresh` (per-snapshot only; see below), `--full-rebuild`,
+`--seeds/--no-seeds`, `--log-level`. It exits non-zero if no snapshot IDs
+resolve, if dbt fails, or if the post-run retention operation fails.
 
 Do not pass `--full-refresh` through a scoped `hpt run-dbt` invocation. The
 runner rejects that combination because dbt would rebuild incremental tables
@@ -59,6 +61,22 @@ hpt run-dbt --full-rebuild --selector ""
 
 The full rebuild path runs with no `snapshot_ids` var and passes dbt
 `--full-refresh`.
+
+### Per-snapshot iteration
+
+`--per-snapshot` builds every hospital's current snapshot, but invokes dbt once
+per snapshot instead of scoping them all into a single run, which bounds peak
+memory on large registries. `--seeds` seeds once up front; the stale-snapshot
+prune runs once after every snapshot is built.
+
+`--full-refresh` is allowed here (unlike a plain scoped run) and applies dbt
+`--full-refresh` to the **first** snapshot only, rebuilding incremental tables
+from scratch so later snapshots append incrementally rather than overwriting.
+
+```bash
+# Rebuild incremental tables from scratch, then append each remaining snapshot.
+hpt run-dbt --per-snapshot --full-refresh --seeds --selector ""
+```
 
 ## Retention
 

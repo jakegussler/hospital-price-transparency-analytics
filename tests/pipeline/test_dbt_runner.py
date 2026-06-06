@@ -13,8 +13,10 @@ from hpt.ingest.snapshot import SnapshotRecord
 from hpt.pipeline import dbt_runner
 from hpt.pipeline.dbt_runner import (
     resolve_snapshot_ids,
+    run_dbt_for_all_current_snapshots,
     run_dbt_for_snapshots,
     run_dbt_full_rebuild,
+    run_dbt_per_current_snapshot,
 )
 
 # ---------------------------------------------------------------------------
@@ -288,6 +290,30 @@ def test_full_rebuild_rejects_non_materializing_command(
     assert runner.calls == []
 
 
+# ---------------------------------------------------------------------------
+# run_dbt_for_all_current_snapshots
+# ---------------------------------------------------------------------------
+
+
+def test_all_current_snapshots_resolves_registry_hospitals(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+    monkeypatch.setattr(
+        dbt_runner,
+        "load_registry",
+        lambda *a, **k: [SimpleNamespace(hospital_id="h1")],
+    )
+
+    assert run_dbt_for_all_current_snapshots(command="build") == 0
+
+    args = runner.calls[0]
+    assert args[0] == "build"
+    vars_payload = json.loads(args[args.index("--vars") + 1])
+    assert vars_payload == {"snapshot_ids": ["snap-h1"]}
+
+
 def test_invalid_retention_mode_raises(
     monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
 ) -> None:
@@ -297,3 +323,91 @@ def test_invalid_retention_mode_raises(
 
     with pytest.raises(ValueError, match="HPT_SILVER_RETENTION_MODE"):
         run_dbt_for_snapshots(hospital_ids="h1")
+
+
+# ---------------------------------------------------------------------------
+# run_dbt_per_current_snapshot
+# ---------------------------------------------------------------------------
+
+
+def _patch_two_hospitals(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Registry + snapshot manager covering h1 -> snap-h1 and h2 -> snap-h2."""
+    manager = FakeSnapshotManager({"h1": "snap-h1", "h2": "snap-h2"})
+    monkeypatch.setattr(dbt_runner, "SnapshotManager", lambda *a, **k: manager)
+    monkeypatch.setattr(
+        dbt_runner,
+        "load_registry",
+        lambda *a, **k: [SimpleNamespace(hospital_id="h1"), SimpleNamespace(hospital_id="h2")],
+    )
+
+
+def test_per_snapshot_runs_dbt_once_per_snapshot(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+    _patch_two_hospitals(monkeypatch)
+
+    assert run_dbt_per_current_snapshot(command="build") == 0
+
+    # One scoped build per snapshot, then a single prune at the end.
+    assert [c[0] for c in runner.calls] == ["build", "build", "run-operation"]
+    first_vars = json.loads(runner.calls[0][runner.calls[0].index("--vars") + 1])
+    second_vars = json.loads(runner.calls[1][runner.calls[1].index("--vars") + 1])
+    assert first_vars == {"snapshot_ids": ["snap-h1"]}
+    assert second_vars == {"snapshot_ids": ["snap-h2"]}
+    assert "--full-refresh" not in runner.calls[0]
+    assert runner.calls[2][:2] == ["run-operation", "hpt_prune_stale_snapshots"]
+
+
+def test_per_snapshot_seeds_once_and_full_refreshes_first_only(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+    _patch_two_hospitals(monkeypatch)
+
+    assert run_dbt_per_current_snapshot(command="build", include_seeds=True, full_refresh=True) == 0
+
+    # Seed runs once up front; full-refresh only on the first snapshot.
+    assert [c[0] for c in runner.calls] == ["seed", "build", "build", "run-operation"]
+    assert "--full-refresh" in runner.calls[1]
+    assert "--full-refresh" not in runner.calls[2]
+
+
+def test_per_snapshot_stops_on_first_failure(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner(successes=[False])
+    _patch_runner(monkeypatch, runner)
+    _patch_two_hospitals(monkeypatch)
+
+    assert run_dbt_per_current_snapshot(command="build") == 1
+    # Aborts after the first snapshot fails; no second build, no prune.
+    assert [c[0] for c in runner.calls] == ["build"]
+
+
+def test_per_snapshot_rejects_full_refresh_in_extra_args(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+    _patch_two_hospitals(monkeypatch)
+
+    with pytest.raises(ValueError, match="Pass full_refresh=True"):
+        run_dbt_per_current_snapshot(extra_args=["--full-refresh"])
+
+    assert runner.calls == []
+
+
+def test_per_snapshot_rejects_full_refresh_for_non_materializing_command(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    _patch_runner(monkeypatch, runner)
+    _patch_two_hospitals(monkeypatch)
+
+    with pytest.raises(ValueError, match="full_refresh only applies"):
+        run_dbt_per_current_snapshot(command="test", full_refresh=True)
+
+    assert runner.calls == []

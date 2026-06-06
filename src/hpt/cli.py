@@ -18,8 +18,10 @@ from hpt.logging.log import LoggingRunPaths, configure_logging, get_logger
 from hpt.pipeline.dbt_runner import (
     DEFAULT_COMMAND,
     DEFAULT_SELECTOR,
+    run_dbt_for_all_current_snapshots,
     run_dbt_for_snapshots,
     run_dbt_full_rebuild,
+    run_dbt_per_current_snapshot,
 )
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospitals, load_registry
@@ -189,6 +191,27 @@ def run_dbt(
         "--seeds/--no-seeds",
         help="Run dbt seed before the main command.",
     ),
+    all_hospitals: bool = typer.Option(
+        False,
+        "--all-hospitals",
+        help="Resolve every hospital in the registry to its current snapshot and run dbt for all.",
+    ),
+    per_snapshot: bool = typer.Option(
+        False,
+        "--per-snapshot",
+        help=(
+            "Run dbt once per current snapshot, iterating instead of scoping every "
+            "snapshot into a single run. Implies all current snapshots."
+        ),
+    ),
+    full_refresh: bool = typer.Option(
+        False,
+        "--full-refresh",
+        help=(
+            "With --per-snapshot, apply dbt --full-refresh to the first snapshot only "
+            "so incremental tables are rebuilt before later snapshots append."
+        ),
+    ),
     full_rebuild: bool = typer.Option(
         False,
         "--full-rebuild",
@@ -205,10 +228,11 @@ def run_dbt(
     log = get_logger("cli.run_dbt")
     try:
         if full_rebuild:
-            if hospital_ids or snapshot_ids:
+            if hospital_ids or snapshot_ids or all_hospitals or per_snapshot or full_refresh:
                 raise typer.BadParameter(
-                    "--full-rebuild cannot be combined with --hospital-ids or "
-                    "--snapshot-ids because it intentionally runs unscoped."
+                    "--full-rebuild cannot be combined with --hospital-ids, --snapshot-ids, "
+                    "--all-hospitals, --per-snapshot, or --full-refresh because it "
+                    "intentionally runs unscoped with its own --full-refresh."
                 )
             exit_code = run_dbt_full_rebuild(
                 command=command,
@@ -216,7 +240,35 @@ def run_dbt(
                 include_seeds=seeds,
                 log=log,
             )
+        elif per_snapshot:
+            if hospital_ids or snapshot_ids or all_hospitals:
+                raise typer.BadParameter(
+                    "--per-snapshot runs every current snapshot; do not combine it with "
+                    "--hospital-ids, --snapshot-ids, or --all-hospitals."
+                )
+            exit_code = run_dbt_per_current_snapshot(
+                command=command,
+                selector=selector or None,
+                include_seeds=seeds,
+                full_refresh=full_refresh,
+                log=log,
+            )
+        elif all_hospitals:
+            if hospital_ids or snapshot_ids:
+                raise typer.BadParameter(
+                    "--all-hospitals cannot be combined with --hospital-ids or --snapshot-ids."
+                )
+            if full_refresh:
+                raise typer.BadParameter("--full-refresh requires --per-snapshot.")
+            exit_code = run_dbt_for_all_current_snapshots(
+                command=command,
+                selector=selector or None,
+                include_seeds=seeds,
+                log=log,
+            )
         else:
+            if full_refresh:
+                raise typer.BadParameter("--full-refresh requires --per-snapshot.")
             exit_code = run_dbt_for_snapshots(
                 hospital_ids=hospital_ids,
                 snapshot_ids=snapshot_ids,

@@ -1,5 +1,5 @@
 .PHONY: install install-dev test lint format download ingest export-hospitals-seed \
-	dbt-run-hospitals dbt-incremental dbt-rebuild \
+	dbt-run-hospitals dbt-run-all-hospitals dbt-incremental dbt-rebuild \
 	require-hospital-ids require-dbt-incremental-scope \
 	dbt-deps dbt-run dbt-run-selector dbt-test dbt-test-selector \
 	dbt-seed dbt-seed-selector dbt-build dbt-build-selector \
@@ -39,6 +39,9 @@ export-hospitals-seed:
 # scopes the dbt build to just those snapshots (prunes Bronze partitions).
 dbt-run-hospitals: require-hospital-ids
 	hpt run-dbt --hospital-ids "$(HOSPITAL_IDS)" --command build --selector pipeline_charge_data
+
+dbt-run-all-hospitals:
+	hpt run-dbt --all-hospitals --command build --selector pipeline_charge_data
 
 dbt-incremental: require-dbt-incremental-scope
 	hpt run-dbt \
