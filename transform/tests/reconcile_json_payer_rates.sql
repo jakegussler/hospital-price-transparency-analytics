@@ -42,6 +42,7 @@ actual as (
         count(*) as actual_rows
     from {{ ref('slv_base__payer_rates') }}
     where source_format = 'json'
+        {{ hpt_snapshot_filter() }}
     group by snapshot_id
 )
 

@@ -418,7 +418,7 @@ violations as (
         and not (
             clean_count = '0'
             or clean_count = '1 through 10'
-            or regexp_matches(clean_count, '^(1[1-9]|[2-9][0-9]+)$')
+            or regexp_matches(clean_count, '^(1[1-9]|[2-9][0-9]+|[1-9][0-9]{2,})$')
         )
 
     union all

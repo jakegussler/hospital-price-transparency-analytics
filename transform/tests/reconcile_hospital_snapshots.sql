@@ -11,6 +11,8 @@ with bronze as (
 silver as (
     select snapshot_id
     from {{ ref('slv_base__hospital_snapshots') }}
+    where 1 = 1
+        {{ hpt_snapshot_filter() }}
 )
 
 select bronze.snapshot_id
