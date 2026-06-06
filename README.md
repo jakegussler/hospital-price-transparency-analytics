@@ -148,6 +148,11 @@ The dbt project defines selectors for `staging`, `silver_base`, `silver_core`,
 `silver_review_queue`, `silver`, `pipeline_snapshot_metadata`, and
 `pipeline_charge_data`.
 
+`hpt run-dbt` defaults to the complete dbt graph so snapshot-scoped staging
+views, Silver tables, and cross-model tests stay coherent. Pass `--selector`
+only for an intentionally partial run; per-snapshot `--full-refresh` rejects
+partial selectors.
+
 ## Runtime Configuration
 
 Most local runs work with defaults. The main overrides are:

@@ -12,13 +12,19 @@ for dbt/DuckDB normalization and analysis.
 
 ## Current Architecture
 
-- `src/hpt/cli.py` exposes `hpt download` and `hpt ingest`.
+- `src/hpt/cli.py` exposes `hpt download`, `hpt ingest`, and `hpt run-dbt`. It is
+  a thin layer that builds config objects and runs a process.
 - `src/hpt/ingest/` owns config, HTTP download, raw storage, compression,
   snapshot metadata, format detection, and schema sniffing.
 - `src/hpt/parsers/` owns JSON, CSV Tall, CSV Wide, and header parsing.
 - `src/hpt/loaders/parquet.py` writes Bronze Parquet partitions.
 - `src/hpt/pipeline/ingest_snapshot.py` connects snapshot resolution, parser
   selection, quarantine handling, and Bronze writing.
+- `src/hpt/pipeline/dbt_config.py`, `dbt_manager.py`, and `dbt_orchestrator.py`
+  form the dbt orchestration layer: `DbtRunConfig` holds the run details and
+  normalizes comma-separated inputs to lists, `DbtManager` wraps `dbtRunner`
+  invocations, and `DbtOrchestrator` sequences the run modes (scoped,
+  all-current, per-snapshot, full-rebuild) and iterates selectors.
 - `src/hpt/registry/` owns the active bundled hospital registry schema.
 - `transform/` is a dbt project targeting DuckDB. It defines Bronze sources and
   Silver foundation models; Gold models are planned.

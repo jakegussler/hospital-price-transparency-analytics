@@ -73,12 +73,17 @@ dbt selectors available: `staging`, `silver_base`, `silver_core`,
 
 ## Code map
 
-- `src/hpt/cli.py` — Typer CLI (`download`, `ingest`, `export-hospitals-seed`).
+- `src/hpt/cli.py` — Typer CLI (`download`, `ingest`, `export-hospitals-seed`,
+  `run-dbt`). Thin: builds config objects and runs a process.
 - `src/hpt/ingest/` — config, HTTP download, raw storage, compression, snapshot
   metadata, format detection, schema sniffing.
 - `src/hpt/parsers/` — JSON, CSV Tall, CSV Wide, and header parsing.
 - `src/hpt/loaders/parquet.py` — Bronze Parquet writer.
 - `src/hpt/pipeline/ingest_snapshot.py` — ingest orchestration.
+- `src/hpt/pipeline/dbt_config.py` / `dbt_manager.py` / `dbt_orchestrator.py` —
+  dbt run config (modes, validation, list-normalized inputs), the dbtRunner
+  wrapper, and run-mode orchestration (scoped / all-current / per-snapshot /
+  full-rebuild, selector iteration).
 - `src/hpt/registry/` — bundled hospital registry loader and models.
 - `transform/` — dbt project targeting DuckDB (Bronze sources + Silver models).
 - `tests/` — pytest suite mirroring `src/hpt/` layout.
