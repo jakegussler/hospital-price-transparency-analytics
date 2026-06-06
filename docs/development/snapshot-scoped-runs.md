@@ -19,6 +19,10 @@ Scoped runs read the *full* data for the selected snapshots, with no row cap,
 but only those partitions. Unscoped direct dbt runs read all available Bronze
 partitions.
 
+Bidirectional reconciliation tests apply the same `snapshot_ids` filter to
+their accumulated Silver side during scoped runs. Unscoped builds still compare
+the complete Bronze and Silver datasets.
+
 When you call `hpt_snapshot_filter()` inside a join where more than one table
 exposes `snapshot_id`, pass the driving table's alias
 (e.g. `hpt_snapshot_filter('sc')`) to avoid an ambiguous-column error.
@@ -29,8 +33,8 @@ exposes `snapshot_id`, pass the driving table's alias
 # Seed once (charge/validation models depend on seeds).
 make dbt-seed
 
-# Resolve hospitals to their current snapshots and build the charge pipeline.
-hpt run-dbt --hospital-ids ballad-jcmc --command build --selector pipeline_charge_data
+# Resolve hospitals to their current snapshots and build the coherent dbt graph.
+hpt run-dbt --hospital-ids ballad-jcmc --command build
 # or:
 make dbt-run-hospitals HOSPITAL_IDS=ballad-jcmc
 make dbt-incremental HOSPITAL_IDS=ballad-jcmc
@@ -42,7 +46,8 @@ hpt run-dbt --hospital-ids a,b --snapshot-ids 7ca24003-... --command run --no-se
 
 `hpt run-dbt` flags: `--hospital-ids` (resolved to each hospital's current
 snapshot), `--snapshot-ids` (pinned explicitly), `--command` (default `build`),
-`--selector` (default `pipeline_charge_data`; pass `""` to disable),
+`--selector` (optional; use only for an intentionally partial run; a
+comma-separated list runs each selector in turn),
 `--all-hospitals` (scope every registry hospital's current snapshot into one
 run), `--per-snapshot` (iterate every current snapshot one run at a time),
 `--full-refresh` (per-snapshot only; see below), `--full-rebuild`,
@@ -56,7 +61,7 @@ from only the scoped rows. Use the full rebuild path instead:
 ```bash
 make dbt-rebuild
 # or:
-hpt run-dbt --full-rebuild --selector ""
+hpt run-dbt --full-rebuild
 ```
 
 The full rebuild path runs with no `snapshot_ids` var and passes dbt
@@ -70,12 +75,15 @@ memory on large registries. `--seeds` seeds once up front; the stale-snapshot
 prune runs once after every snapshot is built.
 
 `--full-refresh` is allowed here (unlike a plain scoped run) and applies dbt
-`--full-refresh` to the **first** snapshot only, rebuilding incremental tables
+`--full-refresh` to the **first** snapshot only, rebuilding the complete graph
 from scratch so later snapshots append incrementally rather than overwriting.
+It cannot be combined with `--selector`: a partial full refresh would replace
+selected parent tables and scoped staging views while leaving unselected
+siblings and downstream models stale.
 
 ```bash
 # Rebuild incremental tables from scratch, then append each remaining snapshot.
-hpt run-dbt --per-snapshot --full-refresh --seeds --selector ""
+hpt run-dbt --per-snapshot --full-refresh --seeds
 ```
 
 ## Retention
@@ -113,10 +121,11 @@ In `current_only` mode, you should see the retained current snapshot rows. In
   historical snapshots in Silver, set `HPT_SILVER_RETENTION_MODE=all_snapshots`
   before building those snapshots.
 - **Partial selectors can leave stale neighbors.** A scoped `pipeline_charge_data`
-  build only updates that subgraph; models outside it keep their previous rows.
-  Cross-model `reconcile_*` / `relationships_*` tests can flag the mismatch. For
-  a fully coherent scoped update, scope the whole graph (`--selector ""`) —
-  partition pruning still bounds memory.
+  build only updates that subgraph; models and scoped staging views outside it
+  keep their previous rows or previous `snapshot_id` filter. Cross-model
+  `reconcile_*` / `relationships_*` tests can flag the mismatch, and selected
+  models can read stale unselected views. Omit `--selector` for a coherent
+  scoped update; partition pruning still bounds memory.
 - **Seed mapping changes require explicit reprocessing.** Updating
   `payer_aliases`, `payer_context_rules`, or `canonical_payers` does not
   retro-apply to already materialized `slv_core__payer_rates` rows. Reprocess

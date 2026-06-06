@@ -65,8 +65,9 @@ from all Bronze requires both of the following:
 1. No `snapshot_ids` dbt var.
 2. dbt `--full-refresh`.
 
-Use `make dbt-rebuild` or `hpt run-dbt --full-rebuild --selector ""` for that
-path. Normal scoped incremental runs should use `hpt run-dbt --hospital-ids ...`
-or `hpt run-dbt --snapshot-ids ...`; the runner rejects scoped
-`--full-refresh` because it would replace incremental tables with only the
-scoped rows.
+Use `make dbt-rebuild` or `hpt run-dbt --full-rebuild` for that path. Normal
+scoped incremental runs should use `hpt run-dbt --hospital-ids ...` or
+`hpt run-dbt --snapshot-ids ...`; the runner rejects scoped `--full-refresh`
+because it would replace incremental tables with only the scoped rows.
+Per-snapshot full refresh is supported only without `--selector`, so all scoped
+staging views and dependent models are rebuilt together.
