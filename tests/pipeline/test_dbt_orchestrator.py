@@ -314,34 +314,6 @@ def test_per_snapshot_stops_on_first_failure(
     assert _commands(runner) == ["build"]
 
 
-def test_per_snapshot_iterates_selectors_full_refresh_first_per_selector(
-    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
-) -> None:
-    _patch_two_hospitals(monkeypatch)
-    runner = RecordingRunner()
-    config = DbtRunConfig(
-        mode=DbtRunMode.PER_SNAPSHOT,
-        command="build",
-        selectors="silver_base,silver_core",
-        full_refresh=True,
-    )
-    assert _run(config, monkeypatch, runner) == 0
-
-    # selector-outer, snapshot-inner: each selector gets full-refresh on its first snapshot.
-    assert _commands(runner) == ["build", "build", "build", "build", "run-operation"]
-    assert _selector(runner.calls[0]) == "silver_base"
-    assert _vars(runner.calls[0]) == {"snapshot_ids": ["snap-h1"]}
-    assert "--full-refresh" in runner.calls[0]
-    assert _selector(runner.calls[1]) == "silver_base"
-    assert _vars(runner.calls[1]) == {"snapshot_ids": ["snap-h2"]}
-    assert "--full-refresh" not in runner.calls[1]
-    assert _selector(runner.calls[2]) == "silver_core"
-    assert _vars(runner.calls[2]) == {"snapshot_ids": ["snap-h1"]}
-    assert "--full-refresh" in runner.calls[2]
-    assert _selector(runner.calls[3]) == "silver_core"
-    assert "--full-refresh" not in runner.calls[3]
-
-
 # ---------------------------------------------------------------------------
 # Snapshot injection (no storage construction needed)
 # ---------------------------------------------------------------------------

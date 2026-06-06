@@ -6,6 +6,7 @@ import pytest
 
 from hpt.pipeline.dbt_config import (
     DEFAULT_COMMAND,
+    DEFAULT_SELECTOR,
     RETENTION_MODE_ENV,
     DbtRunConfig,
     DbtRunMode,
@@ -65,10 +66,10 @@ def test_is_materializing() -> None:
 
 
 def test_from_cli_defaults_to_scoped() -> None:
-    cfg = DbtRunConfig.from_cli(hospital_ids="h1", selector="pipeline_charge_data")
+    cfg = DbtRunConfig.from_cli(hospital_ids="h1", selector=DEFAULT_SELECTOR)
     assert cfg.mode is DbtRunMode.SCOPED
     assert cfg.command == DEFAULT_COMMAND
-    assert cfg.selectors == ["pipeline_charge_data"]
+    assert cfg.selectors == []
     assert cfg.hospital_ids == ["h1"]
 
 
@@ -135,6 +136,16 @@ def test_full_refresh_only_for_materializing_command() -> None:
 def test_full_refresh_only_for_per_snapshot_or_rebuild() -> None:
     with pytest.raises(ValueError, match="full_refresh only applies to per-snapshot"):
         DbtRunConfig(mode=DbtRunMode.SCOPED, command="build", full_refresh=True)
+
+
+def test_per_snapshot_full_refresh_rejects_partial_selector() -> None:
+    with pytest.raises(ValueError, match="must run without --selector"):
+        DbtRunConfig(
+            mode=DbtRunMode.PER_SNAPSHOT,
+            command="build",
+            selectors="pipeline_charge_data",
+            full_refresh=True,
+        )
 
 
 def test_full_rebuild_requires_materializing_command() -> None:

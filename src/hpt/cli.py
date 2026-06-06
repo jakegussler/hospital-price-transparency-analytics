@@ -175,12 +175,13 @@ def run_dbt(
         "--command",
         help="dbt command to run (for example build, run, test).",
     ),
-    selector: str = typer.Option(
+    selector: str | None = typer.Option(
         DEFAULT_SELECTOR,
         "--selector",
         help=(
-            "dbt selector(s) to scope models. Comma-separated selectors are run "
-            "one at a time, in order. Pass an empty string to disable."
+            "Optional dbt selector(s) for an intentionally partial run. "
+            "Comma-separated selectors are run one at a time, in order. "
+            "Omit to build the coherent full graph."
         ),
     ),
     seeds: bool = typer.Option(
@@ -205,8 +206,8 @@ def run_dbt(
         False,
         "--full-refresh",
         help=(
-            "With --per-snapshot, apply dbt --full-refresh to the first snapshot only "
-            "so incremental tables are rebuilt before later snapshots append."
+            "With --per-snapshot and no --selector, apply dbt --full-refresh to the "
+            "first snapshot only so the full graph is rebuilt before later snapshots append."
         ),
     ),
     full_rebuild: bool = typer.Option(

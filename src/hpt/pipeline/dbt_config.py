@@ -22,7 +22,7 @@ from pathlib import Path
 
 from hpt.utils.string_utils import to_clean_list
 
-DEFAULT_SELECTOR = "pipeline_charge_data"
+DEFAULT_SELECTOR: str | None = None
 DEFAULT_COMMAND = "build"
 RETENTION_MODE_ENV = "HPT_SILVER_RETENTION_MODE"
 CURRENT_ONLY_RETENTION_MODE = "current_only"
@@ -104,6 +104,11 @@ class DbtRunConfig:
                 raise ValueError("full_refresh only applies to per-snapshot or full-rebuild runs.")
             if not self.is_materializing:
                 raise ValueError("full_refresh only applies to dbt build or run.")
+            if self.mode is DbtRunMode.PER_SNAPSHOT and self.selectors:
+                raise ValueError(
+                    "Per-snapshot full refresh must run without --selector so every "
+                    "snapshot-scoped staging view and dependent model is rebuilt together."
+                )
         if self.mode is DbtRunMode.FULL_REBUILD:
             if not self.is_materializing:
                 raise ValueError(
