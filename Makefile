@@ -38,20 +38,19 @@ export-hospitals-seed:
 # Snapshot-scoped dbt run: resolves HOSPITAL_IDS to their current snapshots and
 # scopes the dbt build to just those snapshots (prunes Bronze partitions).
 dbt-run-hospitals: require-hospital-ids
-	hpt run-dbt --hospital-ids "$(HOSPITAL_IDS)" --command build --selector pipeline_charge_data
+	hpt run-dbt --hospital-ids "$(HOSPITAL_IDS)" --command build
 
 dbt-run-all-hospitals:
-	hpt run-dbt --all-hospitals --command build --selector pipeline_charge_data
+	hpt run-dbt --all-hospitals --command build
 
 dbt-incremental: require-dbt-incremental-scope
 	hpt run-dbt \
 		$(if $(HOSPITAL_IDS),--hospital-ids "$(HOSPITAL_IDS)") \
 		$(if $(SNAPSHOT_IDS),--snapshot-ids "$(SNAPSHOT_IDS)") \
-		--command build \
-		--selector "$(or $(DBT_SELECTOR),pipeline_charge_data)"
+		--command build $(if $(DBT_SELECTOR),--selector "$(DBT_SELECTOR)")
 
 dbt-rebuild:
-	hpt run-dbt --full-rebuild --command build --selector ""
+	hpt run-dbt --full-rebuild --command build
 
 require-hospital-ids:
 	@test -n "$(HOSPITAL_IDS)" || (printf '%s\n' 'Set HOSPITAL_IDS, for example: make dbt-run-hospitals HOSPITAL_IDS=some-hospital' >&2; exit 2)
