@@ -100,6 +100,250 @@ unit_tests:
           column_name: estimated_amount
           diagnostic_type: conditional_required_field_missing
 
+  - name: csv_item_only_row_emits_no_payer_rate_violations
+    description: >
+      A CSV item-only row (blank payer columns, no negotiated charge) is not a
+      payer rate. The JSON-only identity/charge rules must not fire on CSV, and
+      the conditional CSV CR1 rules require either a rate value or payer/plan
+      identity to be present, so this row produces no payer-rate violations.
+    model: val__payer_rate_violations
+    given:
+      - input: source('bronze', 'payers_information')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as standard_charge_id,
+              cast(null as integer) as payer_ordinal,
+              cast(null as varchar) as payer_name,
+              cast(null as varchar) as plan_name,
+              cast(null as varchar) as methodology,
+              cast(null as varchar) as standard_charge_dollar,
+              cast(null as varchar) as standard_charge_percentage,
+              cast(null as varchar) as standard_charge_algorithm,
+              cast(null as varchar) as estimated_amount,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes
+          where false
+      - input: source('bronze', 'standard_charges')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as standard_charge_id,
+              cast(null as varchar) as charge_item_id,
+              cast(null as varchar) as additional_generic_notes
+          where false
+      - input: source('bronze', 'csv_charge_rows')
+        format: sql
+        rows: |
+          select
+              'snapshot-csv' as snapshot_id,
+              'csv' as source_format,
+              0 as row_ordinal,
+              cast(null as varchar) as payer_name,
+              cast(null as varchar) as plan_name,
+              cast(null as varchar) as methodology,
+              cast(null as varchar) as standard_charge_negotiated_dollar,
+              cast(null as varchar) as standard_charge_negotiated_percentage,
+              cast(null as varchar) as standard_charge_negotiated_algorithm,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes,
+              cast(null as varchar) as additional_generic_notes
+      - input: ref('stg_bronze__standard_charge_info')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as charge_item_id,
+              cast(null as varchar) as reported_schema_family,
+              cast(null as varchar) as parser_schema_family
+          where false
+      - input: ref('stg_bronze__hospital_mrf_snapshots')
+        format: sql
+        rows: |
+          select
+              'snapshot-csv' as snapshot_id,
+              'hospital-1' as hospital_id,
+              'csv' as source_format
+      - input: ref('cms_validation_rules')
+        format: sql
+        rows: |
+          select
+              'payer_required_identity_and_methodology' as rule_id,
+              'Payer identity required' as rule_name,
+              'error' as severity,
+              'payer_rate' as grain,
+              'exclude_entity' as disposition,
+              'json citation' as cms_citation
+          union all
+          select
+              'payer_requires_negotiated_charge' as rule_id,
+              'Payer requires negotiated charge' as rule_name,
+              'error' as severity,
+              'payer_rate' as grain,
+              'exclude_entity' as disposition,
+              'json citation' as cms_citation
+          union all
+          select
+              'csv_payer_identity_required_with_rate' as rule_id,
+              'CSV payer identity required' as rule_name,
+              'error' as severity,
+              'payer_rate' as grain,
+              'exclude_entity' as disposition,
+              'csv citation' as cms_citation
+          union all
+          select
+              'csv_payer_rate_required_with_identity' as rule_id,
+              'CSV payer charge required' as rule_name,
+              'error' as severity,
+              'payer_rate' as grain,
+              'exclude_entity' as disposition,
+              'csv citation' as cms_citation
+    expect:
+      rows: []
+
+  - name: csv_payer_rate_cr1_rules_are_csv_scoped_and_not_duplicated
+    description: >
+      CSV CR1 is bidirectional and conditional. A CSV row with a negotiated
+      charge but no identity emits only csv_payer_identity_required_with_rate;
+      a CSV row with payer/plan identity but no charge emits only
+      csv_payer_rate_required_with_identity. The JSON-only rules must not
+      double-fire on either row.
+    model: val__payer_rate_violations
+    given:
+      - input: source('bronze', 'payers_information')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as standard_charge_id,
+              cast(null as integer) as payer_ordinal,
+              cast(null as varchar) as payer_name,
+              cast(null as varchar) as plan_name,
+              cast(null as varchar) as methodology,
+              cast(null as varchar) as standard_charge_dollar,
+              cast(null as varchar) as standard_charge_percentage,
+              cast(null as varchar) as standard_charge_algorithm,
+              cast(null as varchar) as estimated_amount,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes
+          where false
+      - input: source('bronze', 'standard_charges')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as standard_charge_id,
+              cast(null as varchar) as charge_item_id,
+              cast(null as varchar) as additional_generic_notes
+          where false
+      - input: source('bronze', 'csv_charge_rows')
+        format: sql
+        rows: |
+          select
+              'snapshot-csv' as snapshot_id,
+              'csv' as source_format,
+              0 as row_ordinal,
+              cast(null as varchar) as payer_name,
+              cast(null as varchar) as plan_name,
+              cast(null as varchar) as methodology,
+              '100' as standard_charge_negotiated_dollar,
+              cast(null as varchar) as standard_charge_negotiated_percentage,
+              cast(null as varchar) as standard_charge_negotiated_algorithm,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes,
+              cast(null as varchar) as additional_generic_notes
+          union all
+          select
+              'snapshot-csv' as snapshot_id,
+              'csv' as source_format,
+              1 as row_ordinal,
+              'Acme Health' as payer_name,
+              cast(null as varchar) as plan_name,
+              cast(null as varchar) as methodology,
+              cast(null as varchar) as standard_charge_negotiated_dollar,
+              cast(null as varchar) as standard_charge_negotiated_percentage,
+              cast(null as varchar) as standard_charge_negotiated_algorithm,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes,
+              cast(null as varchar) as additional_generic_notes
+      - input: ref('stg_bronze__standard_charge_info')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as charge_item_id,
+              cast(null as varchar) as reported_schema_family,
+              cast(null as varchar) as parser_schema_family
+          where false
+      - input: ref('stg_bronze__hospital_mrf_snapshots')
+        format: sql
+        rows: |
+          select
+              'snapshot-csv' as snapshot_id,
+              'hospital-1' as hospital_id,
+              'csv' as source_format
+      - input: ref('cms_validation_rules')
+        format: sql
+        rows: |
+          select
+              'payer_required_identity_and_methodology' as rule_id,
+              'Payer identity required' as rule_name,
+              'error' as severity,
+              'payer_rate' as grain,
+              'exclude_entity' as disposition,
+              'json citation' as cms_citation
+          union all
+          select
+              'payer_requires_negotiated_charge' as rule_id,
+              'Payer requires negotiated charge' as rule_name,
+              'error' as severity,
+              'payer_rate' as grain,
+              'exclude_entity' as disposition,
+              'json citation' as cms_citation
+          union all
+          select
+              'csv_payer_identity_required_with_rate' as rule_id,
+              'CSV payer identity required' as rule_name,
+              'error' as severity,
+              'payer_rate' as grain,
+              'exclude_entity' as disposition,
+              'csv citation' as cms_citation
+          union all
+          select
+              'csv_payer_rate_required_with_identity' as rule_id,
+              'CSV payer charge required' as rule_name,
+              'error' as severity,
+              'payer_rate' as grain,
+              'exclude_entity' as disposition,
+              'csv citation' as cms_citation
+    expect:
+      rows:
+        - snapshot_id: snapshot-csv
+          source_format_family: csv
+          row_ordinal: 0
+          rule_id: csv_payer_identity_required_with_rate
+        - snapshot_id: snapshot-csv
+          source_format_family: csv
+          row_ordinal: 1
+          rule_id: csv_payer_rate_required_with_identity
+
   - name: charge_item_schema_version_mismatch_warns_once
     description: >
       A JSON charge item whose accepted parser shape disagrees with the header

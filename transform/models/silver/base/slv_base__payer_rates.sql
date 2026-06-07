@@ -119,7 +119,20 @@ csv_rates as (
         on r.snapshot_id = standard_charges.snapshot_id
         and r.silver_charge_item_id = standard_charges.silver_charge_item_id
         and r.standard_charge_signature = standard_charges.standard_charge_signature
-    where not exists (
+    -- A CSV row is a payer rate only when it encodes payer/plan identity, a
+    -- methodology, or a negotiated charge value. Item-only rows (gross/cash
+    -- with blank payer columns) are standard charges, not payer rates, and must
+    -- not surface here as phantom rates. This gate is structural and does not
+    -- rely on validation rejection routing.
+    where (
+        r.clean_payer_name is not null
+        or r.clean_plan_name is not null
+        or r.clean_methodology is not null
+        or r.negotiated_dollar is not null
+        or r.negotiated_percentage is not null
+        or {{ hpt_clean_display_text('r.negotiated_algorithm') }} is not null
+    )
+    and not exists (
         select 1
         from {{ ref('val__payer_rate_rejections') }} rej
         where rej.source_format_family = 'csv'

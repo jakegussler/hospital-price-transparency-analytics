@@ -279,9 +279,12 @@ violations as (
         'required_field_missing',
         'Payer rate rows require payer name, plan name, and methodology.'
     from rate_flags
-    where clean_payer_name is null
-        or clean_plan_name is null
-        or clean_methodology is null
+    where source_format_family = 'json'
+        and (
+            clean_payer_name is null
+            or clean_plan_name is null
+            or clean_methodology is null
+        )
 
     union all
 
@@ -307,6 +310,30 @@ violations as (
     where source_format_family = 'csv'
         and (has_dollar or has_percentage or has_algorithm)
         and (clean_payer_name is null or clean_plan_name is null or clean_methodology is null)
+
+    union all
+
+    select
+        snapshot_id, hospital_id, source_format, source_format_family,
+        reported_schema_family, source_charge_item_id, source_standard_charge_id,
+        payer_ordinal, row_ordinal, source_rate_ordinal,
+        cast(null as integer), cast(null as varchar),
+        'csv_payer_rate_required_with_identity', 'standard_charge',
+        concat(
+            'payer=', coalesce(raw_payer_name, '<null>'),
+            '; plan=', coalesce(raw_plan_name, '<null>'),
+            '; dollar=', coalesce(raw_standard_charge_dollar, '<null>'),
+            '; percentage=', coalesce(raw_standard_charge_percentage, '<null>'),
+            '; algorithm=', coalesce(raw_standard_charge_algorithm, '<null>')
+        ),
+        'conditional_required_value_missing',
+        'CSV payer or plan identity is encoded without any payer-specific negotiated charge value.'
+    from rate_flags
+    where source_format_family = 'csv'
+        and (clean_payer_name is not null or clean_plan_name is not null)
+        and not has_dollar
+        and not has_percentage
+        and not has_algorithm
 
     union all
 
@@ -344,7 +371,8 @@ violations as (
         'conditional_required_value_missing',
         'Payer row lacks dollar, percentage, and algorithm negotiated charge values.'
     from rate_flags
-    where not has_dollar
+    where source_format_family = 'json'
+        and not has_dollar
         and not has_percentage
         and not has_algorithm
 
