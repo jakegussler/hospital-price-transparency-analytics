@@ -40,11 +40,54 @@ make lint
 make format
 hpt download --help
 hpt ingest --help
-cd transform && dbt run --profiles-dir .
+hpt run-dbt --snapshot-ids <one-snapshot-id> --command build --selector <smallest-relevant-selector>
 ```
 
 Use `hpt ingest` for parsing. Do not document or call `hpt parse` unless the CLI
 is changed to provide it.
+
+## dbt Agent Safety Rules
+
+Agents must validate dbt changes with the smallest possible snapshot-scoped run.
+
+- Never invoke `dbt` directly, including `cd transform && dbt ...`.
+- Never use unscoped/full-corpus Make targets such as `make dbt-run`,
+  `make dbt-test`, `make dbt-build`, or `make dbt-rebuild`.
+- Always use the `hpt run-dbt` CLI layer and pass exactly one explicit
+  `--snapshot-ids` value. Pin the snapshot UUID rather than using
+  `--hospital-ids`, whose current snapshot can change.
+- Never pass `--all-hospitals`, `--per-snapshot`, `--full-refresh`, or
+  `--full-rebuild`.
+- If correctness requires a full refresh or full rebuild to verify, do not run
+  dbt. State that full-refresh verification is still needed, explain why the
+  scoped validation is insufficient, and tell the user exactly which verification
+  command or scope should be run outside the agent workflow.
+- Always pass one non-empty `--selector`; never omit it to build the whole dbt
+  graph. Use the smallest selector/model and command that exercise the change,
+  broadening scope only when the targeted run cannot validate the behavior.
+- Do not pass `--seeds` unless the change affects seed data or seed-dependent
+  behavior.
+
+Use these pinned local snapshots consistently. Prefer the small snapshots for
+simple logic validation; choose the larger snapshots only when the change needs
+more representative row volume or source complexity.
+
+| Size | Format | Hospital | Snapshot ID | Approximate local size |
+|---|---|---|---|---|
+| Small | CSV Wide | Lincoln Health System | `cd725773-f575-45dd-a796-adf9c9805a14` | 8.6 MB raw; 0.8 MB Bronze |
+| Small | CSV Tall | Ballad Sycamore | `209991a1-5cfa-42b8-a2bf-9e40595898db` | 4.8 MB raw ZIP; 8.5 MB Bronze |
+| Small | JSON | NGMC Gainesville | `97e28644-a4fc-4b3c-9c5c-8e9cf650500e` | 2.0 MB raw; 3.2 MB Bronze |
+| Larger | CSV Tall | Ballad JCMC | `7ca24003-a8af-4e11-8f29-4587ffb22506` | 5.6 MB raw ZIP; 9.7 MB Bronze |
+| Larger | JSON | Vanderbilt University Medical Center | `8fa7c1b7-ea2e-4c1d-b38b-ae23899921bc` | 1.9 GB raw; 30.1 MB Bronze |
+
+Example:
+
+```bash
+hpt run-dbt \
+  --snapshot-ids 97e28644-a4fc-4b3c-9c5c-8e9cf650500e \
+  --command build \
+  --selector validation
+```
 
 ## Data And Storage Rules
 

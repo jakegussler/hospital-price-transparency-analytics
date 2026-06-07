@@ -44,28 +44,34 @@ pytest tests/parsers/test_csv_tall.py -k some_case
 make download                    # hpt download
 make ingest                      # hpt ingest   (NOT `hpt parse` — see gotchas)
 
-# dbt / DuckDB (always run from transform/ with --profiles-dir .)
+# Registry seed export (does not invoke dbt)
 make export-hospitals-seed
-make dbt-seed
-make dbt-run
-make dbt-test
-make dbt-build
-make dbt-build-selector DBT_SELECTOR=silver
 
-# Snapshot-scoped dbt run (prunes Bronze partitions, bounds memory)
-make dbt-seed                                    # seeds first (one-time / on change)
-make dbt-run-hospitals HOSPITAL_IDS=ballad-jcmc  # build pipeline_charge_data for those hospitals
-hpt run-dbt --hospital-ids a,b --snapshot-ids <uuid> --command build --selector pipeline_charge_data
+# dbt validation: always one pinned snapshot and the smallest relevant selector
+hpt run-dbt --snapshot-ids 97e28644-a4fc-4b3c-9c5c-8e9cf650500e --command build --selector validation
 ```
 
-`hpt run-dbt` resolves `--hospital-ids` to their current snapshot, merges any
-explicit `--snapshot-ids`, and passes them as the `snapshot_ids` dbt var. That
-var prunes Bronze hive partitions and bypasses the staging limit/sample. It
-excludes dbt unit tests (their fixtures pin snapshot_ids). A **partial**
-selector can leave out-of-selector models stale and trip cross-model
-`reconcile_*`/`relationships_*` tests; for a fully coherent rebuild pass an
-empty `--selector ""` (whole graph, still partition-pruned). See
-`docs/development/snapshot-scoped-runs.md`.
+For agent-run dbt validation, never invoke `dbt` directly or use the full-corpus
+`make dbt-*` targets. Always call `hpt run-dbt` with exactly one explicit
+`--snapshot-ids` value and one non-empty, smallest relevant `--selector`. Never
+omit the selector to build the whole dbt graph. Never use
+`--hospital-ids`, `--all-hospitals`, `--per-snapshot`, `--full-refresh`, or
+`--full-rebuild`; do not pass `--seeds` unless the change specifically requires
+seed validation. The canonical rules and pinned CSV Wide, CSV Tall, and JSON
+snapshot IDs are in `AGENTS.md`, including larger CSV Tall and JSON options for
+cases that need more representative row volume.
+
+If verification truly needs a full refresh or full rebuild, do not run dbt.
+Report that full-refresh verification is still needed, why the scoped snapshot
+run is insufficient, and the exact verification command or scope the user should
+run outside the agent workflow.
+
+`hpt run-dbt` passes the explicit snapshot as the `snapshot_ids` dbt var, which
+prunes Bronze hive partitions and bounds memory. A partial selector can leave
+out-of-selector models stale, so broaden the selector only when the smallest
+targeted run cannot validate the change. See
+`docs/development/snapshot-scoped-runs.md` for implementation details, not for
+permission to use its unscoped/full-refresh examples.
 
 dbt selectors available: `staging`, `silver_base`, `silver_core`,
 `silver_review_queue`, `silver`, `validation`,
@@ -92,9 +98,9 @@ dbt selectors available: `staging`, `silver_base`, `silver_core`,
 
 - **CLI is `hpt ingest`, never `hpt parse`.** Stale docs/prompts may reference
   `hpt parse`; it does not exist. Do not introduce it.
-- **dbt must run from `transform/` with `--profiles-dir .`.** The `make dbt-*`
-  targets already `cd transform` for you; replicate that if invoking dbt
-  directly.
+- **Agents invoke dbt only through `hpt run-dbt`.** Pin exactly one approved
+  snapshot UUID and use the smallest relevant selector; never run direct,
+  unscoped, per-snapshot-all, or full-refresh dbt commands.
 - **Bronze stays source-faithful.** No business normalization, payer matching,
   code rollups, or hospital identity resolution in Bronze parsers — that belongs
   in dbt Silver/Gold.
