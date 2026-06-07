@@ -17,16 +17,21 @@ seed `cms_validation_rules` is the rule registry, and `val__*` models emit one
 row per failing value with source keys, severity, grain, diagnostic type, and
 CMS citation metadata.
 
-Reject-severity failures are converted into `val__*_rejections` keysets. Silver
-base models anti-join those keysets:
+Severity describes the seriousness of a finding. The separate rule-registry
+`disposition` controls Silver filtering:
 
-- snapshot/header rejects remove the snapshot from Silver;
-- charge-item, code, and drug rejects remove the affected charge item;
-- standard-charge rejects remove only the affected standard charge context;
-- payer-rate rejects remove only the affected payer rate.
+- `exclude_entity` creates an exact-grain rejection key;
+- `report_only` keeps the finding queryable without excluding Silver data;
+- `already_quarantined` reports a structural parser failure whose record never
+  reached Bronze.
 
-Warn-severity failures remain in Silver and are queryable in validation. Bronze
-and staging remain complete and source-faithful.
+Silver filtering is downward-only. A rejected parent disappears with its
+descendants through normal parent joins, while rejected children never remove
+their parents or siblings. File/header findings are report-only, so snapshots
+and unrelated charge data always remain available.
+
+Warn-severity and report-only failures remain in Silver and are queryable in
+validation. Bronze and staging remain complete and source-faithful.
 
 Pydantic remains responsible only for structural JSON parsing. Stage 3 removed
 Python value-level, conditional, enum, and format validators, so malformed JSON
@@ -37,7 +42,7 @@ operate on accepted Bronze rows.
 ## Consequences
 
 - Bronze is the durable record of source values; Silver is filtered by explicit
-  dbt validation keysets.
+  exact-grain dbt validation keysets.
 - JSON and CSV now share the same validation authority: Pydantic no longer
   drops whole JSON records for CMS semantic/value failures.
 - CSV numeric diagnostics are preserved and superseded by the broader

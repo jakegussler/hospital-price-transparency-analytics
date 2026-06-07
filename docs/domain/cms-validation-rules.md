@@ -1,5 +1,10 @@
 # CMS Validation Rules
 
+Validation severity and Silver exclusion are independent. The rule registry's
+`disposition` controls routing: `exclude_entity` removes only the failing entity
+and descendants, `report_only` preserves Silver rows, and
+`already_quarantined` reports structural records removed by the parser.
+
 This document inventories the validation rules currently enforced by
 `src/hpt/ingest/cms_json_models.py` and the JSON parser fallback path in
 `src/hpt/parsers/json_mrf.py`. It is the Stage 1 reference for moving CMS
@@ -62,7 +67,7 @@ gate.
 | `code_information_required_shape` | `CodeInformation` field definitions | all | `code_information[].code`; `code_information[].type` | `code\|[i]`; `code\|[i]\|type` | JSON v3 schema `definitions.code_information.required`; CSV Conditional Requirement 3 | Structural for JSON row explosion; accepted code type values are semantic. |
 | `drug_information_required_shape_when_present` | `DrugInformation` field definitions | all when object present | `drug_information.unit`; `drug_information.type` | `drug_unit_of_measurement`; `drug_type_of_measurement` | JSON v3 schema `definitions.drug_information.required`; JSON dictionary Drug Information Object | Structural when the optional object exists. Numeric positivity and type enum membership are semantic. |
 | `standard_charge_required_setting_shape` | `StandardCharge.setting` field definition | all | `standard_charges[].setting` | `setting` | JSON v3 schema `definitions.standard_charges.required`; CSV dictionary required standard charge table | Structural because Bronze `standard_charges` currently carries one scalar setting per charge row. Enum membership is semantic. |
-| `modifier_information_required_shape` | `ModifierInformation` and `ModifierPayerInformation` field definitions | all | `modifier_information[].description`; `code`; `modifier_payer_information`; payer `payer_name`; `plan_name`; `description` | modifier columns and payer-specific modifier description where represented | JSON v3 schema `definitions.modifier_information.required`; JSON v3 schema `definitions.modifier_payer_information.required` | Structural for the optional JSON modifier dimension. |
+| `modifier_required_shape` | `ModifierInformation` and `ModifierPayerInformation` field definitions | all | `modifier_information[].description`; `code`; `modifier_payer_information`; payer `payer_name`; `plan_name`; `description` | modifier columns and payer-specific modifier description where represented | JSON v3 schema `definitions.modifier_information.required`; JSON v3 schema `definitions.modifier_payer_information.required` | Structural for the optional JSON modifier dimension. |
 | `general_contract_provisions_required_shape` | `GeneralContractProvisions.provisions` field definition | all root model use | `general_contract_provisions[].provisions` | `general_contract_provisions` | JSON v3 dictionary General Contract Provisions Object, snippet: `provisions ... Required Yes`; CSV Optional Column Headers | The parser emits source-faithful `general_contract_provisions` Bronze rows (JSON array objects with optional payer/plan; the flat CSV column). `val__header_violations` flags a present provisions object whose `provisions` text is missing or blank, at the file grain. |
 
 ## Header And File Rules
@@ -398,8 +403,8 @@ rules.
 |---|---|---|---|
 | `attestation_text_exact` | Pydantic requires attestation fields but does not verify the CMS-required statement text. | JSON v3 schema `definitions.attestation.properties.attestation.const`; JSON v2 schemas `definitions.affirmation.properties.affirmation.const` | `reject` |
 | `attestation_confirmation_true` | Pydantic accepts any boolean; CMS says `true` is required to meet the attestation regulatory requirement. | JSON v3 dictionary, Attestation Statement; CSV dictionary, Additional Notes for Attestation Statement | `reject` |
-| `required_text_non_empty` | Pydantic strips whitespace but required strings can still be empty. JSON schemas use `minLength: 1` on many required strings. | JSON v3 schema string properties with `minLength: 1` | `reject` |
-| `required_arrays_non_empty` | Pydantic list fields can be empty unless cross-field logic catches them. JSON schemas use `minItems: 1` for key arrays. | JSON v3 schema arrays with `minItems: 1` | `reject` |
+| `required_header_text_non_empty` | Pydantic strips whitespace but required strings can still be empty. JSON schemas use `minLength: 1` on many required strings. | JSON v3 schema string properties with `minLength: 1` | `reject` |
+| `charge_item_required_arrays_non_empty` | Pydantic list fields can be empty unless cross-field logic catches them. JSON schemas use `minItems: 1` for key arrays. | JSON v3 schema arrays with `minItems: 1` | `reject` |
 | `state_valid_usps_code` | Pydantic checks two alphabetic characters but not membership in the CMS state and territory list. | CSV `state_codes.md`; JSON v3 schema `license_information.state.enum` | `reject` |
 | `code_type_family_specific_enum` | Pydantic uses one code-type superset for all families. Older JSON schemas have smaller accepted sets. | JSON v2.1 and v2.2 schemas `definitions.code_information.properties.type.enum` | `reject` |
 | `csv_code_pair_required` | Pydantic only covers JSON. CSV requires code/code-type pairing when either side is present. | CSV Conditional Requirements 2 and 3 | `reject` |

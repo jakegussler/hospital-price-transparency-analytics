@@ -148,6 +148,7 @@ erDiagram
   modifier_payer_info {
     string snapshot_id FK
     string modifier_code_id FK
+    int modifier_payer_ordinal
     string payer_name
     string plan_name
     string description
@@ -241,6 +242,10 @@ CSV Bronze table:
 - `code_N` and `code_N_type` columns in `csv_charge_rows` are dynamic per file.
 - Bronze stores `modifier_code` strings on `standard_charge_modifiers`; it does
   not resolve them to `modifier_code_id`.
+- `modifier_payer_info.modifier_payer_ordinal` is the stable child key used for
+  exact-grain validation rejection. Existing JSON snapshots must be reingested
+  to populate the source ordinal; staging derives a deterministic compatibility
+  ordinal for older partitions.
 - JSON `standard_charge_information` rows include reported and parser schema
   family fields for lineage. Pydantic structural validation is now
   family-agnostic, so parser family is inferred from version-specific fields

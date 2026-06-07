@@ -31,7 +31,8 @@ flowchart TD
         S9[stg_bronze__csv_charge_rows]
         S10[stg_bronze__standard_charge_modifiers]
         S11[stg_bronze__modifiers]
-        S12[stg_bronze__modifier_payer_info]
+    S12[stg_bronze__modifier_payer_info]
+    S13[stg_bronze__general_contract_provisions]
     end
 
     subgraph Silver["Silver Base Models"]
@@ -45,7 +46,10 @@ flowchart TD
         M8[slv_base__modifiers]
         M9[slv_base__charge_item_codes]
         M10[slv_base__payer_rates]
-        M11[slv_base__charge_modifiers]
+    M11[slv_base__charge_modifiers]
+    M12[slv_base__drug_information]
+    M13[slv_base__general_contract_provisions]
+    M14[slv_base__modifier_payer_info]
     end
 
     H --> M1
@@ -89,6 +93,12 @@ flowchart TD
     M7 --> M11
     M10 --> M11
     M8 --> M11
+    S5 --> M12
+    M6 --> M12
+    S13 --> M13
+    M2 --> M13
+    S12 --> M14
+    M8 --> M14
 ```
 
 ---

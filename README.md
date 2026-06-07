@@ -43,8 +43,9 @@ The current implementation includes:
 - JSON, CSV Tall, and CSV Wide MRF parsing into Bronze Parquet.
 - Quarantine output for records that fail parser validation.
 - dbt/DuckDB staging views over Bronze Parquet.
-- Silver Base models for hospitals, snapshots, locations, NPIs, charge items,
-  codes, standard charges, payer rates, and modifiers.
+- Silver Base models for hospitals, snapshots, locations, NPIs, contract
+  provisions, charge items, codes, drug information, standard charges, payer
+  rates, modifiers, and modifier-payer information.
 - Silver Core payer-rate models with payer alias and payer/plan context matching.
 - Incremental dbt materialization for snapshot-grained Silver and validation
   tables, with configurable current-only or all-snapshot retention.
@@ -53,6 +54,8 @@ The current implementation includes:
   snapshots, parser behavior, Parquet writing, and ingest orchestration.
 - dbt schema and data tests for Bronze sources, staging, Silver, reconciliation,
   and payer normalization rules.
+- Grain-aware validation rejection: file/header findings are report-only, while
+  entity failures remove only the failing entity and its descendants.
 
 ## Repository Map
 

@@ -55,6 +55,9 @@ Validation responsibilities:
 - Preserve JSON structural quarantine diagnostics as
   `val__structural_parse_violations`.
 - Produce `val__*_rejections` keysets that Silver base models anti-join.
+- Route exclusions by the emitted entity grain and source keys, not by severity
+  alone. File/header findings are report-only; child failures never remove
+  parents or siblings.
 - Provide summary and monitoring models under `val_stats__*`.
 
 Validation should not:
