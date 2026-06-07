@@ -377,6 +377,7 @@ class TestModifierParsing:
         assert mods_df["setting"][0] == "outpatient"
 
         assert len(payer_df) == 1
+        assert payer_df["modifier_payer_ordinal"][0] == 0
         assert payer_df["payer_name"][0] == "Aetna"
         assert payer_df["plan_name"][0] == "PPO"
 

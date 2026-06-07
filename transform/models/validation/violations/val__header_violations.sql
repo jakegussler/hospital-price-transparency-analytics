@@ -196,19 +196,6 @@ violations as (
         reported_schema_family, cast(null as varchar), cast(null as varchar),
         cast(null as integer), cast(null as integer), cast(null as integer),
         cast(null as integer), cast(null as varchar),
-        'type_2_npi_ten_digit_numeric', 'type_2_npi',
-        raw_npi, 'identifier_format_invalid',
-        'Type 2 NPI must be exactly ten digits.'
-    from npi_values
-    where clean_npi is null or not regexp_matches(clean_npi, '^[0-9]{10}$')
-
-    union all
-
-    select
-        snapshot_id, hospital_id, source_format, source_format_family,
-        reported_schema_family, cast(null as varchar), cast(null as varchar),
-        cast(null as integer), cast(null as integer), cast(null as integer),
-        cast(null as integer), cast(null as varchar),
         'attestation_text_exact',
         case when reported_schema_family = '3.0' then 'attestation' else 'affirmation' end,
         case when reported_schema_family = '3.0' then attestation else affirmation end,
@@ -253,30 +240,11 @@ violations as (
     union all
 
     select
-        sc.snapshot_id, sc.hospital_id, sc.source_format, sc.source_format_family,
-        sc.reported_schema_family, cast(null as varchar), cast(null as varchar),
-        cast(null as integer), cast(null as integer), cast(null as integer),
-        cast(null as integer), cast(null as varchar),
-        'general_contract_provisions_required_shape',
-        'general_contract_provisions.provisions',
-        cast(null as varchar), 'required_field_missing',
-        'General contract provisions object is present but provisions text is missing.'
-    from snapshot_context sc
-    where exists (
-        select 1
-        from {{ ref('stg_bronze__general_contract_provisions') }} gcp
-        where gcp.snapshot_id = sc.snapshot_id
-            and gcp.clean_provisions is null
-    )
-
-    union all
-
-    select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, cast(null as varchar), cast(null as varchar),
         cast(null as integer), cast(null as integer), cast(null as integer),
         cast(null as integer), cast(null as varchar),
-        'required_text_non_empty', column_name, raw_value,
+        'required_header_text_non_empty', column_name, raw_value,
         'required_text_blank',
         column_name || ' is required and must not be blank.'
     from snapshot_context,
@@ -330,15 +298,22 @@ enriched as (
         v.source_rate_ordinal,
         v.code_ordinal,
         v.modifier_code_id,
+        cast(null as integer) as npi_ordinal,
+        cast(null as integer) as provision_ordinal,
+        cast(null as integer) as modifier_payer_ordinal,
+        cast(null as varchar) as structural_section,
+        cast(null as integer) as record_ordinal,
         v.rule_id,
         r.rule_name,
         r.severity,
-        r.grain,
+        'header' as grain,
+        r.disposition,
         v.column_name,
         v.raw_value,
         v.diagnostic_type,
         v.message,
-        r.severity = 'reject' as is_rejected,
+        r.disposition = 'exclude_entity' as is_rejected,
+        r.disposition = 'exclude_entity' as excludes_from_silver,
         r.cms_citation
     from violations v
     inner join {{ ref('cms_validation_rules') }} r

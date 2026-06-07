@@ -168,7 +168,7 @@ violations as (
         reported_schema_family, source_charge_item_id, cast(null as varchar),
         cast(null as integer), row_ordinal, cast(null as integer),
         cast(null as integer), cast(null as varchar),
-        'required_text_non_empty', 'description', raw_description,
+        'charge_item_description_non_empty', 'description', raw_description,
         'required_text_blank',
         'Charge-item description is required and must not be blank.'
     from items
@@ -181,7 +181,7 @@ violations as (
         reported_schema_family, source_charge_item_id, cast(null as varchar),
         cast(null as integer), row_ordinal, cast(null as integer),
         cast(null as integer), cast(null as varchar),
-        'required_arrays_non_empty', 'code_information',
+        'charge_item_required_arrays_non_empty', 'code_information',
         cast(code_count as varchar), 'required_array_empty',
         'JSON code_information array must contain at least one item.'
     from items
@@ -194,7 +194,7 @@ violations as (
         reported_schema_family, source_charge_item_id, cast(null as varchar),
         cast(null as integer), row_ordinal, cast(null as integer),
         cast(null as integer), cast(null as varchar),
-        'required_arrays_non_empty', 'standard_charges',
+        'charge_item_required_arrays_non_empty', 'standard_charges',
         cast(standard_charge_count as varchar), 'required_array_empty',
         'JSON standard_charges array must contain at least one item.'
     from items
@@ -219,15 +219,22 @@ enriched as (
         v.source_rate_ordinal,
         v.code_ordinal,
         v.modifier_code_id,
+        cast(null as integer) as npi_ordinal,
+        cast(null as integer) as provision_ordinal,
+        cast(null as integer) as modifier_payer_ordinal,
+        cast(null as varchar) as structural_section,
+        cast(null as integer) as record_ordinal,
         v.rule_id,
         r.rule_name,
         r.severity,
-        r.grain,
+        'charge_item' as grain,
+        r.disposition,
         v.column_name,
         v.raw_value,
         v.diagnostic_type,
         v.message,
-        r.severity = 'reject' as is_rejected,
+        r.disposition = 'exclude_entity' as is_rejected,
+        r.disposition = 'exclude_entity' as excludes_from_silver,
         r.cms_citation
     from violations v
     inner join {{ ref('cms_validation_rules') }} r

@@ -27,6 +27,22 @@ with record_counts as (
     from {{ ref('stg_bronze__modifiers') }}
     group by snapshot_id
     union all
+    select snapshot_id, 'modifier_payer', count(*)
+    from {{ ref('stg_bronze__modifier_payer_info') }}
+    group by snapshot_id
+    union all
+    select snapshot_id, 'npi', count(*)
+    from {{ ref('stg_bronze__type2_npi') }}
+    group by snapshot_id
+    union all
+    select snapshot_id, 'provision', count(*)
+    from {{ ref('stg_bronze__general_contract_provisions') }}
+    group by snapshot_id
+    union all
+    select snapshot_id, 'structural', count(*)
+    from {{ ref('stg_bronze__json_record_parse_diagnostics') }}
+    group by snapshot_id
+    union all
     select snapshot_id, 'charge_item', count(distinct row_ordinal)
     from {{ ref('stg_bronze__csv_charge_rows') }}
     group by snapshot_id

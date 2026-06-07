@@ -31,6 +31,14 @@ json_codes as (
         and c.charge_item_id = ci.source_charge_item_id
     left join code_types ct
         on c.clean_code_type = ct.code_type
+    where not exists (
+        select 1
+        from {{ ref('val__code_rejections') }} r
+        where r.source_format_family = 'json'
+            and r.snapshot_id = c.snapshot_id
+            and r.source_charge_item_id = c.charge_item_id
+            and r.code_ordinal = c.code_ordinal
+    )
 ),
 
 csv_deduped_codes as (
@@ -46,6 +54,14 @@ csv_deduped_codes as (
     inner join {{ ref('slv_base__csv_charge_row_items') }} row_items
         on cc.snapshot_id = row_items.snapshot_id
         and cc.row_ordinal = row_items.row_ordinal
+    where not exists (
+        select 1
+        from {{ ref('val__code_rejections') }} r
+        where r.source_format_family = 'csv'
+            and r.snapshot_id = cc.snapshot_id
+            and r.row_ordinal = cc.row_ordinal
+            and r.code_ordinal = cc.code_ordinal
+    )
 ),
 
 csv_codes_final as (

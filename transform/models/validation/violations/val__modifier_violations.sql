@@ -8,6 +8,7 @@ with json_modifiers as (
         cast(null as varchar) as source_charge_item_id,
         cast(null as varchar) as source_standard_charge_id,
         cast(null as integer) as row_ordinal,
+        cast(null as integer) as modifier_payer_ordinal,
         m.modifier_code_id,
         m.raw_modifier_code,
         m.clean_modifier_code,
@@ -36,6 +37,7 @@ json_modifier_payers as (
         cast(null as varchar) as source_charge_item_id,
         cast(null as varchar) as source_standard_charge_id,
         cast(null as integer) as row_ordinal,
+        mpi.modifier_payer_ordinal,
         mpi.modifier_code_id,
         cast(null as varchar) as raw_modifier_code,
         cast(null as varchar) as clean_modifier_code,
@@ -64,6 +66,7 @@ csv_modifier_rows as (
         cast(null as varchar) as source_charge_item_id,
         cast(null as varchar) as source_standard_charge_id,
         r.row_ordinal,
+        cast(null as integer) as modifier_payer_ordinal,
         cast(null as varchar) as modifier_code_id,
         r.raw_modifiers as raw_modifier_code,
         {{ hpt_clean_display_text('r.raw_modifiers') }} as clean_modifier_code,
@@ -106,7 +109,8 @@ violations as (
         cast(null as integer) as source_rate_ordinal,
         cast(null as integer) as code_ordinal,
         modifier_code_id,
-        'modifier_information_required_shape' as rule_id,
+        modifier_payer_ordinal,
+        'modifier_required_shape' as rule_id,
         case
             when clean_modifier_code is null then 'modifier_information.code'
             else 'modifier_information.description'
@@ -124,7 +128,8 @@ violations as (
         reported_schema_family, source_charge_item_id, source_standard_charge_id,
         cast(null as integer), row_ordinal, cast(null as integer),
         cast(null as integer), modifier_code_id,
-        'modifier_information_required_shape',
+        modifier_payer_ordinal,
+        'modifier_payer_required_shape',
         case
             when clean_payer_name is null then 'modifier_payer_information.payer_name'
             when clean_plan_name is null then 'modifier_payer_information.plan_name'
@@ -149,7 +154,8 @@ violations as (
         reported_schema_family, source_charge_item_id, source_standard_charge_id,
         cast(null as integer), row_ordinal, cast(null as integer),
         cast(null as integer), modifier_code_id,
-        'setting_allowed_values', 'modifier_information.setting', raw_setting,
+        modifier_payer_ordinal,
+        'modifier_setting_allowed_values', 'modifier_information.setting', raw_setting,
         'accepted_value_invalid',
         'Modifier setting must be inpatient, outpatient, or both when present.'
     from json_modifiers
@@ -163,6 +169,7 @@ violations as (
         reported_schema_family, source_charge_item_id, source_standard_charge_id,
         cast(null as integer), row_ordinal, cast(null as integer),
         cast(null as integer), modifier_code_id,
+        modifier_payer_ordinal,
         'csv_modifier_without_item_minimum_information', 'modifiers', raw_modifier_code,
         'conditional_required_field_missing',
         'CSV modifier-only rows require description plus at least one charge or note field.'
@@ -183,7 +190,8 @@ enriched as (
     select
         {{ hpt_surrogate_key([
             'v.snapshot_id', "'modifier'", 'v.rule_id', 'v.column_name',
-            'v.modifier_code_id', 'v.row_ordinal', 'v.raw_value'
+            'v.modifier_code_id', 'v.modifier_payer_ordinal', 'v.row_ordinal',
+            'v.raw_value'
         ]) }} as validation_violation_id,
         v.snapshot_id,
         v.hospital_id,
@@ -197,15 +205,25 @@ enriched as (
         v.source_rate_ordinal,
         v.code_ordinal,
         v.modifier_code_id,
+        cast(null as integer) as npi_ordinal,
+        cast(null as integer) as provision_ordinal,
+        v.modifier_payer_ordinal,
+        cast(null as varchar) as structural_section,
+        cast(null as integer) as record_ordinal,
         v.rule_id,
         r.rule_name,
         r.severity,
-        r.grain,
+        case
+            when v.rule_id = 'modifier_payer_required_shape' then 'modifier_payer'
+            else 'modifier'
+        end as grain,
+        r.disposition,
         v.column_name,
         v.raw_value,
         v.diagnostic_type,
         v.message,
-        r.severity = 'reject' as is_rejected,
+        r.disposition = 'exclude_entity' as is_rejected,
+        r.disposition = 'exclude_entity' as excludes_from_silver,
         r.cms_citation
     from violations v
     inner join {{ ref('cms_validation_rules') }} r

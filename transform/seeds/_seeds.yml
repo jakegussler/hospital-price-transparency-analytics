@@ -15,7 +15,11 @@ seeds:
       - name: grain
         tests:
           - accepted_values:
-              values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier"]
+              values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier", "modifier_payer", "npi", "provision", "structural"]
+      - name: disposition
+        tests:
+          - accepted_values:
+              values: ["exclude_entity", "report_only", "already_quarantined"]
       - name: applies_to_formats
         tests:
           - accepted_values:

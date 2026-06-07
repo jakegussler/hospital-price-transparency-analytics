@@ -4,7 +4,11 @@ with diagnostics as (
         hs.hospital_id,
         hs.source_format,
         {{ hpt_source_format_family('hs.source_format') }} as source_format_family,
-        coalesce(d.reported_schema_family, d.parser_schema_family, {{ hpt_schema_family_from_version('hs.schema_version') }}) as reported_schema_family,
+        coalesce(
+            d.reported_schema_family,
+            d.parser_schema_family,
+            {{ hpt_schema_family_from_version('hs.schema_version') }}
+        ) as reported_schema_family,
         d.record_ordinal,
         d.section,
         d.error_summary
@@ -13,21 +17,12 @@ with diagnostics as (
         on d.snapshot_id = hs.snapshot_id
 ),
 
-structural_rules as (
-    select rule_id
-    from {{ ref('cms_validation_rules') }}
-    where rule_id in (
-        'standard_charge_information_required_shape',
-        'code_information_required_shape',
-        'drug_information_required_shape_when_present',
-        'standard_charge_required_setting_shape',
-        'modifier_information_required_shape',
-        'required_arrays_non_empty'
-    )
-),
-
-violations as (
+enriched as (
     select
+        {{ hpt_surrogate_key([
+            'd.snapshot_id', "'structural'", "'json_record_structural_parse_failed'",
+            'd.section', 'd.record_ordinal', 'd.error_summary'
+        ]) }} as validation_violation_id,
         d.snapshot_id,
         d.hospital_id,
         d.source_format,
@@ -36,50 +31,30 @@ violations as (
         cast(null as varchar) as source_charge_item_id,
         cast(null as varchar) as source_standard_charge_id,
         cast(null as integer) as payer_ordinal,
-        d.record_ordinal as row_ordinal,
+        cast(null as integer) as row_ordinal,
         cast(null as integer) as source_rate_ordinal,
         cast(null as integer) as code_ordinal,
         cast(null as varchar) as modifier_code_id,
+        cast(null as integer) as npi_ordinal,
+        cast(null as integer) as provision_ordinal,
+        cast(null as integer) as modifier_payer_ordinal,
+        d.section as structural_section,
+        d.record_ordinal,
         r.rule_id,
+        r.rule_name,
+        r.severity,
+        'structural' as grain,
+        r.disposition,
         d.section as column_name,
         d.error_summary as raw_value,
         'json_structural_parse_failed' as diagnostic_type,
-        'JSON record was quarantined before Bronze row construction; see parser diagnostic summary.' as message
-    from diagnostics d
-    cross join structural_rules r
-),
-
-enriched as (
-    select
-        {{ hpt_surrogate_key([
-            'v.snapshot_id', "'structural'", 'v.rule_id', 'v.column_name',
-            'v.row_ordinal', 'v.raw_value'
-        ]) }} as validation_violation_id,
-        v.snapshot_id,
-        v.hospital_id,
-        v.source_format,
-        v.source_format_family,
-        v.reported_schema_family,
-        v.source_charge_item_id,
-        v.source_standard_charge_id,
-        v.payer_ordinal,
-        v.row_ordinal,
-        v.source_rate_ordinal,
-        v.code_ordinal,
-        v.modifier_code_id,
-        v.rule_id,
-        r.rule_name,
-        r.severity,
-        r.grain,
-        v.column_name,
-        v.raw_value,
-        v.diagnostic_type,
-        v.message,
-        r.severity = 'reject' as is_rejected,
+        'JSON record was quarantined before Bronze row construction; see parser diagnostic summary.' as message,
+        false as is_rejected,
+        false as excludes_from_silver,
         r.cms_citation
-    from violations v
+    from diagnostics d
     inner join {{ ref('cms_validation_rules') }} r
-        on v.rule_id = r.rule_id
+        on r.rule_id = 'json_record_structural_parse_failed'
 )
 
 select * from enriched

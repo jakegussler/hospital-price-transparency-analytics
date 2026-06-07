@@ -40,8 +40,3 @@ left join {{ ref('slv_base__hospitals') }} h
     on s.hospital_id = h.hospital_id
 left join snapshot_state state
     on s.snapshot_id = state.snapshot_id
-where not exists (
-    select 1
-    from {{ ref('val__snapshot_rejections') }} r
-    where r.snapshot_id = s.snapshot_id
-)

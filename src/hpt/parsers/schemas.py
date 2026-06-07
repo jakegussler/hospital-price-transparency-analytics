@@ -146,6 +146,7 @@ JSON_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
     "modifier_payer_info": {
         "snapshot_id": pl.Utf8,
         "modifier_code_id": pl.Utf8,
+        "modifier_payer_ordinal": pl.Int64,
         "payer_name": pl.Utf8,
         "plan_name": pl.Utf8,
         "description": pl.Utf8,

@@ -11,11 +11,6 @@ left join {{ ref('slv_base__standard_charges') }} standard_charges
 where standard_charges.silver_standard_charge_id is null
     and not exists (
         select 1
-        from {{ ref('val__snapshot_rejections') }} rej
-        where rej.snapshot_id = r.snapshot_id
-    )
-    and not exists (
-        select 1
         from {{ ref('val__charge_item_rejections') }} rej
         where rej.source_format_family = 'csv'
             and rej.snapshot_id = r.snapshot_id

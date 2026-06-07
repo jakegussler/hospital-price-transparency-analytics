@@ -8,11 +8,6 @@ with expected as (
         and pi.standard_charge_id = sc.standard_charge_id
     where not exists (
             select 1
-            from {{ ref('val__snapshot_rejections') }} r
-            where r.snapshot_id = pi.snapshot_id
-        )
-        and not exists (
-            select 1
             from {{ ref('val__charge_item_rejections') }} r
             where r.source_format_family = 'json'
                 and r.snapshot_id = sc.snapshot_id

@@ -26,6 +26,13 @@ with json_items as (
     left join {{ ref('stg_bronze__drug_information') }} di
         on sci.snapshot_id = di.snapshot_id
         and sci.charge_item_id = di.charge_item_id
+        and not exists (
+            select 1
+            from {{ ref('val__drug_rejections') }} r
+            where r.source_format_family = 'json'
+                and r.snapshot_id = di.snapshot_id
+                and r.source_charge_item_id = di.charge_item_id
+        )
     where not exists (
         select 1
         from {{ ref('val__charge_item_rejections') }} r

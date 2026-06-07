@@ -61,6 +61,12 @@ models:
               to: ref('slv_base__hospital_snapshots')
               field: snapshot_id
 
+  - name: slv_base__general_contract_provisions
+    description: "Accepted source-reported general contract provision rows."
+
+  - name: slv_base__drug_information
+    description: "Accepted JSON and CSV drug information attached to Silver charge items."
+
   - name: slv_base__csv_charge_row_items
     description: "Helper bridge from each CSV source row to its synthesized snapshot-scoped charge item."
     columns:
@@ -170,7 +176,7 @@ models:
         description: "Analyst-friendly title-case plan name derived from the source-reported plan name."
 
   - name: slv_base__modifiers
-    description: "JSON modifier definitions and modifier payer metadata when available."
+    description: "Accepted JSON modifier definitions at one row per modifier."
     columns:
       - name: silver_modifier_id
         tests:
@@ -181,6 +187,9 @@ models:
           - relationships:
               to: ref('slv_base__hospital_snapshots')
               field: snapshot_id
+
+  - name: slv_base__modifier_payer_info
+    description: "Accepted modifier payer-information children attached to Silver modifiers."
 
   - name: slv_base__charge_modifiers
     description: "Modifier codes attached to Silver standard-charge contexts, with payer-rate linkage where source grain provides it."

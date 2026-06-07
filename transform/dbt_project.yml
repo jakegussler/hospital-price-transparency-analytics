@@ -30,6 +30,8 @@ models:
         +tags: ["pipeline_snapshot_metadata"]
       stg_bronze__type2_npi:
         +tags: ["pipeline_snapshot_metadata"]
+      stg_bronze__general_contract_provisions:
+        +tags: ["pipeline_snapshot_metadata"]
       stg_bronze__standard_charge_info:
         +tags: ["pipeline_charge_data"]
       stg_bronze__code_information:
@@ -66,6 +68,8 @@ models:
           +tags: ["pipeline_snapshot_metadata"]
         slv_base__type2_npis:
           +tags: ["pipeline_snapshot_metadata"]
+        slv_base__general_contract_provisions:
+          +tags: ["pipeline_snapshot_metadata"]
         slv_base__csv_charge_row_items:
           +tags: ["pipeline_charge_data"]
         slv_base__charge_items:
@@ -74,9 +78,13 @@ models:
           +tags: ["pipeline_charge_data"]
         slv_base__charge_item_codes:
           +tags: ["pipeline_charge_data"]
+        slv_base__drug_information:
+          +tags: ["pipeline_charge_data"]
         slv_base__payer_rates:
           +tags: ["pipeline_charge_data"]
         slv_base__modifiers:
+          +tags: ["pipeline_charge_data"]
+        slv_base__modifier_payer_info:
           +tags: ["pipeline_charge_data"]
         slv_base__charge_modifiers:
           +tags: ["pipeline_charge_data"]
@@ -130,6 +138,7 @@ seeds:
         current_pydantic_location: varchar
         target_dbt_model: varchar
         notes: varchar
+        disposition: varchar
     cms_code_types:
       +column_types:
         code_type: varchar

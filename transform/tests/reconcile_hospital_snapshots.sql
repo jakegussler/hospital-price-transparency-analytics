@@ -1,11 +1,6 @@
 with bronze as (
-    select s.snapshot_id
-    from {{ ref('stg_bronze__hospital_mrf_snapshots') }} s
-    where not exists (
-        select 1
-        from {{ ref('val__snapshot_rejections') }} r
-        where r.snapshot_id = s.snapshot_id
-    )
+    select snapshot_id
+    from {{ ref('stg_bronze__hospital_mrf_snapshots') }}
 ),
 
 silver as (

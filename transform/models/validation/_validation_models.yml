@@ -35,6 +35,16 @@ models:
         description: "Zero-based code ordinal within the source charge item or CSV code pair when the violation belongs to a code."
       - name: modifier_code_id
         description: "JSON Bronze modifier identifier when the violation belongs to a modifier row."
+      - name: npi_ordinal
+        description: "Source ordinal when the violation belongs to a Type-2 NPI row."
+      - name: provision_ordinal
+        description: "Source ordinal when the violation belongs to a general contract provision."
+      - name: modifier_payer_ordinal
+        description: "Source ordinal when the violation belongs to modifier payer information."
+      - name: structural_section
+        description: "JSON root section containing a quarantined structural record."
+      - name: record_ordinal
+        description: "Source ordinal of a quarantined structural record."
       - name: rule_id
         description: "Stable validation rule identifier from the cms_validation_rules seed."
         tests:
@@ -50,10 +60,12 @@ models:
           - accepted_values:
               values: ["reject", "warn"]
       - name: grain
-        description: "Business/source grain where the rule is evaluated."
+        description: "Actual business/source grain of the emitted failing entity."
         tests:
           - accepted_values:
-              values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier"]
+              values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier", "modifier_payer", "npi", "provision", "structural"]
+      - name: disposition
+        description: "Routing policy for the emitted violation."
       - name: column_name
         description: "Source or logical column whose value failed the rule."
       - name: raw_value
@@ -65,12 +77,18 @@ models:
       - name: message
         description: "Reviewer-facing explanation of why this row violates the rule."
       - name: is_rejected
-        description: "Boolean convenience flag derived from severity = reject."
+        description: "Boolean compatibility flag derived from disposition = exclude_entity."
+      - name: excludes_from_silver
+        description: "Whether this exact failing entity is excluded from Silver."
       - name: cms_citation
         description: "CMS documentation or schema citation carried from the rule registry."
 
   - name: val__structural_parse_violations
     description: "Validation rows derived from JSON parser quarantine diagnostics for records that never reached Bronze."
+    columns: *violation_columns
+
+  - name: val__metadata_child_violations
+    description: "Exact-grain validation failures for NPIs and general contract provisions."
     columns: *violation_columns
 
   - name: val__charge_item_violations
@@ -101,34 +119,8 @@ models:
     description: "Consolidated long table of every validation violation across grains."
     columns: *violation_columns
 
-  - name: val__snapshot_rejections
-    description: "Distinct snapshot/header keys that fail reject-severity rules."
-    columns:
-      - name: snapshot_id
-        description: "Snapshot removed from Silver because a file/header reject rule fired."
-        tests:
-          - not_null
-      - name: hospital_id
-        description: "Registry hospital identifier from the rejected snapshot."
-      - name: source_format
-        description: "Original parser/source format for the rejected snapshot."
-      - name: source_format_family
-        description: "Normalized source family for the rejected snapshot: json or csv."
-      - name: rule_id
-        description: "Reject-severity validation rule that created this snapshot rejection."
-        tests:
-          - relationships:
-              to: ref('cms_validation_rules')
-              field: rule_id
-      - name: severity
-        description: "Severity for the rejection row; always reject."
-      - name: diagnostic_type
-        description: "Machine-readable diagnostic category copied from the violation row."
-      - name: message
-        description: "Reviewer-facing reason the snapshot is excluded from Silver."
-
   - name: val__charge_item_rejections
-    description: "Distinct charge-item keys that fail reject-severity charge-item, code, or drug rules."
+    description: "Distinct charge-item keys that fail exact-grain exclusion rules."
     columns:
       - name: snapshot_id
         description: "Snapshot containing the rejected charge item."
@@ -145,7 +137,7 @@ models:
       - name: row_ordinal
         description: "CSV source row ordinal used by Silver anti-joins for CSV records."
       - name: rule_id
-        description: "Reject-severity charge-item, code, or drug rule that created this rejection."
+        description: "Exact-grain charge-item exclusion rule that created this rejection."
         tests:
           - relationships:
               to: ref('cms_validation_rules')
@@ -222,6 +214,24 @@ models:
         description: "Machine-readable diagnostic category copied from the violation row."
       - name: message
         description: "Reviewer-facing reason the payer rate is excluded from Silver."
+
+  - name: val__code_rejections
+    description: "Distinct source code keys excluded from Silver without rejecting their parent charge items."
+
+  - name: val__drug_rejections
+    description: "Distinct source drug-information keys excluded from Silver without rejecting their parent charge items."
+
+  - name: val__npi_rejections
+    description: "Distinct Type-2 NPI ordinals excluded from Silver without rejecting their snapshots."
+
+  - name: val__provision_rejections
+    description: "Distinct general-contract-provision ordinals excluded from Silver without rejecting their snapshots."
+
+  - name: val__modifier_rejections
+    description: "Distinct modifier-definition keys excluded from Silver; child modifier-payer rows cascade through the parent join."
+
+  - name: val__modifier_payer_rejections
+    description: "Distinct modifier-payer child keys excluded from Silver without rejecting their parent modifier definitions."
 
   - name: val__rule_coverage
     description: "Rule-by-rule implementation coverage for the Stage 2 validation layer."

@@ -1,5 +1,25 @@
-with csv_codes as (
-    {{ hpt_csv_code_unpivot("select * from " ~ ref('stg_bronze__csv_charge_rows')) }}
+with rejected_csv_codes as (
+    select distinct snapshot_id, row_ordinal, code_ordinal
+    from {{ ref('val__code_rejections') }}
+    where source_format_family = 'csv'
+),
+
+rejected_csv_drugs as (
+    select distinct snapshot_id, row_ordinal
+    from {{ ref('val__drug_rejections') }}
+    where source_format_family = 'csv'
+),
+
+csv_codes as (
+    select codes.*
+    from (
+        {{ hpt_csv_code_unpivot("select * from " ~ ref('stg_bronze__csv_charge_rows')) }}
+    ) codes
+    left join rejected_csv_codes r
+        on r.snapshot_id = codes.snapshot_id
+        and r.row_ordinal = codes.row_ordinal
+        and r.code_ordinal = codes.code_ordinal
+    where r.snapshot_id is null
 ),
 
 csv_code_sets as (
@@ -21,12 +41,18 @@ csv_code_sets as (
 
 csv_rows as (
     select
-        r.*,
+        r.* exclude (drug_unit, raw_drug_unit_type, clean_drug_unit_type),
+        case when dr.snapshot_id is null then r.drug_unit end as drug_unit,
+        case when dr.snapshot_id is null then r.raw_drug_unit_type end as raw_drug_unit_type,
+        case when dr.snapshot_id is null then r.clean_drug_unit_type end as clean_drug_unit_type,
         coalesce(cs.code_set_signature, md5('<no_codes>')) as code_set_signature
     from {{ ref('stg_bronze__csv_charge_rows') }} r
     left join csv_code_sets cs
         on r.snapshot_id = cs.snapshot_id
         and r.row_ordinal = cs.row_ordinal
+    left join rejected_csv_drugs dr
+        on r.snapshot_id = dr.snapshot_id
+        and r.row_ordinal = dr.row_ordinal
 ),
 
 signed_rows as (

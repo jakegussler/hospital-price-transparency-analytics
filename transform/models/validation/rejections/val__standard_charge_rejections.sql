@@ -11,5 +11,5 @@ select distinct
     diagnostic_type,
     message
 from {{ ref('val__all_violations') }}
-where severity = 'reject'
+where excludes_from_silver
     and grain = 'standard_charge'

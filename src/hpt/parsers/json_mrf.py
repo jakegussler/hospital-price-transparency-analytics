@@ -249,6 +249,7 @@ class JsonMrfParser(BaseParser):
         section = "modifier_information"
         modifiers_rows: list[dict[str, Any]] = []
         modifier_payer_rows: list[dict[str, Any]] = []
+        diagnostic_rows: list[dict[str, Any]] = []
         parsed_count = 0
 
         with _open_maybe_gz(file_path) as f:
@@ -258,6 +259,28 @@ class JsonMrfParser(BaseParser):
                 try:
                     mi = ModifierInformation.model_validate(raw_item)
                 except ValidationError as exc:
+                    diagnostic_rows.append(
+                        {
+                            "snapshot_id": snapshot_id,
+                            "section": section,
+                            "record_ordinal": ordinal,
+                            "reported_schema_version": self.snapshot_meta.get(
+                                "schema_version"
+                            ),
+                            "reported_schema_family": normalize_json_schema_family(
+                                self.snapshot_meta.get("schema_version")
+                            ),
+                            "parser_schema_family": None,
+                            "parser_schema_version": None,
+                            "schema_version_mismatch": False,
+                            "conflicting_version_signals": False,
+                            "failure_count": len(exc.errors()),
+                            "error_summary": json.dumps(
+                                _validation_error_summary(exc), default=str
+                            ),
+                            "diagnosed_at": datetime.now(UTC).isoformat(),
+                        }
+                    )
                     self._quarantine(section, ordinal, raw_item, exc)
                     continue
 
@@ -272,11 +295,12 @@ class JsonMrfParser(BaseParser):
                         "setting": mi.setting,
                     }
                 )
-                for payer in mi.modifier_payer_information:
+                for payer_ordinal, payer in enumerate(mi.modifier_payer_information):
                     modifier_payer_rows.append(
                         {
                             "snapshot_id": snapshot_id,
                             "modifier_code_id": modifier_code_id,
+                            "modifier_payer_ordinal": payer_ordinal,
                             "payer_name": payer.payer_name,
                             "plan_name": payer.plan_name,
                             "description": payer.description,
@@ -287,6 +311,9 @@ class JsonMrfParser(BaseParser):
             "modifiers": _df(modifiers_rows, BRONZE_SCHEMAS["modifiers"]),
             "modifier_payer_info": _df(
                 modifier_payer_rows, BRONZE_SCHEMAS["modifier_payer_info"]
+            ),
+            "json_record_parse_diagnostics": _df(
+                diagnostic_rows, BRONZE_SCHEMAS["json_record_parse_diagnostics"]
             ),
         }
         logger.info(

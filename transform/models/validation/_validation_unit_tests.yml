@@ -78,6 +78,7 @@ unit_tests:
               'v2.2 estimate required' as rule_name,
               'reject' as severity,
               'payer_rate' as grain,
+              'exclude_entity' as disposition,
               'v2.2 citation' as cms_citation
           union all
           select
@@ -85,6 +86,7 @@ unit_tests:
               'v3 count required' as rule_name,
               'reject' as severity,
               'payer_rate' as grain,
+              'exclude_entity' as disposition,
               'v3 citation' as cms_citation
     expect:
       rows:
@@ -177,6 +179,7 @@ unit_tests:
               'Schema version header/record mismatch' as rule_name,
               'warn' as severity,
               'charge_item' as grain,
+              'report_only' as disposition,
               'schema citation' as cms_citation
     expect:
       rows:
@@ -209,6 +212,8 @@ unit_tests:
               cast(null as integer) as row_ordinal,
               'schema_version_header_record_mismatch' as rule_id,
               'warn' as severity,
+              'report_only' as disposition,
+              false as excludes_from_silver,
               'schema_version_mismatch' as diagnostic_type,
               'Header-declared schema version disagrees with the accepted parser shape for this JSON charge item.' as message,
               'charge_item' as grain
@@ -275,6 +280,14 @@ unit_tests:
               cast(null as varchar) as source_format_family,
               cast(null as varchar) as source_charge_item_id,
               cast(null as integer) as row_ordinal
+          where false
+      - input: ref('val__drug_rejections')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as source_format_family,
+              cast(null as varchar) as source_charge_item_id
           where false
     expect:
       rows:
