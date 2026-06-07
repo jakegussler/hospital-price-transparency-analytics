@@ -49,7 +49,6 @@ enriched as (
         d.error_summary as raw_value,
         'json_structural_parse_failed' as diagnostic_type,
         'JSON record was quarantined before Bronze row construction; see parser diagnostic summary.' as message,
-        false as is_rejected,
         false as excludes_from_silver,
         r.cms_citation
     from diagnostics d

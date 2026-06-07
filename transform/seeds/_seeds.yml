@@ -27,10 +27,10 @@ seeds:
       - name: condition
         description: "Human-readable predicate describing when the rule emits a violation."
       - name: severity
-        description: "Finding seriousness used in emitted violation metadata; exclusion routing is controlled separately by disposition."
+        description: "Compliance seriousness of the finding, independent of routing: error (hard CMS requirement failure) or warn (recommended/optional value advisory). Reporting signal only; record exclusion is controlled separately by disposition."
         tests:
           - accepted_values:
-              values: ["reject", "warn"]
+              values: ["error", "warn"]
       - name: applies_to_formats
         description: "Source-format scope reported in validation coverage and rule summaries."
         tests:
@@ -41,7 +41,7 @@ seeds:
       - name: notes
         description: "Implementation caveats or context not captured by the requirement and failure condition."
       - name: disposition
-        description: "Routing policy that determines whether a finding excludes an entity, is report-only, or represents an already-quarantined record."
+        description: "Routing policy (independent of severity) that determines whether a finding excludes an entity from Silver, is report-only, or represents an already-quarantined record. A warn finding is always report_only; an error finding may exclude, be report-only, or be already-quarantined depending on grain."
         tests:
           - accepted_values:
               values: ["exclude_entity", "report_only", "already_quarantined"]

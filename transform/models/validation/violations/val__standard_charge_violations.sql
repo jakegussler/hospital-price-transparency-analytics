@@ -280,7 +280,6 @@ enriched as (
         v.raw_value,
         v.diagnostic_type,
         v.message,
-        r.disposition = 'exclude_entity' as is_rejected,
         r.disposition = 'exclude_entity' as excludes_from_silver,
         r.cms_citation
     from deduped v

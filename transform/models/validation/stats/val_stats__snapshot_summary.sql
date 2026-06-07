@@ -71,7 +71,7 @@ violations as (
         rule_id,
         severity,
         count(*) as violation_count,
-        count(*) filter (where is_rejected) as rejected_violation_count
+        count(*) filter (where excludes_from_silver) as rejected_violation_count
     from {{ ref('val__all_violations') }}
     group by
         snapshot_id,

@@ -43,7 +43,6 @@
     raw_value,
     diagnostic_type,
     message,
-    is_rejected,
     excludes_from_silver,
     cms_citation
 {%- endmacro %}

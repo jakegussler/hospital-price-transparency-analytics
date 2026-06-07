@@ -55,10 +55,10 @@ models:
       - name: rule_name
         description: "Human-readable validation rule name from the rule registry."
       - name: severity
-        description: "Rule severity. reject rows drive Silver filtering; warn rows remain in Silver for review."
+        description: "Compliance seriousness of the violation: error (hard CMS requirement failure) or warn (recommended/optional value advisory). Reporting signal only; record routing is controlled separately by disposition."
         tests:
           - accepted_values:
-              values: ["reject", "warn"]
+              values: ["error", "warn"]
       - name: grain
         description: "Actual business/source grain of the emitted failing entity."
         tests:
@@ -76,10 +76,8 @@ models:
           - not_null
       - name: message
         description: "Reviewer-facing explanation of why this row violates the rule."
-      - name: is_rejected
-        description: "Boolean compatibility flag derived from disposition = exclude_entity."
       - name: excludes_from_silver
-        description: "Whether this exact failing entity is excluded from Silver."
+        description: "Whether this exact failing entity is excluded from Silver. Derived from disposition = exclude_entity."
       - name: cms_citation
         description: "CMS documentation or schema citation carried from the rule registry."
 
@@ -143,14 +141,14 @@ models:
               to: ref('cms_validation_rules')
               field: rule_id
       - name: severity
-        description: "Severity for the rejection row; always reject."
+        description: "Severity for the rejection row; always error."
       - name: diagnostic_type
         description: "Machine-readable diagnostic category copied from the violation row."
       - name: message
         description: "Reviewer-facing reason the charge item is excluded from Silver."
 
   - name: val__standard_charge_rejections
-    description: "Distinct standard-charge keys that fail reject-severity standard-charge rules."
+    description: "Distinct standard-charge keys that fail error-severity standard-charge rules."
     columns:
       - name: snapshot_id
         description: "Snapshot containing the rejected standard charge context."
@@ -169,20 +167,20 @@ models:
       - name: row_ordinal
         description: "CSV source row ordinal used by Silver anti-joins for CSV standard-charge contexts."
       - name: rule_id
-        description: "Reject-severity standard-charge rule that created this rejection."
+        description: "Error-severity standard-charge rule that created this rejection."
         tests:
           - relationships:
               to: ref('cms_validation_rules')
               field: rule_id
       - name: severity
-        description: "Severity for the rejection row; always reject."
+        description: "Severity for the rejection row; always error."
       - name: diagnostic_type
         description: "Machine-readable diagnostic category copied from the violation row."
       - name: message
         description: "Reviewer-facing reason the standard charge is excluded from Silver."
 
   - name: val__payer_rate_rejections
-    description: "Distinct payer-rate keys that fail reject-severity payer-rate rules."
+    description: "Distinct payer-rate keys that fail error-severity payer-rate rules."
     columns:
       - name: snapshot_id
         description: "Snapshot containing the rejected payer rate."
@@ -203,13 +201,13 @@ models:
       - name: source_rate_ordinal
         description: "Zero-based CSV payer-rate ordinal used with row_ordinal for CSV payer-rate anti-joins."
       - name: rule_id
-        description: "Reject-severity payer-rate rule that created this rejection."
+        description: "Error-severity payer-rate rule that created this rejection."
         tests:
           - relationships:
               to: ref('cms_validation_rules')
               field: rule_id
       - name: severity
-        description: "Severity for the rejection row; always reject."
+        description: "Severity for the rejection row; always error."
       - name: diagnostic_type
         description: "Machine-readable diagnostic category copied from the violation row."
       - name: message
@@ -284,7 +282,7 @@ models:
       - name: violation_count
         description: "Number of violation rows emitted for this snapshot, grain, rule, and severity."
       - name: rejected_violation_count
-        description: "Number of violation rows in the summary that are reject-severity."
+        description: "Number of violation rows in the summary that are excluded from Silver."
       - name: pass_rate
         description: "Approximate pass rate calculated as one minus violations divided by total_records."
 
@@ -311,7 +309,7 @@ models:
       - name: affected_hospital_count
         description: "Number of distinct hospitals with at least one violation for the rule."
       - name: rejected_violation_count
-        description: "Total number of reject-severity violation rows emitted for the rule."
+        description: "Total number of violation rows emitted for the rule that are excluded from Silver."
       - name: diagnostic_types
         description: "Comma-separated list of diagnostic_type values observed for the rule."
 
@@ -350,7 +348,7 @@ models:
         description: "Number of parsed numeric values less than zero."
 
   - name: val_stats__anomalies
-    description: "Warn-level statistical and cross-field anomalies that are useful for monitoring but not CMS reject rules."
+    description: "Warn-level statistical and cross-field anomalies that are useful for monitoring but not CMS error rules."
     columns:
       - name: snapshot_id
         description: "Snapshot containing the anomalous value combination."
@@ -377,7 +375,7 @@ models:
       - name: details
         description: "Compact summary of the values that triggered the anomaly."
       - name: severity
-        description: "Monitoring severity for anomaly rows; always warn because these checks do not reject Silver records."
+        description: "Monitoring severity for anomaly rows; always warn because these checks do not exclude Silver records."
         tests:
           - accepted_values:
               values: ["warn"]

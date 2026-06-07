@@ -76,7 +76,7 @@ unit_tests:
           select
               'v2_2_percentage_or_algorithm_requires_estimated_amount' as rule_id,
               'v2.2 estimate required' as rule_name,
-              'reject' as severity,
+              'error' as severity,
               'payer_rate' as grain,
               'exclude_entity' as disposition,
               'v2.2 citation' as cms_citation
@@ -84,7 +84,7 @@ unit_tests:
           select
               'v3_percentage_or_algorithm_requires_count' as rule_id,
               'v3 count required' as rule_name,
-              'reject' as severity,
+              'error' as severity,
               'payer_rate' as grain,
               'exclude_entity' as disposition,
               'v3 citation' as cms_citation
@@ -192,7 +192,7 @@ unit_tests:
           grain: charge_item
           column_name: schema_version_mismatch
           diagnostic_type: schema_version_mismatch
-          is_rejected: false
+          excludes_from_silver: false
 
   - name: charge_item_schema_version_mismatch_warn_does_not_reject
     description: >
@@ -223,7 +223,7 @@ unit_tests:
   - name: charge_item_schema_version_mismatch_remains_in_silver
     description: >
       A mismatched JSON charge item remains present in Silver when no
-      reject-severity charge-item rejection is emitted.
+      error-severity charge-item rejection is emitted.
     model: slv_base__charge_items
     given:
       - input: ref('stg_bronze__standard_charge_info')
