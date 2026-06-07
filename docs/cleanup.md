@@ -30,3 +30,12 @@ to the relevant docs and delete resolved items from here.
   validation rather than parser quarantine. Decide whether that boundary is
   sufficient, or add a streaming root-shape validation pass if files appear that
   cannot produce reliable header evidence.
+- `csv_placeholder_headers_resolved` can currently inspect only bracketed
+  placeholders that survive in parsed license-number and attestation values.
+  Row-3 code, payer-name, and plan-name header placeholders are not retained in
+  Bronze, so the validation rule cannot evaluate the full CMS placeholder
+  requirement.
+- `csv_modifier_without_item_minimum_information` currently emits only when both
+  description and all qualifying charge/note fields are absent. CMS CSV
+  Conditional Requirement 11 requires a description and at least one qualifying
+  field, so the rule should also emit when either side alone is missing.

@@ -5,25 +5,46 @@ seeds:
     description: "Machine-facing CMS validation rule registry used by the dbt validation layer."
     columns:
       - name: rule_id
+        description: "Stable identifier joined by validation models to attach registry metadata."
         tests:
           - not_null
           - unique
-      - name: severity
-        tests:
-          - accepted_values:
-              values: ["reject", "warn"]
+      - name: rule_name
+        description: "Human-readable rule label emitted with violations and validation summaries."
+      - name: description
+        description: "Concise statement of the source-data requirement represented by the rule."
+      - name: cms_citation
+        description: "CMS documentation or schema references supporting the rule."
       - name: grain
+        description: "Business or source-record grain where the rule is evaluated and exclusions are routed."
         tests:
           - accepted_values:
               values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier", "modifier_payer", "npi", "provision", "structural"]
-      - name: disposition
+      - name: fields
+        description: "Source JSON fields and CSV columns relevant to evaluating the rule."
+      - name: schema_families
+        description: "CMS schema families whose requirements support the rule."
+      - name: condition
+        description: "Human-readable predicate describing when the rule emits a violation."
+      - name: severity
+        description: "Finding seriousness used in emitted violation metadata; exclusion routing is controlled separately by disposition."
         tests:
           - accepted_values:
-              values: ["exclude_entity", "report_only", "already_quarantined"]
+              values: ["reject", "warn"]
       - name: applies_to_formats
+        description: "Source-format scope reported in validation coverage and rule summaries."
         tests:
           - accepted_values:
               values: ["json", "csv", "both"]
+      - name: target_dbt_model
+        description: "Primary validation model or parser diagnostic relation responsible for the rule."
+      - name: notes
+        description: "Implementation caveats or context not captured by the requirement and failure condition."
+      - name: disposition
+        description: "Routing policy that determines whether a finding excludes an entity, is report-only, or represents an already-quarantined record."
+        tests:
+          - accepted_values:
+              values: ["exclude_entity", "report_only", "already_quarantined"]
 
   - name: hospitals
     description: "Registry-backed hospital metadata used to enrich Silver foundation snapshot rows."
