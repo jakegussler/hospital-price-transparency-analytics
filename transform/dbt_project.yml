@@ -135,7 +135,6 @@ seeds:
         condition: varchar
         severity: varchar
         applies_to_formats: varchar
-        current_pydantic_location: varchar
         target_dbt_model: varchar
         notes: varchar
         disposition: varchar
