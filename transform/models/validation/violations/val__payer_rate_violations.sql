@@ -1,3 +1,5 @@
+-- Normalize JSON and CSV payer rates to one validation grain, then emit one row
+-- per failing payer-rate value.
 {% set payer_decimal_columns = [
     ('standard_charge_dollar', 'standard_charge_dollar'),
     ('estimated_amount', 'estimated_amount'),
@@ -89,6 +91,7 @@ csv_raw as (
 ),
 
 csv_rates as (
+    -- CSV has no source rate ordinal, so derive a deterministic key for rejection joins.
     select
         *,
         cast(
@@ -144,6 +147,7 @@ rates as (
 ),
 
 rate_flags as (
+    -- Centralize presence checks used by the conditional payer-rate rules below.
     select
         *,
         {{ hpt_clean_display_text('raw_standard_charge_dollar') }} is not null as has_dollar,
@@ -160,6 +164,7 @@ rate_flags as (
 ),
 
 violations as (
+    -- Numeric parseability and positivity rules.
     {% for raw_column, public_name in payer_decimal_columns %}
     select
         snapshot_id,
@@ -260,6 +265,7 @@ violations as (
     union all
     {% endfor %}
 
+    -- Payer identity, negotiated-charge, and methodology rules.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, source_charge_item_id, source_standard_charge_id,
@@ -398,6 +404,8 @@ violations as (
 
     union all
 
+    -- Prefer the accepted parser shape when it disagrees with the reported
+    -- header so schema-family conditionals match the record that reached Bronze.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, source_charge_item_id, source_standard_charge_id,

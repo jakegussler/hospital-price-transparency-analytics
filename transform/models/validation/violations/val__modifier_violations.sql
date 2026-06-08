@@ -1,3 +1,5 @@
+-- Validate JSON modifier definitions, JSON modifier-payer children, and CSV
+-- modifier-only rows while preserving their distinct source keys.
 with json_modifiers as (
     select
         m.snapshot_id,
@@ -96,6 +98,7 @@ csv_modifier_rows as (
 ),
 
 violations as (
+    -- JSON modifier and modifier-payer required-shape rules.
     select
         snapshot_id,
         hospital_id,
@@ -149,6 +152,7 @@ violations as (
 
     union all
 
+    -- Accepted-value and CSV modifier-only conditional rules.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, source_charge_item_id, source_standard_charge_id,
@@ -187,6 +191,8 @@ violations as (
 ),
 
 enriched as (
+    -- A shared model emits modifier-payer failures at child grain and all other
+    -- findings at modifier grain.
     select
         {{ hpt_surrogate_key([
             'v.snapshot_id', "'modifier'", 'v.rule_id', 'v.column_name',

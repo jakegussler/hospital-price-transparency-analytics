@@ -1,3 +1,5 @@
+-- Surface warn-level payer-rate anomalies that are useful for monitoring but
+-- are not CMS conformance failures.
 with json_rate_context as (
     select
         pi.snapshot_id,
@@ -27,6 +29,8 @@ with json_rate_context as (
 ),
 
 csv_rate_context as (
+    -- Match the deterministic CSV rate ordinal used by payer-rate validation so
+    -- anomaly rows retain compatible source keys.
     select
         b.snapshot_id,
         hs.hospital_id,
@@ -61,12 +65,14 @@ csv_rate_context as (
 ),
 
 rate_context as (
+    -- Normalize both source formats to the numeric context used by anomaly checks.
     select * from json_rate_context
     union all
     select * from csv_rate_context
 ),
 
 anomalies as (
+    -- Cross-field and range anomalies.
     select
         snapshot_id,
         hospital_id,

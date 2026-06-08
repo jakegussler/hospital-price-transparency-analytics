@@ -1,3 +1,5 @@
+-- Normalize JSON and CSV standard charges to one grain, then emit value and
+-- conditional-rule violations for each charge context.
 {% set standard_charge_numeric_columns = [
     ('gross_charge', 'gross_charge'),
     ('discounted_cash', 'discounted_cash'),
@@ -6,6 +8,8 @@
 ] %}
 
 with json_payer_rollup as (
+    -- Parent standard-charge rules need to know whether any child payer rate
+    -- supplies a negotiated value.
     select
         pi.snapshot_id,
         pi.standard_charge_id,
@@ -92,6 +96,7 @@ charges as (
 ),
 
 violations as (
+    -- Numeric parseability and positivity rules.
     {% for raw_column, public_name in standard_charge_numeric_columns %}
     select
         snapshot_id,
@@ -144,6 +149,7 @@ violations as (
 
     union all
 
+    -- Required shape and accepted-value rules.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, source_charge_item_id, source_standard_charge_id,
@@ -185,6 +191,7 @@ violations as (
 
     union all
 
+    -- Conditional charge-value and payer-dollar rules.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, source_charge_item_id, source_standard_charge_id,
@@ -231,6 +238,8 @@ violations as (
 ),
 
 deduped as (
+    -- JSON payer fanout can repeat the same parent-level finding; preserve one
+    -- violation per source charge, rule, column, and raw value.
     select *
     from violations
     qualify row_number() over (

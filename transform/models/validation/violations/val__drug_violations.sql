@@ -1,3 +1,5 @@
+-- Normalize JSON and CSV drug information to one drug grain, then emit shape,
+-- numeric, and accepted-value violations.
 with json_drugs as (
     select
         d.snapshot_id,
@@ -43,12 +45,14 @@ csv_drugs as (
 ),
 
 drugs as (
+    -- Both source formats now expose the same raw unit and type contract.
     select * from json_drugs
     union all
     select * from csv_drugs
 ),
 
 violations as (
+    -- Required drug-information shape.
     select
         snapshot_id,
         hospital_id,
@@ -73,6 +77,7 @@ violations as (
 
     union all
 
+    -- Numeric parseability, positivity, and accepted-value rules.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, source_charge_item_id, cast(null as varchar),

@@ -1,4 +1,7 @@
+-- Profile raw numeric fields across JSON and CSV without excluding malformed
+-- values, preserving visibility into both distributions and cast failures.
 with numeric_values as (
+    -- Normalize source-specific numeric columns to a shared long-form contract.
     select snapshot_id, 'standard_charge' as grain, 'gross_charge' as column_name, gross_charge as raw_value, {{ hpt_safe_decimal('gross_charge') }}::double as numeric_value
     from {{ source('bronze', 'standard_charges') }}
     where 1 = 1 {{ hpt_snapshot_filter() }}
@@ -85,6 +88,7 @@ with numeric_values as (
 ),
 
 classified as (
+    -- Keep blank values distinct from non-empty values that fail numeric casting.
     select
         snapshot_id,
         grain,

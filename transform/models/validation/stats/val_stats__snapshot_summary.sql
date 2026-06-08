@@ -1,4 +1,8 @@
+-- Summarize rule-level validation outcomes against the available source-record
+-- count for each snapshot and validation grain.
 with record_counts as (
+    -- JSON child tables and CSV source rows use different physical grains, so
+    -- count each representation before combining totals.
     select snapshot_id, 'header' as grain, count(*) as total_records
     from {{ ref('stg_bronze__hospital_mrf_snapshots') }}
     group by snapshot_id
@@ -57,12 +61,14 @@ with record_counts as (
 ),
 
 record_totals as (
+    -- Combine JSON and CSV counts for grains represented by both formats.
     select snapshot_id, grain, sum(total_records) as total_records
     from record_counts
     group by snapshot_id, grain
 ),
 
 violations as (
+    -- Aggregate emitted findings before calculating per-rule pass rates.
     select
         snapshot_id,
         hospital_id,

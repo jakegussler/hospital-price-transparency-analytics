@@ -1,3 +1,5 @@
+-- Normalize JSON code objects and unpivoted CSV code pairs to one code grain,
+-- then emit code-level and missing-CSV-code violations.
 with csv_codes as (
     {{ hpt_csv_code_unpivot("select * from " ~ ref('stg_bronze__csv_charge_rows')) }}
 ),
@@ -57,6 +59,8 @@ code_rows as (
 ),
 
 code_rows_with_type_metadata as (
+    -- The code-type seed supports both global membership and exact
+    -- schema-family applicability checks.
     select
         cr.*,
         ct.code_type as matched_code_type,
@@ -69,6 +73,8 @@ code_rows_with_type_metadata as (
 ),
 
 csv_rows_without_codes as (
+    -- Rows with charge data but no code pair cannot appear in the code-grain
+    -- union, so retain them separately for the CSV conditional rule.
     select
         r.snapshot_id,
         hs.hospital_id,
@@ -93,6 +99,7 @@ csv_rows_without_codes as (
 ),
 
 violations as (
+    -- Required shape, accepted-value, and non-empty text rules.
     select
         snapshot_id,
         hospital_id,
@@ -164,6 +171,7 @@ violations as (
 
     union all
 
+    -- CSV charge rows that are missing every code/code-type pair.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, cast(null as varchar), cast(null as varchar),

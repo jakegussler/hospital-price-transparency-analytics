@@ -1,3 +1,4 @@
+-- Validate file/header metadata and emit report-only findings at the header grain.
 {% set cms_v3_attestation = "To the best of its knowledge and belief, this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file. This hospital has included all payer-specific negotiated charges in dollars that can be expressed as a dollar amount. For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount, including, but not limited to, the specific fee schedule or components referenced in such percentage, algorithm or formula." %}
 {% set cms_v2_affirmation = "To the best of its knowledge and belief, the hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date indicated." %}
 
@@ -28,6 +29,8 @@ csv_charge_counts as (
 ),
 
 snapshot_context as (
+    -- Infer required root-array presence from child-row counts because the streaming
+    -- parser does not materialize the complete JSON root object.
     select
         s.*,
         coalesce(n.npi_count, 0) as npi_count,
@@ -57,6 +60,7 @@ npi_values as (
 ),
 
 violations as (
+    -- Required root and schema-family-specific attestation shape.
     select
         snapshot_id,
         hospital_id,
@@ -120,6 +124,7 @@ violations as (
 
     union all
 
+    -- Header format and accepted-value rules.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, cast(null as varchar), cast(null as varchar),
@@ -191,6 +196,7 @@ violations as (
 
     union all
 
+    -- Attestation content and confirmation rules.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, cast(null as varchar), cast(null as varchar),
@@ -239,6 +245,7 @@ violations as (
 
     union all
 
+    -- Required text and unresolved CSV placeholder rules.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, cast(null as varchar), cast(null as varchar),

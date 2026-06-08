@@ -1,3 +1,5 @@
+-- Roll JSON and CSV charge items to a shared validation grain, then evaluate
+-- charge-item-level structural and schema-family rules.
 with code_types as (
     select * from {{ ref('cms_code_types') }}
 ),
@@ -28,6 +30,8 @@ json_items as (
 ),
 
 json_item_rollup as (
+    -- Child counts expose empty required JSON arrays without reconstructing the
+    -- original root record.
     select
         i.*,
         count(c.code_ordinal) as code_count,
@@ -50,6 +54,8 @@ csv_codes as (
 ),
 
 csv_item_rollup as (
+    -- CSV rows are already the charge-item grain; code rows are rolled up only
+    -- to evaluate code-dependent item rules.
     select
         r.snapshot_id,
         hs.hospital_id,
@@ -105,6 +111,7 @@ items as (
 ),
 
 violations as (
+    -- Conditional drug-information and schema-version rules.
     select
         snapshot_id,
         hospital_id,
@@ -163,6 +170,7 @@ violations as (
 
     union all
 
+    -- Required text and non-empty JSON array rules.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, source_charge_item_id, cast(null as varchar),
