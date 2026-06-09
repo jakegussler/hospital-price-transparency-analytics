@@ -259,7 +259,10 @@ CSV Bronze table:
   percentiles, units) as raw text (`Utf8`). dbt staging is the numeric type
   boundary: it casts currency-like amount fields to `decimal(18, 4)` via
   `hpt_safe_decimal` and percentages/units to `double` via `hpt_safe_double`
-  before Silver modeling; see `docs/decisions/0010-monetary-precision.md`.
+  before Silver modeling. Safe casts trim source literals but do not nullify
+  placeholders such as `N/A` or `-`; see
+  `docs/decisions/0010-monetary-precision.md` and
+  `docs/decisions/0012-validate-trimmed-source-literals.md`.
 - JSON and CSV now surface invalid numbers through the dbt validation layer.
   Malformed numeric values survive as raw text in Bronze and are queryable
   through `val__standard_charge_violations`, `val__payer_rate_violations`, and

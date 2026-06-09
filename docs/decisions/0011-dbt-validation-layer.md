@@ -39,6 +39,11 @@ values now reach Bronze as raw text. JSON quarantine diagnostics are represented
 in `val__structural_parse_violations`; value-level JSON violation models now
 operate on accepted Bronze rows.
 
+Validation presence and parseability checks operate on trimmed source literals,
+not sentinel-nullified text. SQL null and whitespace-only text are missing;
+populated literals such as `N/A`, `-`, `None`, and `Unknown` remain present and
+are validated as encoded. See ADR 0012.
+
 ## Consequences
 
 - Bronze is the durable record of source values; Silver is filtered by explicit

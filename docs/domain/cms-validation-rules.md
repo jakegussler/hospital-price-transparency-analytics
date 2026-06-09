@@ -32,6 +32,23 @@ deficiency are proposed as `error` severity (a hard CMS requirement failure).
 Whether Silver excludes the failing entity is determined separately by
 `disposition`; Bronze always retains the source rows.
 
+## Source Literal Policy
+
+dbt validation evaluates trimmed source literals. SQL null and whitespace-only
+text count as missing. Any other populated literal, including `N/A`, `-`,
+`None`, and `Unknown`, counts as present and remains subject to the applicable
+format, enum, numeric parseability, and conditional rules.
+
+This creates three distinct states:
+
+- **Missing:** SQL null or whitespace-only text.
+- **Present but invalid:** a populated literal that fails the applicable rule,
+  such as `-` in a numeric field. Numeric cases emit `numeric_cast_failed`.
+- **Normalized to null:** an explicit field-level Silver policy, never an
+  implicit validation behavior.
+
+See `docs/decisions/0012-validate-trimmed-source-literals.md`.
+
 ## Citation Shortcuts
 
 - JSON v3 dictionary:

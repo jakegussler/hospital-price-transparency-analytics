@@ -44,6 +44,11 @@ Use `hpt_safe_decimal` for currency-like amount columns:
 Keep percentage fields and measurement units as `double` because they are not
 currency amounts.
 
+Safe casts operate on trimmed source literals and do not nullify sentinel
+placeholders. A populated non-numeric value such as `N/A` or `-` therefore
+casts to null in staging and emits `numeric_cast_failed` in validation. See ADR
+0012.
+
 ## Rationale
 
 `decimal(18, 4)` is enough precision for published hospital prices while keeping
