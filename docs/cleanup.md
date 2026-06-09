@@ -35,7 +35,3 @@ to the relevant docs and delete resolved items from here.
   Row-3 code, payer-name, and plan-name header placeholders are not retained in
   Bronze, so the validation rule cannot evaluate the full CMS placeholder
   requirement.
-- `csv_modifier_without_item_minimum_information` currently emits only when both
-  description and all qualifying charge/note fields are absent. CMS CSV
-  Conditional Requirement 11 requires a description and at least one qualifying
-  field, so the rule should also emit when either side alone is missing.
