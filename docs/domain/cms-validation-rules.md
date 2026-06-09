@@ -394,6 +394,14 @@ If structural validation fails, the item is quarantined and a
 family context and validation summary. Value-level, conditional, enum, and
 format issues now reach Bronze and are diagnosed by dbt validation models.
 
+Modifier validation uses separate rejection identities so one modifier entity
+cannot remove another accepted entity. JSON rule definitions reject by
+`modifier_code_id`; CSV standalone rules reject by `snapshot_id + row_ordinal`;
+modifier-payer children add `modifier_payer_ordinal` or
+`source_rate_ordinal`. Future declaration/member validation must use the
+declaration source key plus member ordinal rather than the rule-definition
+rejection route.
+
 ## Current Gaps To Add In dbt
 
 These are CMS rules or schema constraints that the current Pydantic layer does
@@ -411,5 +419,4 @@ rules.
 | `csv_code_pair_required` | Pydantic only covers JSON. CSV requires code/code-type pairing when either side is present. | CSV Conditional Requirements 2 and 3 | `error` |
 | `csv_payer_identity_required_with_rate` | Pydantic requires payer identity inside JSON payer objects. CSV has a separate conditional identity rule, especially Tall. | CSV Conditional Requirement 1 | `error` |
 | `csv_placeholder_headers_resolved` | Pydantic has no CSV header role. CMS says placeholders such as `[state]`, `[i]`, `[payer_name]`, and `[plan_name]` must be replaced. | CSV Additional CSV Placeholder Notes | `error` |
-| `csv_modifier_without_item_minimum_information` | Pydantic covers JSON modifier objects but not CSV's modifier-without-item rule. | CSV Conditional Requirement 11 | `error` |
 | `billing_class_allowed_values` | Pydantic stores optional `billing_class` as free text. CMS recommends/defines accepted billing class values. | JSON v3 Optional Data Attributes; CSV Optional Column Headers | `warn` |

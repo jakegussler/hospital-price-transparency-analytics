@@ -25,10 +25,14 @@ The core foundation tables are:
 - `slv_base__charge_item_codes`
 - `slv_base__payer_rates`
 - `slv_base__modifiers`
-- `slv_base__charge_modifiers`
+- `slv_base__modifier_payer_info`
+- `slv_base__charge_modifier_declarations`
+- `slv_base__charge_modifier_members`
+- `slv_base__payer_rate_modifiers`
 
 CSV rows are bridged to synthesized charge items through
-`slv_base__csv_charge_row_items`.
+`slv_base__csv_charge_row_items`. Standalone CSV modifier rules are excluded
+from that bridge and instead enter `slv_base__modifiers`.
 
 ## Rationale
 
@@ -48,6 +52,8 @@ false one-to-one correspondence between the formats.
   provides them.
 - CSV `row_ordinal` lineage should be preserved even when rows group into a
   synthesized charge item or standard charge context.
+- Full modifier combinations are authoritative declarations; ordered member
+  tokens and accepted payer-rate relationships use separate Silver models.
 - CSV charge item signatures are snapshot-scoped structural identifiers, not
   reviewed cross-snapshot service identities.
 - Reconciliation tests should compare Bronze JSON and CSV source grains to their
