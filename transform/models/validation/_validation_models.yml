@@ -34,13 +34,13 @@ models:
       - name: code_ordinal
         description: "Zero-based code ordinal within the source charge item or CSV code pair when the violation belongs to a code."
       - name: modifier_code_id
-        description: "JSON Bronze modifier identifier when the violation belongs to a modifier row."
+        description: "JSON Bronze modifier identifier when the violation belongs to a JSON modifier definition; null for CSV standalone rules."
       - name: npi_ordinal
         description: "Source ordinal when the violation belongs to a Type-2 NPI row."
       - name: provision_ordinal
         description: "Source ordinal when the violation belongs to a general contract provision."
       - name: modifier_payer_ordinal
-        description: "Source ordinal when the violation belongs to modifier payer information."
+        description: "Zero-based JSON modifier-payer ordinal; CSV modifier-payer rows instead use row_ordinal plus source_rate_ordinal."
       - name: structural_section
         description: "JSON root section containing a quarantined structural record."
       - name: record_ordinal
@@ -226,10 +226,10 @@ models:
     description: "Distinct general-contract-provision ordinals excluded from Silver without rejecting their snapshots."
 
   - name: val__modifier_rejections
-    description: "Distinct modifier-definition keys excluded from Silver; child modifier-payer rows cascade through the parent join."
+    description: "Distinct modifier-rule keys excluded from Silver: modifier_code_id for JSON definitions or row_ordinal for CSV standalone rules."
 
   - name: val__modifier_payer_rejections
-    description: "Distinct modifier-payer child keys excluded from Silver without rejecting their parent modifier definitions."
+    description: "Distinct modifier-payer child keys excluded from Silver: JSON definition plus modifier_payer_ordinal or CSV rule row plus source_rate_ordinal."
 
   - name: val__rule_coverage
     description: "Rule-by-rule implementation coverage for the Stage 2 validation layer."

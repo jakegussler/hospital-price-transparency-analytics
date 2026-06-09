@@ -1,0 +1,75 @@
+version: 2
+
+unit_tests:
+  - name: csv_standalone_modifier_cr11_rejects_each_missing_side_independently
+    model: val__modifier_violations
+    given:
+      - input: ref('stg_bronze__modifiers')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id, cast(null as varchar) as modifier_code_id,
+              cast(null as varchar) as raw_modifier_code, cast(null as varchar) as clean_modifier_code,
+              cast(null as varchar) as raw_description, cast(null as varchar) as clean_description,
+              cast(null as varchar) as raw_setting, cast(null as varchar) as clean_setting
+          where false
+      - input: ref('stg_bronze__modifier_payer_info')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id, cast(null as varchar) as modifier_code_id,
+              cast(null as integer) as modifier_payer_ordinal,
+              cast(null as varchar) as raw_payer_name, cast(null as varchar) as clean_payer_name,
+              cast(null as varchar) as raw_plan_name, cast(null as varchar) as clean_plan_name,
+              cast(null as varchar) as raw_description, cast(null as varchar) as clean_description
+          where false
+      - input: ref('stg_bronze__csv_modifier_rows')
+        format: sql
+        rows: |
+          select
+              'snapshot-csv' as snapshot_id, 0 as row_ordinal, 'csv_tall' as source_format,
+              '50' as raw_modifier_combination, '50' as clean_modifier_combination,
+              cast(null as varchar) as raw_description, cast(null as varchar) as clean_description,
+              'both' as raw_setting, 'both' as clean_setting, true as is_standalone_modifier
+          union all
+          select
+              'snapshot-csv', 1, 'csv_tall', '62', '62',
+              'Co-surgeon', 'co-surgeon', 'both', 'both', true
+      - input: ref('stg_bronze__csv_charge_rows')
+        format: sql
+        rows: |
+          select
+              'snapshot-csv' as snapshot_id, 0 as row_ordinal, 0 as source_rate_ordinal, 'csv_tall' as source_format,
+              cast(null as varchar) as raw_payer_name, cast(null as varchar) as clean_payer_name,
+              cast(null as varchar) as raw_plan_name, cast(null as varchar) as clean_plan_name,
+              cast(null as varchar) as raw_methodology, cast(null as varchar) as clean_methodology,
+              cast(null as decimal(18,4)) as negotiated_dollar, cast(null as double) as negotiated_percentage,
+              cast(null as varchar) as negotiated_algorithm, cast(null as decimal(18,4)) as median_amount,
+              cast(null as decimal(18,4)) as tenth_percentile, cast(null as decimal(18,4)) as ninetieth_percentile,
+              cast(null as varchar) as raw_count, 'Rule note' as additional_generic_notes,
+              cast(null as varchar) as additional_payer_notes
+          union all
+          select
+              'snapshot-csv', 1, 0, 'csv_tall',
+              cast(null as varchar), cast(null as varchar), cast(null as varchar), cast(null as varchar),
+              cast(null as varchar), cast(null as varchar), cast(null as decimal(18,4)), cast(null as double),
+              cast(null as varchar), cast(null as decimal(18,4)), cast(null as decimal(18,4)),
+              cast(null as decimal(18,4)), cast(null as varchar), cast(null as varchar), cast(null as varchar)
+      - input: ref('stg_bronze__hospital_mrf_snapshots')
+        format: sql
+        rows: |
+          select 'snapshot-csv' as snapshot_id, 'hospital-1' as hospital_id, 'csv_tall' as source_format, '3.0' as schema_version
+      - input: ref('cms_validation_rules')
+        format: sql
+        rows: |
+          select
+              'csv_modifier_without_item_minimum_information' as rule_id,
+              'CSV modifier-only row minimum' as rule_name,
+              'error' as severity,
+              'modifier' as grain,
+              'exclude_entity' as disposition,
+              'CSV CR11' as cms_citation
+    expect:
+      rows:
+        - {snapshot_id: snapshot-csv, row_ordinal: 0, rule_id: csv_modifier_without_item_minimum_information, grain: modifier, excludes_from_silver: true}
+        - {snapshot_id: snapshot-csv, row_ordinal: 1, rule_id: csv_modifier_without_item_minimum_information, grain: modifier, excludes_from_silver: true}

@@ -176,12 +176,16 @@ models:
         description: "Analyst-friendly title-case plan name derived from the source-reported plan name."
 
   - name: slv_base__modifiers
-    description: "Accepted JSON modifier definitions at one row per modifier."
+    description: "Accepted JSON modifier definitions and CSV standalone modifier rules at their native source grains."
     columns:
       - name: silver_modifier_id
         tests:
           - not_null
           - unique
+      - name: definition_kind
+        tests:
+          - accepted_values:
+              values: ["json_definition", "csv_standalone_rule"]
       - name: snapshot_id
         tests:
           - relationships:
@@ -189,12 +193,22 @@ models:
               field: snapshot_id
 
   - name: slv_base__modifier_payer_info
-    description: "Accepted modifier payer-information children attached to Silver modifiers."
-
-  - name: slv_base__charge_modifiers
-    description: "Modifier codes attached to Silver standard-charge contexts, with payer-rate linkage where source grain provides it."
+    description: "Accepted JSON and CSV standalone-rule payer-information children attached to Silver modifiers."
     columns:
-      - name: silver_charge_modifier_id
+      - name: silver_modifier_payer_info_id
+        tests:
+          - not_null
+          - unique
+      - name: silver_modifier_id
+        tests:
+          - relationships:
+              to: ref('slv_base__modifiers')
+              field: silver_modifier_id
+
+  - name: slv_base__charge_modifier_declarations
+    description: "Full modifier combinations declared on accepted Silver standard-charge contexts."
+    columns:
+      - name: silver_charge_modifier_declaration_id
         tests:
           - not_null
           - unique
@@ -204,12 +218,38 @@ models:
           - relationships:
               to: ref('slv_base__standard_charges')
               field: silver_standard_charge_id
+      - name: modifier_definition_match_status
+        tests:
+          - accepted_values:
+              values: ["resolved_exact", "unresolved", "ambiguous"]
+
+  - name: slv_base__charge_modifier_members
+    description: "Ordered nonblank member tokens under each charge modifier declaration."
+    columns:
+      - name: silver_charge_modifier_member_id
+        tests:
+          - not_null
+          - unique
+      - name: silver_charge_modifier_declaration_id
+        tests:
+          - relationships:
+              to: ref('slv_base__charge_modifier_declarations')
+              field: silver_charge_modifier_declaration_id
+
+  - name: slv_base__payer_rate_modifiers
+    description: "Accepted CSV payer-rate relationships to ordered charge modifier members."
+    columns:
+      - name: silver_payer_rate_modifier_id
+        tests:
+          - not_null
+          - unique
       - name: silver_payer_rate_id
         tests:
           - relationships:
               to: ref('slv_base__payer_rates')
               field: silver_payer_rate_id
-      - name: modifier_definition_match_status
+      - name: silver_charge_modifier_member_id
         tests:
-          - accepted_values:
-              values: ["resolved", "unresolved", "not_available_for_csv"]
+          - relationships:
+              to: ref('slv_base__charge_modifier_members')
+              field: silver_charge_modifier_member_id

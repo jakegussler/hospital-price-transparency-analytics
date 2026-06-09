@@ -14,7 +14,13 @@ where excludes_from_silver
             )
         )
         or (grain = 'modifier' and modifier_code_id is null and row_ordinal is null)
-        or (grain = 'modifier_payer' and (modifier_code_id is null or modifier_payer_ordinal is null))
+        or (
+            grain = 'modifier_payer'
+            and (
+                (modifier_code_id is null or modifier_payer_ordinal is null)
+                and (row_ordinal is null or source_rate_ordinal is null)
+            )
+        )
         or (grain = 'npi' and npi_ordinal is null)
         or (grain = 'provision' and provision_ordinal is null)
         or grain in ('file', 'header', 'structural')

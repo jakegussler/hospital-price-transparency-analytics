@@ -52,6 +52,10 @@ models:
         +tags: ["pipeline_charge_data"]
       stg_bronze__csv_charge_rows:
         +tags: ["pipeline_charge_data"]
+      stg_bronze__csv_modifier_rows:
+        +tags: ["pipeline_charge_data"]
+      stg_bronze__csv_modifier_members:
+        +tags: ["pipeline_charge_data"]
     silver:
       +materialized: incremental
       +incremental_strategy: delete+insert
@@ -86,7 +90,11 @@ models:
           +tags: ["pipeline_charge_data"]
         slv_base__modifier_payer_info:
           +tags: ["pipeline_charge_data"]
-        slv_base__charge_modifiers:
+        slv_base__charge_modifier_declarations:
+          +tags: ["pipeline_charge_data"]
+        slv_base__charge_modifier_members:
+          +tags: ["pipeline_charge_data"]
+        slv_base__payer_rate_modifiers:
           +tags: ["pipeline_charge_data"]
       core:
         +tags: ["silver_core", "silver"]

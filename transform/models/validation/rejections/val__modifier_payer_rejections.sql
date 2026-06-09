@@ -5,6 +5,8 @@ select distinct
     source_format_family,
     modifier_code_id,
     modifier_payer_ordinal,
+    row_ordinal,
+    source_rate_ordinal,
     rule_id,
     diagnostic_type,
     message

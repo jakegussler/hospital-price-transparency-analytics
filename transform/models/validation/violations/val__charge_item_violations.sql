@@ -77,6 +77,10 @@ csv_item_rollup as (
     from {{ ref('stg_bronze__csv_charge_rows') }} r
     inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on r.snapshot_id = hs.snapshot_id
+    inner join {{ ref('stg_bronze__csv_modifier_rows') }} mr
+        on r.snapshot_id = mr.snapshot_id
+        and r.row_ordinal = mr.row_ordinal
+        and not mr.is_standalone_modifier
     left join csv_codes c
         on r.snapshot_id = c.snapshot_id
         and r.row_ordinal = c.row_ordinal

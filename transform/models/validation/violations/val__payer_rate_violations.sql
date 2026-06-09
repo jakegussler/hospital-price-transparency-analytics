@@ -86,6 +86,10 @@ csv_raw as (
     from {{ source('bronze', 'csv_charge_rows') }} b
     inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on b.snapshot_id = hs.snapshot_id
+    inner join {{ ref('stg_bronze__csv_modifier_rows') }} mr
+        on b.snapshot_id = mr.snapshot_id
+        and cast(b.row_ordinal as integer) = mr.row_ordinal
+        and not mr.is_standalone_modifier
     where 1 = 1
         {{ hpt_snapshot_filter('b') }}
 ),

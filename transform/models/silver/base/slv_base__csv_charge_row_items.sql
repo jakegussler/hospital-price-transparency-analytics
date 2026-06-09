@@ -47,6 +47,10 @@ csv_rows as (
         case when dr.snapshot_id is null then r.clean_drug_unit_type end as clean_drug_unit_type,
         coalesce(cs.code_set_signature, md5('<no_codes>')) as code_set_signature
     from {{ ref('stg_bronze__csv_charge_rows') }} r
+    inner join {{ ref('stg_bronze__csv_modifier_rows') }} mr
+        on r.snapshot_id = mr.snapshot_id
+        and r.row_ordinal = mr.row_ordinal
+        and not mr.is_standalone_modifier
     left join csv_code_sets cs
         on r.snapshot_id = cs.snapshot_id
         and r.row_ordinal = cs.row_ordinal

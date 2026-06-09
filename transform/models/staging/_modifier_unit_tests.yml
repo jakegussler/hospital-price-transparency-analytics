@@ -1,0 +1,55 @@
+version: 2
+
+unit_tests:
+  - name: csv_modifier_members_preserve_combinations_order_and_duplicates
+    model: stg_bronze__csv_modifier_members
+    given:
+      - input: ref('stg_bronze__csv_charge_rows')
+        format: sql
+        rows: |
+          select 'snapshot-csv' as snapshot_id, 0 as row_ordinal, '50|62' as raw_modifiers
+          union all
+          select 'snapshot-csv', 1, '50|50'
+    expect:
+      rows:
+        - {snapshot_id: snapshot-csv, row_ordinal: 0, member_ordinal: 0, clean_modifier_code: "50"}
+        - {snapshot_id: snapshot-csv, row_ordinal: 0, member_ordinal: 1, clean_modifier_code: "62"}
+        - {snapshot_id: snapshot-csv, row_ordinal: 1, member_ordinal: 0, clean_modifier_code: "50"}
+        - {snapshot_id: snapshot-csv, row_ordinal: 1, member_ordinal: 1, clean_modifier_code: "50"}
+
+  - name: csv_modifier_rows_classify_standalone_and_item_associated_source_rows
+    model: stg_bronze__csv_modifier_rows
+    given:
+      - input: ref('stg_bronze__csv_charge_rows')
+        format: sql
+        rows: |
+          select
+              'snapshot-csv' as snapshot_id, 0 as row_ordinal, 'csv_wide' as source_format,
+              'Combination rule' as raw_description, 'combination rule' as clean_description,
+              'both' as raw_setting, 'both' as clean_setting, '50|62' as raw_modifiers,
+              cast(null as varchar) as code_1, cast(null as varchar) as code_1_type
+          union all
+          select
+              'snapshot-csv', 0, 'csv_wide', 'Combination rule', 'combination rule',
+              'both', 'both', '50|62', cast(null as varchar), cast(null as varchar)
+          union all
+          select
+              'snapshot-csv', 1, 'csv_tall', 'Malformed item', 'malformed item',
+              'both', 'both', '50', '12345', cast(null as varchar)
+          union all
+          select
+              'snapshot-csv', 2, 'csv_tall', 'Blank modifiers', 'blank modifiers',
+              'both', 'both', ' | ', cast(null as varchar), cast(null as varchar)
+      - input: ref('stg_bronze__csv_modifier_members')
+        format: sql
+        rows: |
+          select 'snapshot-csv' as snapshot_id, 0 as row_ordinal, 0 as member_ordinal, '50' as raw_modifier_code, '50' as clean_modifier_code
+          union all
+          select 'snapshot-csv', 0, 1, '62', '62'
+          union all
+          select 'snapshot-csv', 1, 0, '50', '50'
+    expect:
+      rows:
+        - {snapshot_id: snapshot-csv, row_ordinal: 0, clean_modifier_combination: "50|62", member_count: 2, is_standalone_modifier: true, is_item_associated_modifier: false}
+        - {snapshot_id: snapshot-csv, row_ordinal: 1, clean_modifier_combination: "50", member_count: 1, is_standalone_modifier: false, is_item_associated_modifier: true}
+        - {snapshot_id: snapshot-csv, row_ordinal: 2, member_count: 0, has_modifier: false, is_standalone_modifier: false, is_item_associated_modifier: false}

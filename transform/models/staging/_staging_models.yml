@@ -132,6 +132,31 @@ models:
         tests:
           - not_null
 
+  - name: stg_bronze__csv_modifier_rows
+    description: "One row per original CSV source row with modifier classification and canonical full-combination values."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: row_ordinal
+        tests:
+          - not_null
+      - name: clean_modifier_combination
+        description: "Ordered nonblank cleaned modifier members joined with a pipe."
+
+  - name: stg_bronze__csv_modifier_members
+    description: "Ordered nonblank modifier members from each original CSV source-row declaration."
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+      - name: row_ordinal
+        tests:
+          - not_null
+      - name: member_ordinal
+        tests:
+          - not_null
+
   - name: stg_bronze__csv_numeric_parse_diagnostics
     description: >
       Malformed numeric values from CSV Bronze. CSV Bronze stores
