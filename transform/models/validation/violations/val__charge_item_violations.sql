@@ -85,7 +85,7 @@ csv_item_rollup as (
         on r.snapshot_id = c.snapshot_id
         and r.row_ordinal = c.row_ordinal
     left join code_types ct
-        on {{ hpt_clean_text('c.raw_code_type') }} = ct.code_type
+        on {{ hpt_normalize_text('c.raw_code_type') }} = ct.code_type
     group by all
 ),
 

@@ -26,11 +26,11 @@ with json_rates as (
         cast(null as integer) as row_ordinal,
         cast(null as integer) as source_rate_ordinal,
         pi.payer_name as raw_payer_name,
-        {{ hpt_clean_text('pi.payer_name') }} as clean_payer_name,
+        {{ hpt_nullify_sentinel_text('pi.payer_name') }} as clean_payer_name,
         pi.plan_name as raw_plan_name,
-        {{ hpt_clean_text('pi.plan_name') }} as clean_plan_name,
+        {{ hpt_nullify_sentinel_text('pi.plan_name') }} as clean_plan_name,
         pi.methodology as raw_methodology,
-        {{ hpt_clean_text('pi.methodology') }} as clean_methodology,
+        {{ hpt_nullify_sentinel_text('pi.methodology') }} as clean_methodology,
         pi.standard_charge_dollar as raw_standard_charge_dollar,
         pi.standard_charge_percentage as raw_standard_charge_percentage,
         pi.standard_charge_algorithm as raw_standard_charge_algorithm,
@@ -58,7 +58,7 @@ csv_raw as (
     select
         b.snapshot_id,
         hs.hospital_id,
-        {{ hpt_clean_text('b.source_format') }} as source_format,
+        {{ hpt_normalize_text('b.source_format') }} as source_format,
         'csv' as source_format_family,
         '3.0' as reported_schema_family,
         '3.0' as parser_schema_family,
@@ -68,11 +68,11 @@ csv_raw as (
         cast(null as integer) as payer_ordinal,
         cast(b.row_ordinal as integer) as row_ordinal,
         b.payer_name as raw_payer_name,
-        {{ hpt_clean_text('b.payer_name') }} as clean_payer_name,
+        {{ hpt_nullify_sentinel_text('b.payer_name') }} as clean_payer_name,
         b.plan_name as raw_plan_name,
-        {{ hpt_clean_text('b.plan_name') }} as clean_plan_name,
+        {{ hpt_nullify_sentinel_text('b.plan_name') }} as clean_plan_name,
         b.methodology as raw_methodology,
-        {{ hpt_clean_text('b.methodology') }} as clean_methodology,
+        {{ hpt_nullify_sentinel_text('b.methodology') }} as clean_methodology,
         b.standard_charge_negotiated_dollar as raw_standard_charge_dollar,
         b.standard_charge_negotiated_percentage as raw_standard_charge_percentage,
         b.standard_charge_negotiated_algorithm as raw_standard_charge_algorithm,
@@ -154,16 +154,16 @@ rate_flags as (
     -- Centralize presence checks used by the conditional payer-rate rules below.
     select
         *,
-        {{ hpt_clean_display_text('raw_standard_charge_dollar') }} is not null as has_dollar,
-        {{ hpt_clean_display_text('raw_standard_charge_percentage') }} is not null as has_percentage,
-        {{ hpt_clean_display_text('raw_standard_charge_algorithm') }} is not null as has_algorithm,
-        {{ hpt_clean_display_text('raw_estimated_amount') }} is not null as has_estimated_amount,
-        {{ hpt_clean_display_text('raw_median_amount') }} is not null as has_median_amount,
-        {{ hpt_clean_display_text('raw_tenth_percentile') }} is not null as has_tenth_percentile,
-        {{ hpt_clean_display_text('raw_ninetieth_percentile') }} is not null as has_ninetieth_percentile,
-        {{ hpt_clean_display_text('additional_payer_notes') }} is not null as has_payer_notes,
-        {{ hpt_clean_display_text('additional_generic_notes') }} is not null as has_generic_notes,
-        {{ hpt_clean_display_text('raw_count') }} as clean_count
+        {{ hpt_trimmed_text('raw_standard_charge_dollar') }} is not null as has_dollar,
+        {{ hpt_trimmed_text('raw_standard_charge_percentage') }} is not null as has_percentage,
+        {{ hpt_trimmed_text('raw_standard_charge_algorithm') }} is not null as has_algorithm,
+        {{ hpt_trimmed_text('raw_estimated_amount') }} is not null as has_estimated_amount,
+        {{ hpt_trimmed_text('raw_median_amount') }} is not null as has_median_amount,
+        {{ hpt_trimmed_text('raw_tenth_percentile') }} is not null as has_tenth_percentile,
+        {{ hpt_trimmed_text('raw_ninetieth_percentile') }} is not null as has_ninetieth_percentile,
+        {{ hpt_trimmed_text('additional_payer_notes') }} is not null as has_payer_notes,
+        {{ hpt_trimmed_text('additional_generic_notes') }} is not null as has_generic_notes,
+        {{ hpt_trimmed_text('raw_count') }} as clean_count
     from rates
 ),
 
@@ -189,7 +189,7 @@ violations as (
         'numeric_cast_failed' as diagnostic_type,
         '{{ public_name }} is non-empty but cannot be cast to decimal(18,4).' as message
     from rate_flags
-    where {{ hpt_clean_display_text('raw_' ~ raw_column) }} is not null
+    where {{ hpt_trimmed_text('raw_' ~ raw_column) }} is not null
         and {{ hpt_safe_decimal('raw_' ~ raw_column) }} is null
 
     union all
@@ -239,7 +239,7 @@ violations as (
         'numeric_cast_failed' as diagnostic_type,
         '{{ public_name }} is non-empty but cannot be cast to double.' as message
     from rate_flags
-    where {{ hpt_clean_display_text('raw_' ~ raw_column) }} is not null
+    where {{ hpt_trimmed_text('raw_' ~ raw_column) }} is not null
         and {{ hpt_safe_double('raw_' ~ raw_column) }} is null
 
     union all

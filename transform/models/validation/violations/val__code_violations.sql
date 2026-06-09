@@ -41,9 +41,9 @@ csv_code_rows as (
         c.row_ordinal,
         c.code_ordinal,
         c.raw_code,
-        {{ hpt_clean_display_text('c.raw_code') }} as clean_code,
+        {{ hpt_trimmed_text('c.raw_code') }} as clean_code,
         c.raw_code_type,
-        {{ hpt_clean_text('c.raw_code_type') }} as clean_code_type
+        {{ hpt_normalize_text('c.raw_code_type') }} as clean_code_type
     from csv_codes c
     inner join {{ ref('stg_bronze__csv_charge_rows') }} r
         on c.snapshot_id = r.snapshot_id

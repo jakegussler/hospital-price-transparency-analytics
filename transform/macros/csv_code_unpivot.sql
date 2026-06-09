@@ -31,6 +31,6 @@
         and cv.row_ordinal = ct.row_ordinal
         and regexp_extract(cv.code_column, '^code_([0-9]+)$', 1)
             = regexp_extract(ct.code_type_column, '^code_([0-9]+)_type$', 1)
-    where {{ hpt_clean_display_text('cv.raw_code') }} is not null
-        or {{ hpt_clean_display_text('ct.raw_code_type') }} is not null
+    where {{ hpt_trimmed_text('cv.raw_code') }} is not null
+        or {{ hpt_trimmed_text('ct.raw_code_type') }} is not null
 {%- endmacro %}

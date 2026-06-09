@@ -95,7 +95,7 @@ classified as (
         column_name,
         raw_value,
         numeric_value,
-        {{ hpt_clean_display_text('raw_value') }} as clean_raw_value
+        {{ hpt_trimmed_text('raw_value') }} as clean_raw_value
     from numeric_values
 )
 

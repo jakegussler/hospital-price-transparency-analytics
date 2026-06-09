@@ -362,12 +362,12 @@ context_candidates as (
     select
         cases.case_id,
         rules.payer_context_rule_id,
-        {{ hpt_clean_text('rules.market_segment') }} as market_segment,
-        {{ hpt_clean_text('rules.program_type') }} as program_type,
-        {{ hpt_clean_text('rules.product_or_network_name') }} as product_or_network_name,
-        {{ hpt_clean_text('rules.subsidiary_or_brand') }} as subsidiary_or_brand,
-        {{ hpt_clean_text('rules.benefit_line') }} as benefit_line,
-        {{ hpt_clean_text('rules.context_state', lowercase=false) }} as context_state,
+        {{ hpt_normalize_text('rules.market_segment') }} as market_segment,
+        {{ hpt_normalize_text('rules.program_type') }} as program_type,
+        {{ hpt_normalize_text('rules.product_or_network_name') }} as product_or_network_name,
+        {{ hpt_normalize_text('rules.subsidiary_or_brand') }} as subsidiary_or_brand,
+        {{ hpt_normalize_text('rules.benefit_line') }} as benefit_line,
+        {{ hpt_normalize_text('rules.context_state', lowercase=false) }} as context_state,
         row_number() over (
             partition by cases.case_id
             order by
@@ -392,7 +392,7 @@ context_candidates as (
         and rules.active = true
         and rules.review_status = 'accepted'
         and (
-            {{ hpt_clean_text('rules.source_clean_payer_name') }} is null
+            {{ hpt_normalize_text('rules.source_clean_payer_name') }} is null
             or cases.clean_payer_name = rules.source_clean_payer_name
         )
         and (
@@ -454,7 +454,7 @@ actual as (
         cases.expected_market_segment,
         coalesce(
             context_matches.market_segment,
-            {{ hpt_clean_text('canonical_payers.default_market_segment') }},
+            {{ hpt_normalize_text('canonical_payers.default_market_segment') }},
             'unknown'
         ) as actual_market_segment,
         cases.expected_program_type,
@@ -466,7 +466,7 @@ actual as (
         cases.expected_benefit_line,
         coalesce(
             context_matches.benefit_line,
-            {{ hpt_clean_text('canonical_payers.default_benefit_line') }},
+            {{ hpt_normalize_text('canonical_payers.default_benefit_line') }},
             'unknown'
         ) as actual_benefit_line,
         cases.expected_context_state,

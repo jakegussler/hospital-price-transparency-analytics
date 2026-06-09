@@ -130,7 +130,7 @@ csv_rates as (
         or r.clean_methodology is not null
         or r.negotiated_dollar is not null
         or r.negotiated_percentage is not null
-        or {{ hpt_clean_display_text('r.negotiated_algorithm') }} is not null
+        or {{ hpt_trimmed_text('r.negotiated_algorithm') }} is not null
     )
     and not exists (
         select 1

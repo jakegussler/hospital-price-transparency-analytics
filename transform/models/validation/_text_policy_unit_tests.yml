@@ -1,0 +1,118 @@
+version: 2
+
+unit_tests:
+  - name: payer_name_none_is_present_and_numeric_sentinel_is_unparseable
+    description: >
+      A payer literally named None is present for identity validation, while a
+      populated numeric sentinel emits numeric_cast_failed.
+    model: val__payer_rate_violations
+    given:
+      - input: source('bronze', 'payers_information')
+        format: sql
+        rows: |
+          select
+              'snapshot-text-policy' as snapshot_id,
+              'standard-charge-valid' as standard_charge_id,
+              0 as payer_ordinal,
+              'None' as payer_name,
+              'PPO' as plan_name,
+              'case rate' as methodology,
+              '100' as standard_charge_dollar,
+              cast(null as varchar) as standard_charge_percentage,
+              cast(null as varchar) as standard_charge_algorithm,
+              cast(null as varchar) as estimated_amount,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes
+          union all
+          select
+              'snapshot-text-policy', 'standard-charge-invalid', 1,
+              'Acme Health', 'PPO', 'case rate', '-',
+              cast(null as varchar), cast(null as varchar), cast(null as varchar),
+              cast(null as varchar), cast(null as varchar), cast(null as varchar),
+              cast(null as varchar), cast(null as varchar)
+      - input: source('bronze', 'standard_charges')
+        format: sql
+        rows: |
+          select
+              'snapshot-text-policy' as snapshot_id,
+              'standard-charge-valid' as standard_charge_id,
+              'charge-item-1' as charge_item_id,
+              cast(null as varchar) as additional_generic_notes
+          union all
+          select
+              'snapshot-text-policy', 'standard-charge-invalid', 'charge-item-1',
+              cast(null as varchar)
+      - input: source('bronze', 'csv_charge_rows')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as source_format,
+              cast(null as integer) as row_ordinal,
+              cast(null as varchar) as payer_name,
+              cast(null as varchar) as plan_name,
+              cast(null as varchar) as methodology,
+              cast(null as varchar) as standard_charge_negotiated_dollar,
+              cast(null as varchar) as standard_charge_negotiated_percentage,
+              cast(null as varchar) as standard_charge_negotiated_algorithm,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes,
+              cast(null as varchar) as additional_generic_notes
+          where false
+      - input: ref('stg_bronze__standard_charge_info')
+        format: sql
+        rows: |
+          select
+              'snapshot-text-policy' as snapshot_id,
+              'charge-item-1' as charge_item_id,
+              '3.0' as reported_schema_family,
+              '3.0' as parser_schema_family
+      - input: ref('stg_bronze__hospital_mrf_snapshots')
+        format: sql
+        rows: |
+          select
+              'snapshot-text-policy' as snapshot_id,
+              'hospital-1' as hospital_id,
+              'json' as source_format
+      - input: ref('stg_bronze__csv_modifier_rows')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as integer) as row_ordinal,
+              cast(null as boolean) as is_standalone_modifier
+          where false
+      - input: ref('cms_validation_rules')
+        format: sql
+        rows: |
+          select
+              'payer_required_identity_and_methodology' as rule_id,
+              'Payer identity required' as rule_name,
+              'error' as severity,
+              'payer_rate' as grain,
+              'exclude_entity' as disposition,
+              'identity citation' as cms_citation
+          union all
+          select
+              'payer_numeric_parseable',
+              'Payer numeric parse',
+              'error',
+              'payer_rate',
+              'exclude_entity',
+              'numeric citation'
+    expect:
+      rows:
+        - snapshot_id: snapshot-text-policy
+          source_format_family: json
+          source_standard_charge_id: standard-charge-invalid
+          payer_ordinal: 1
+          rule_id: payer_numeric_parseable
+          column_name: standard_charge_dollar
+          raw_value: "-"
+          diagnostic_type: numeric_cast_failed

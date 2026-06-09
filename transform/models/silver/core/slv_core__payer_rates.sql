@@ -7,7 +7,7 @@ select
     canonical_payers.payer_type,
     coalesce(
         context_matches.market_segment,
-        {{ hpt_clean_text('canonical_payers.default_market_segment') }},
+        {{ hpt_normalize_text('canonical_payers.default_market_segment') }},
         'unknown'
     ) as market_segment,
     context_matches.program_type,
@@ -15,7 +15,7 @@ select
     context_matches.subsidiary_or_brand,
     coalesce(
         context_matches.benefit_line,
-        {{ hpt_clean_text('canonical_payers.default_benefit_line') }},
+        {{ hpt_normalize_text('canonical_payers.default_benefit_line') }},
         'unknown'
     ) as benefit_line,
     context_matches.funding_arrangement,

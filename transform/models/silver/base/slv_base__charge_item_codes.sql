@@ -47,9 +47,9 @@ csv_deduped_codes as (
         cc.snapshot_id,
         cc.code_ordinal,
         cc.raw_code,
-        {{ hpt_clean_display_text('cc.raw_code') }} as clean_code,
+        {{ hpt_trimmed_text('cc.raw_code') }} as clean_code,
         cc.raw_code_type,
-        {{ hpt_clean_text('cc.raw_code_type') }} as clean_code_type
+        {{ hpt_normalize_text('cc.raw_code_type') }} as clean_code_type
     from csv_codes cc
     inner join {{ ref('slv_base__csv_charge_row_items') }} row_items
         on cc.snapshot_id = row_items.snapshot_id

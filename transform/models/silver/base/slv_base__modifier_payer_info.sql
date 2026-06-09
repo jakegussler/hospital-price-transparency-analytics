@@ -79,13 +79,13 @@ csv_modifier_payers as (
         or r.clean_methodology is not null
         or r.negotiated_dollar is not null
         or r.negotiated_percentage is not null
-        or {{ hpt_clean_display_text('r.negotiated_algorithm') }} is not null
+        or {{ hpt_trimmed_text('r.negotiated_algorithm') }} is not null
         or r.median_amount is not null
         or r.tenth_percentile is not null
         or r.ninetieth_percentile is not null
-        or {{ hpt_clean_display_text('r.raw_count') }} is not null
-        or {{ hpt_clean_display_text('r.additional_generic_notes') }} is not null
-        or {{ hpt_clean_display_text('r.additional_payer_notes') }} is not null
+        or {{ hpt_trimmed_text('r.raw_count') }} is not null
+        or {{ hpt_trimmed_text('r.additional_generic_notes') }} is not null
+        or {{ hpt_trimmed_text('r.additional_payer_notes') }} is not null
     )
     and not exists (
         select 1

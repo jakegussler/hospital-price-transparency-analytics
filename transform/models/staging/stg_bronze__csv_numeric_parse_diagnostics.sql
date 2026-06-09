@@ -5,8 +5,10 @@
 -- per non-empty raw value that fails the same cast staging applies, so bad
 -- numbers are reviewable instead of silently becoming null.
 --
--- For each candidate column we flag a value when its display-cleaned form is
--- non-null (i.e. not blank / 'null' / 'N/A') but the safe cast returns null.
+-- For each candidate column we flag a value when its trimmed source literal is
+-- non-null (not SQL null or blank) but the safe cast returns null. Sentinel
+-- literals such as 'N/A' and '-' are populated, non-numeric values and are
+-- therefore diagnosed.
 -- Item-level columns (gross/min/max/discounted_cash/drug_unit) repeat across
 -- payer groups after CSV Wide unpivoting, so they carry no payer/plan and are
 -- deduped per (snapshot_id, row_ordinal, column_name); payer-level columns
@@ -38,9 +40,9 @@ with source_rows as (
     select
         snapshot_id,
         cast(row_ordinal as integer) as row_ordinal,
-        {{ hpt_clean_text('source_format') }} as source_format,
-        {{ hpt_clean_text('payer_name') }} as payer_name,
-        {{ hpt_clean_text('plan_name') }} as plan_name,
+        {{ hpt_normalize_text('source_format') }} as source_format,
+        {{ hpt_normalize_text('payer_name') }} as payer_name,
+        {{ hpt_normalize_text('plan_name') }} as plan_name,
         drug_unit_of_measurement,
         standard_charge_gross,
         standard_charge_discounted_cash,
@@ -67,11 +69,11 @@ flagged as (
         cast(null as varchar) as payer_name,
         cast(null as varchar) as plan_name,
         '{{ column_name }}' as column_name,
-        {{ hpt_clean_display_text(column_name) }} as raw_value,
+        {{ hpt_trimmed_text(column_name) }} as raw_value,
         'decimal(18,4)' as target_type,
         'numeric_cast_failed' as diagnostic_type
     from source_rows
-    where {{ hpt_clean_display_text(column_name) }} is not null
+    where {{ hpt_trimmed_text(column_name) }} is not null
         and {{ hpt_safe_decimal(column_name) }} is null
 
     union all
@@ -85,11 +87,11 @@ flagged as (
         cast(null as varchar) as payer_name,
         cast(null as varchar) as plan_name,
         '{{ column_name }}' as column_name,
-        {{ hpt_clean_display_text(column_name) }} as raw_value,
+        {{ hpt_trimmed_text(column_name) }} as raw_value,
         'double' as target_type,
         'numeric_cast_failed' as diagnostic_type
     from source_rows
-    where {{ hpt_clean_display_text(column_name) }} is not null
+    where {{ hpt_trimmed_text(column_name) }} is not null
         and {{ hpt_safe_double(column_name) }} is null
 
     union all
@@ -103,11 +105,11 @@ flagged as (
         payer_name,
         plan_name,
         '{{ column_name }}' as column_name,
-        {{ hpt_clean_display_text(column_name) }} as raw_value,
+        {{ hpt_trimmed_text(column_name) }} as raw_value,
         'decimal(18,4)' as target_type,
         'numeric_cast_failed' as diagnostic_type
     from source_rows
-    where {{ hpt_clean_display_text(column_name) }} is not null
+    where {{ hpt_trimmed_text(column_name) }} is not null
         and {{ hpt_safe_decimal(column_name) }} is null
 
     union all
@@ -121,11 +123,11 @@ flagged as (
         payer_name,
         plan_name,
         '{{ column_name }}' as column_name,
-        {{ hpt_clean_display_text(column_name) }} as raw_value,
+        {{ hpt_trimmed_text(column_name) }} as raw_value,
         'double' as target_type,
         'numeric_cast_failed' as diagnostic_type
     from source_rows
-    where {{ hpt_clean_display_text(column_name) }} is not null
+    where {{ hpt_trimmed_text(column_name) }} is not null
         and {{ hpt_safe_double(column_name) }} is null
 
     {% if not loop.last %}union all{% endif %}

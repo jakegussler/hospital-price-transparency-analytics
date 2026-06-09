@@ -15,9 +15,9 @@ select
     d.source_row_ordinal,
     cast(u.member_ordinal as integer) - 1 as member_ordinal,
     u.raw_modifier_code,
-    {{ hpt_clean_display_text('u.raw_modifier_code') }} as clean_modifier_code,
+    {{ hpt_trimmed_text('u.raw_modifier_code') }} as clean_modifier_code,
     d.modifier_definition_match_status
 from {{ ref('slv_base__charge_modifier_declarations') }} d
 cross join unnest(string_split(d.raw_modifier_combination, '|'))
     with ordinality as u(raw_modifier_code, member_ordinal)
-where {{ hpt_clean_display_text('u.raw_modifier_code') }} is not null
+where {{ hpt_trimmed_text('u.raw_modifier_code') }} is not null

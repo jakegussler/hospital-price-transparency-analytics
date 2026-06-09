@@ -172,13 +172,13 @@ csv_modifier_payers as (
         or r.clean_methodology is not null
         or r.negotiated_dollar is not null
         or r.negotiated_percentage is not null
-        or {{ hpt_clean_display_text('r.negotiated_algorithm') }} is not null
+        or {{ hpt_trimmed_text('r.negotiated_algorithm') }} is not null
         or r.median_amount is not null
         or r.tenth_percentile is not null
         or r.ninetieth_percentile is not null
-        or {{ hpt_clean_display_text('r.raw_count') }} is not null
-        or {{ hpt_clean_display_text('r.additional_generic_notes') }} is not null
-        or {{ hpt_clean_display_text('r.additional_payer_notes') }} is not null
+        or {{ hpt_trimmed_text('r.raw_count') }} is not null
+        or {{ hpt_trimmed_text('r.additional_generic_notes') }} is not null
+        or {{ hpt_trimmed_text('r.additional_payer_notes') }} is not null
 ),
 
 csv_rule_sufficiency as (
@@ -188,9 +188,9 @@ csv_rule_sufficiency as (
         bool_or(
             p.negotiated_dollar is not null
             or p.negotiated_percentage is not null
-            or {{ hpt_clean_display_text('p.negotiated_algorithm') }} is not null
-            or {{ hpt_clean_display_text('p.additional_generic_notes') }} is not null
-            or {{ hpt_clean_display_text('p.additional_payer_notes') }} is not null
+            or {{ hpt_trimmed_text('p.negotiated_algorithm') }} is not null
+            or {{ hpt_trimmed_text('p.additional_generic_notes') }} is not null
+            or {{ hpt_trimmed_text('p.additional_payer_notes') }} is not null
         ) as has_allowed_alternative
     from csv_modifier_payers p
     group by p.snapshot_id, p.row_ordinal
@@ -289,9 +289,9 @@ violations as (
         or clean_plan_name is null
         or clean_methodology is null
         or (
-            (negotiated_percentage is not null or {{ hpt_clean_display_text('negotiated_algorithm') }} is not null)
+            (negotiated_percentage is not null or {{ hpt_trimmed_text('negotiated_algorithm') }} is not null)
             and (
-                {{ hpt_clean_display_text('raw_count') }} is null
+                {{ hpt_trimmed_text('raw_count') }} is null
                 or median_amount is null
                 or tenth_percentile is null
                 or ninetieth_percentile is null

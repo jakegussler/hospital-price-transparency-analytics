@@ -13,9 +13,9 @@ with json_payer_rollup as (
     select
         pi.snapshot_id,
         pi.standard_charge_id,
-        bool_or({{ hpt_clean_display_text('pi.standard_charge_dollar') }} is not null) as has_payer_dollar,
-        bool_or({{ hpt_clean_display_text('pi.standard_charge_percentage') }} is not null) as has_payer_percentage,
-        bool_or({{ hpt_clean_display_text('pi.standard_charge_algorithm') }} is not null) as has_payer_algorithm
+        bool_or({{ hpt_trimmed_text('pi.standard_charge_dollar') }} is not null) as has_payer_dollar,
+        bool_or({{ hpt_trimmed_text('pi.standard_charge_percentage') }} is not null) as has_payer_percentage,
+        bool_or({{ hpt_trimmed_text('pi.standard_charge_algorithm') }} is not null) as has_payer_algorithm
     from {{ source('bronze', 'payers_information') }} pi
     where 1 = 1
         {{ hpt_snapshot_filter('pi') }}
@@ -39,9 +39,9 @@ json_charges as (
         sc.minimum as raw_minimum,
         sc.maximum as raw_maximum,
         sc.setting as raw_setting,
-        {{ hpt_clean_text('sc.setting') }} as clean_setting,
+        {{ hpt_normalize_text('sc.setting') }} as clean_setting,
         sc.billing_class as raw_billing_class,
-        {{ hpt_clean_text('sc.billing_class') }} as clean_billing_class,
+        {{ hpt_normalize_text('sc.billing_class') }} as clean_billing_class,
         coalesce(pr.has_payer_dollar, false) as has_payer_dollar,
         coalesce(pr.has_payer_percentage, false) as has_payer_percentage,
         coalesce(pr.has_payer_algorithm, false) as has_payer_algorithm
@@ -78,9 +78,9 @@ csv_charges as (
         r.clean_setting,
         b.billing_class as raw_billing_class,
         r.clean_billing_class,
-        {{ hpt_clean_display_text('b.standard_charge_negotiated_dollar') }} is not null as has_payer_dollar,
-        {{ hpt_clean_display_text('b.standard_charge_negotiated_percentage') }} is not null as has_payer_percentage,
-        {{ hpt_clean_display_text('b.standard_charge_negotiated_algorithm') }} is not null as has_payer_algorithm
+        {{ hpt_trimmed_text('b.standard_charge_negotiated_dollar') }} is not null as has_payer_dollar,
+        {{ hpt_trimmed_text('b.standard_charge_negotiated_percentage') }} is not null as has_payer_percentage,
+        {{ hpt_trimmed_text('b.standard_charge_negotiated_algorithm') }} is not null as has_payer_algorithm
     from {{ ref('stg_bronze__csv_charge_rows') }} r
     inner join {{ source('bronze', 'csv_charge_rows') }} b
         on r.snapshot_id = b.snapshot_id
@@ -121,7 +121,7 @@ violations as (
         'numeric_cast_failed' as diagnostic_type,
         '{{ public_name }} is non-empty but cannot be cast to decimal(18,4).' as message
     from charges
-    where {{ hpt_clean_display_text('raw_' ~ raw_column) }} is not null
+    where {{ hpt_trimmed_text('raw_' ~ raw_column) }} is not null
         and {{ hpt_safe_decimal('raw_' ~ raw_column) }} is null
 
     union all
@@ -212,8 +212,8 @@ violations as (
         'conditional_required_value_missing',
         'A standard charge must have gross, discounted cash, or payer-specific negotiated charge data.'
     from charges
-    where {{ hpt_clean_display_text('raw_gross_charge') }} is null
-        and {{ hpt_clean_display_text('raw_discounted_cash') }} is null
+    where {{ hpt_trimmed_text('raw_gross_charge') }} is null
+        and {{ hpt_trimmed_text('raw_discounted_cash') }} is null
         and not has_payer_dollar
         and not has_payer_percentage
         and not has_payer_algorithm
@@ -227,7 +227,7 @@ violations as (
         cast(null as integer), cast(null as varchar),
         'payer_dollar_requires_minimum_and_maximum',
         case
-            when {{ hpt_clean_display_text('raw_minimum') }} is null then 'minimum'
+            when {{ hpt_trimmed_text('raw_minimum') }} is null then 'minimum'
             else 'maximum'
         end,
         concat('minimum=', coalesce(raw_minimum, '<null>'), '; maximum=', coalesce(raw_maximum, '<null>')),
@@ -236,8 +236,8 @@ violations as (
     from charges
     where has_payer_dollar
         and (
-            {{ hpt_clean_display_text('raw_minimum') }} is null
-            or {{ hpt_clean_display_text('raw_maximum') }} is null
+            {{ hpt_trimmed_text('raw_minimum') }} is null
+            or {{ hpt_trimmed_text('raw_maximum') }} is null
         )
 ),
 

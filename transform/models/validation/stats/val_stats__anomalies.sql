@@ -34,7 +34,7 @@ csv_rate_context as (
     select
         b.snapshot_id,
         hs.hospital_id,
-        {{ hpt_clean_text('b.source_format') }} as source_format,
+        {{ hpt_normalize_text('b.source_format') }} as source_format,
         '3.0' as reported_schema_family,
         cast(null as varchar) as source_standard_charge_id,
         cast(null as integer) as payer_ordinal,
@@ -43,12 +43,12 @@ csv_rate_context as (
             row_number() over (
                 partition by b.snapshot_id, cast(b.row_ordinal as integer)
                 order by
-                    coalesce({{ hpt_clean_text('b.payer_name') }}, ''),
-                    coalesce({{ hpt_clean_text('b.plan_name') }}, ''),
+                    coalesce({{ hpt_normalize_text('b.payer_name') }}, ''),
+                    coalesce({{ hpt_normalize_text('b.plan_name') }}, ''),
                     coalesce(cast({{ hpt_safe_decimal('b.standard_charge_negotiated_dollar') }} as varchar), ''),
                     coalesce(cast({{ hpt_safe_double('b.standard_charge_negotiated_percentage') }} as varchar), ''),
                     coalesce(b.standard_charge_negotiated_algorithm, ''),
-                    coalesce({{ hpt_clean_text('b.methodology') }}, ''),
+                    coalesce({{ hpt_normalize_text('b.methodology') }}, ''),
                     coalesce(b.additional_payer_notes, '')
             ) - 1 as integer
         ) as source_rate_ordinal,

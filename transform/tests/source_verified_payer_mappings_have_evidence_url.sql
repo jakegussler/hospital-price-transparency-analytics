@@ -5,7 +5,7 @@ select
     evidence_url
 from {{ ref('canonical_payers') }}
 where evidence_source <> 'manual_review'
-    and {{ hpt_clean_text('evidence_url') }} is null
+    and {{ hpt_normalize_text('evidence_url') }} is null
 
 union all
 
@@ -16,7 +16,7 @@ select
     evidence_url
 from {{ ref('payer_aliases') }}
 where evidence_source <> 'manual_review'
-    and {{ hpt_clean_text('evidence_url') }} is null
+    and {{ hpt_normalize_text('evidence_url') }} is null
 
 union all
 
@@ -27,4 +27,4 @@ select
     evidence_url
 from {{ ref('payer_context_rules') }}
 where evidence_source <> 'manual_review'
-    and {{ hpt_clean_text('evidence_url') }} is null
+    and {{ hpt_normalize_text('evidence_url') }} is null

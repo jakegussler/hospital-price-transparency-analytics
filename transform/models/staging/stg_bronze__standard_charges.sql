@@ -8,9 +8,9 @@ select
     {{ hpt_safe_decimal('gross_charge') }} as gross_charge,
     {{ hpt_safe_decimal('discounted_cash') }} as discounted_cash,
     setting as raw_setting,
-    {{ hpt_clean_text('setting') }} as clean_setting,
+    {{ hpt_normalize_text('setting') }} as clean_setting,
     billing_class as raw_billing_class,
-    {{ hpt_clean_text('billing_class') }} as clean_billing_class,
+    {{ hpt_normalize_text('billing_class') }} as clean_billing_class,
     additional_generic_notes
 from {{ source('bronze', 'standard_charges') }}
 where 1 = 1

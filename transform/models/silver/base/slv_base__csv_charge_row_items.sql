@@ -29,7 +29,7 @@ csv_code_sets as (
         md5(
             coalesce(
                 string_agg(
-                    coalesce({{ hpt_clean_display_text('raw_code') }}, '') || ':' || coalesce({{ hpt_clean_text('raw_code_type') }}, ''),
+                    coalesce({{ hpt_trimmed_text('raw_code') }}, '') || ':' || coalesce({{ hpt_normalize_text('raw_code_type') }}, ''),
                     '|' order by code_ordinal, raw_code, raw_code_type
                 ),
                 '<no_codes>'

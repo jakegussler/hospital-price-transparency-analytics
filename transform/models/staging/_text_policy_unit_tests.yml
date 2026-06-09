@@ -1,0 +1,71 @@
+version: 2
+
+unit_tests:
+  - name: payer_text_sentinels_remain_populated_in_staging
+    description: >
+      Source-derived payer, plan, and methodology text preserves sentinel
+      literals. Sentinel nullification is not a general staging policy.
+    model: stg_bronze__payers_information
+    given:
+      - input: source('bronze', 'payers_information')
+        format: sql
+        rows: |
+          select
+              'snapshot-text-policy' as snapshot_id,
+              'standard-charge-1' as standard_charge_id,
+              0 as payer_ordinal,
+              'None' as payer_name,
+              'Unknown' as plan_name,
+              'N/A' as methodology,
+              '-' as standard_charge_dollar,
+              cast(null as varchar) as standard_charge_percentage,
+              cast(null as varchar) as standard_charge_algorithm,
+              cast(null as varchar) as estimated_amount,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes
+    expect:
+      rows:
+        - snapshot_id: snapshot-text-policy
+          standard_charge_id: standard-charge-1
+          payer_ordinal: 0
+          raw_payer_name: "None"
+          clean_payer_name: none
+          raw_plan_name: "Unknown"
+          clean_plan_name: unknown
+          raw_methodology: "N/A"
+          clean_methodology: "n/a"
+
+  - name: csv_numeric_sentinels_emit_parse_diagnostics
+    description: >
+      Populated non-numeric sentinel literals are parse failures, not missing
+      values.
+    model: stg_bronze__csv_numeric_parse_diagnostics
+    given:
+      - input: source('bronze', 'csv_charge_rows')
+        format: sql
+        rows: |
+          select
+              'snapshot-text-policy' as snapshot_id,
+              0 as row_ordinal,
+              'csv_tall' as source_format,
+              cast(null as varchar) as payer_name,
+              cast(null as varchar) as plan_name,
+              cast(null as varchar) as drug_unit_of_measurement,
+              'N/A' as standard_charge_gross,
+              '-' as standard_charge_discounted_cash,
+              'None' as standard_charge_min,
+              'Unknown' as standard_charge_max,
+              cast(null as varchar) as standard_charge_negotiated_dollar,
+              cast(null as varchar) as standard_charge_negotiated_percentage,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile
+    expect:
+      rows:
+        - {snapshot_id: snapshot-text-policy, row_ordinal: 0, column_name: standard_charge_gross, raw_value: "N/A", diagnostic_type: numeric_cast_failed}
+        - {snapshot_id: snapshot-text-policy, row_ordinal: 0, column_name: standard_charge_discounted_cash, raw_value: "-", diagnostic_type: numeric_cast_failed}
+        - {snapshot_id: snapshot-text-policy, row_ordinal: 0, column_name: standard_charge_min, raw_value: "None", diagnostic_type: numeric_cast_failed}
+        - {snapshot_id: snapshot-text-policy, row_ordinal: 0, column_name: standard_charge_max, raw_value: "Unknown", diagnostic_type: numeric_cast_failed}

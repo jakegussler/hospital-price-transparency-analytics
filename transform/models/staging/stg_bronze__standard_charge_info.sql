@@ -2,7 +2,7 @@ select
     charge_item_id,
     snapshot_id,
     description as raw_description,
-    {{ hpt_clean_text('description') }} as clean_description,
+    {{ hpt_normalize_text('description') }} as clean_description,
     cast(item_ordinal as integer) as item_ordinal,
     {{ hpt_bronze_column_or_null('standard_charge_info', 'reported_schema_version') }}
         as reported_schema_version,

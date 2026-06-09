@@ -5,7 +5,7 @@ with json_member_counts as (
         count(*) as member_count
     from {{ ref('stg_bronze__modifiers') }} m
     cross join unnest(string_split(m.raw_modifier_code, '|')) as u(raw_modifier_code)
-    where {{ hpt_clean_display_text('u.raw_modifier_code') }} is not null
+    where {{ hpt_trimmed_text('u.raw_modifier_code') }} is not null
     group by m.snapshot_id, m.modifier_code_id
 ),
 

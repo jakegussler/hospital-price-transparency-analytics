@@ -1,8 +1,8 @@
 {% macro hpt_schema_family_from_version(expression) -%}
     case
-        when {{ hpt_clean_display_text(expression) }} like '2.1%' then '2.1'
-        when {{ hpt_clean_display_text(expression) }} like '2.2%' then '2.2'
-        when {{ hpt_clean_display_text(expression) }} like '3.%' then '3.0'
+        when {{ hpt_trimmed_text(expression) }} like '2.1%' then '2.1'
+        when {{ hpt_trimmed_text(expression) }} like '2.2%' then '2.2'
+        when {{ hpt_trimmed_text(expression) }} like '3.%' then '3.0'
         else null
     end
 {%- endmacro %}

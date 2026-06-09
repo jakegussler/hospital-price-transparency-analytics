@@ -1,17 +1,42 @@
-{% macro hpt_clean_text(expression, lowercase=true) -%}
-    {%- set cleaned -%}
+{% macro hpt_trimmed_text(expression) -%}
+    {%- set trimmed -%}
+        trim(cast({{ expression }} as varchar))
+    {%- endset -%}
+
+    case
+        when {{ expression }} is null then null
+        when {{ trimmed }} = '' then null
+        else {{ trimmed }}
+    end
+{%- endmacro %}
+
+{% macro hpt_normalize_text(expression, lowercase=true) -%}
+    {%- set trimmed = hpt_trimmed_text(expression) -%}
+    {%- set normalized -%}
         regexp_replace(
-            trim(cast({{ expression }} as varchar)),
-            '\\s+',
+            {{ trimmed }},
+            '\s+',
             ' ',
             'g'
         )
     {%- endset -%}
 
     case
-        when {{ expression }} is null then null
-        when lower({{ cleaned }}) in (
-            '',
+        when {{ trimmed }} is null then null
+        {%- if lowercase %}
+        else lower({{ normalized }})
+        {%- else %}
+        else {{ normalized }}
+        {%- endif %}
+    end
+{%- endmacro %}
+
+{% macro hpt_nullify_sentinel_text(expression, lowercase=true) -%}
+    {%- set normalized = hpt_normalize_text(expression, lowercase=false) -%}
+
+    case
+        when {{ normalized }} is null then null
+        when lower({{ normalized }}) in (
             'null',
             'none',
             'n/a',
@@ -22,19 +47,15 @@
             '-'
         ) then null
         {%- if lowercase %}
-        else lower({{ cleaned }})
+        else lower({{ normalized }})
         {%- else %}
-        else {{ cleaned }}
+        else {{ normalized }}
         {%- endif %}
     end
 {%- endmacro %}
 
-{% macro hpt_clean_display_text(expression) -%}
-    {{ hpt_clean_text(expression, lowercase=false) }}
-{%- endmacro %}
-
 {% macro hpt_title_case_text(expression) -%}
-    {%- set cleaned = hpt_clean_text(expression) -%}
+    {%- set cleaned = hpt_normalize_text(expression) -%}
     case
         when {{ cleaned }} is null then null
         else array_to_string(

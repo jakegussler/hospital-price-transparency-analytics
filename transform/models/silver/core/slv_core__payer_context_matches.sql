@@ -74,7 +74,7 @@ candidate_matches as (
         and rules.active = true
         and rules.review_status = 'accepted'
         and (
-            {{ hpt_clean_text('rules.source_clean_payer_name') }} is null
+            {{ hpt_normalize_text('rules.source_clean_payer_name') }} is null
             or match_inputs.clean_payer_name = rules.source_clean_payer_name
         )
         and (
@@ -120,14 +120,14 @@ best_matches as (
 select
     base_rates.silver_payer_rate_id,
     best_matches.payer_context_rule_id,
-    {{ hpt_clean_text('best_matches.market_segment') }} as market_segment,
-    {{ hpt_clean_text('best_matches.program_type') }} as program_type,
-    {{ hpt_clean_text('best_matches.product_or_network_name') }} as product_or_network_name,
-    {{ hpt_clean_text('best_matches.subsidiary_or_brand') }} as subsidiary_or_brand,
-    {{ hpt_clean_text('best_matches.benefit_line') }} as benefit_line,
-    {{ hpt_clean_text('best_matches.funding_arrangement') }} as funding_arrangement,
-    {{ hpt_clean_text('best_matches.context_state', lowercase=false) }} as context_state,
-    {{ hpt_clean_text('best_matches.plan_type') }} as plan_type,
+    {{ hpt_normalize_text('best_matches.market_segment') }} as market_segment,
+    {{ hpt_normalize_text('best_matches.program_type') }} as program_type,
+    {{ hpt_normalize_text('best_matches.product_or_network_name') }} as product_or_network_name,
+    {{ hpt_normalize_text('best_matches.subsidiary_or_brand') }} as subsidiary_or_brand,
+    {{ hpt_normalize_text('best_matches.benefit_line') }} as benefit_line,
+    {{ hpt_normalize_text('best_matches.funding_arrangement') }} as funding_arrangement,
+    {{ hpt_normalize_text('best_matches.context_state', lowercase=false) }} as context_state,
+    {{ hpt_normalize_text('best_matches.plan_type') }} as plan_type,
     best_matches.payer_context_confidence,
     best_matches.payer_context_review_status,
     best_matches.validation_status,

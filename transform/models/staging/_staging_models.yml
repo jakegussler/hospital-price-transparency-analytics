@@ -163,9 +163,10 @@ models:
       numeric-looking cells as raw text; this model emits one row per non-empty
       raw value that fails the same hpt_safe_decimal / hpt_safe_double cast that
       staging applies, so bad numbers are queryable instead of silently becoming
-      null. Item-level columns repeat across payer groups after CSV Wide
-      unpivoting and are deduped without payer/plan; payer-level columns carry
-      payer/plan.
+      null. Populated sentinel literals such as N/A and - are diagnosed rather
+      than treated as missing. Item-level columns repeat across payer groups
+      after CSV Wide unpivoting and are deduped without payer/plan; payer-level
+      columns carry payer/plan.
     columns:
       - name: snapshot_id
         tests:

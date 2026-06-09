@@ -11,7 +11,7 @@ with json_drugs as (
         cast(null as integer) as row_ordinal,
         d.unit as raw_drug_unit,
         d.type as raw_drug_type,
-        {{ hpt_clean_text('d.type') }} as clean_drug_type
+        {{ hpt_normalize_text('d.type') }} as clean_drug_type
     from {{ source('bronze', 'drug_information') }} d
     inner join {{ ref('stg_bronze__standard_charge_info') }} sci
         on d.snapshot_id = sci.snapshot_id
@@ -67,12 +67,12 @@ violations as (
         cast(null as integer) as code_ordinal,
         cast(null as varchar) as modifier_code_id,
         'drug_information_required_shape_when_present' as rule_id,
-        case when {{ hpt_clean_display_text('raw_drug_unit') }} is null then 'drug_information.unit' else 'drug_information.type' end as column_name,
+        case when {{ hpt_trimmed_text('raw_drug_unit') }} is null then 'drug_information.unit' else 'drug_information.type' end as column_name,
         coalesce(raw_drug_unit, raw_drug_type) as raw_value,
         'required_field_missing' as diagnostic_type,
         'Drug information must include both unit and type when present.' as message
     from drugs
-    where {{ hpt_clean_display_text('raw_drug_unit') }} is null
+    where {{ hpt_trimmed_text('raw_drug_unit') }} is null
         or clean_drug_type is null
 
     union all
@@ -88,7 +88,7 @@ violations as (
         'Drug unit is non-empty but cannot be cast to double.'
     from drugs
     where reported_schema_family = '3.0'
-        and {{ hpt_clean_display_text('raw_drug_unit') }} is not null
+        and {{ hpt_trimmed_text('raw_drug_unit') }} is not null
         and {{ hpt_safe_double('raw_drug_unit') }} is null
 
     union all

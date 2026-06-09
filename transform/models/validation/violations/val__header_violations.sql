@@ -84,8 +84,8 @@ violations as (
         values
             ('hospital_name', raw_reported_hospital_name, clean_reported_hospital_name is null),
             ('last_updated_on', raw_published_last_updated_on, raw_published_last_updated_on is null),
-            ('version', schema_version, {{ hpt_clean_display_text('schema_version') }} is null),
-            ('license_information.state', reported_state, {{ hpt_clean_display_text('reported_state') }} is null),
+            ('version', schema_version, {{ hpt_trimmed_text('schema_version') }} is null),
+            ('license_information.state', reported_state, {{ hpt_trimmed_text('reported_state') }} is null),
             ('type_2_npi', cast(npi_count as varchar), npi_count = 0),
             ('standard_charge_information', cast(charge_count as varchar), charge_count = 0)
     ) missing(column_name, raw_value, is_violation)
@@ -114,11 +114,11 @@ violations as (
     from snapshot_context,
     lateral (
         values
-            ('attestation.attestation', attestation, source_format_family = 'json' and reported_schema_family = '3.0' and {{ hpt_clean_display_text('attestation') }} is null),
-            ('attestation.confirm_attestation', confirm_attestation, source_format_family = 'json' and reported_schema_family = '3.0' and {{ hpt_clean_display_text('confirm_attestation') }} is null),
-            ('attestation.attester_name', attester_name, source_format_family = 'json' and reported_schema_family = '3.0' and {{ hpt_clean_display_text('attester_name') }} is null),
-            ('affirmation.affirmation', affirmation, source_format_family = 'json' and reported_schema_family in ('2.1', '2.2') and {{ hpt_clean_display_text('affirmation') }} is null),
-            ('affirmation.confirm_affirmation', confirm_affirmation, source_format_family = 'json' and reported_schema_family in ('2.1', '2.2') and {{ hpt_clean_display_text('confirm_affirmation') }} is null)
+            ('attestation.attestation', attestation, source_format_family = 'json' and reported_schema_family = '3.0' and {{ hpt_trimmed_text('attestation') }} is null),
+            ('attestation.confirm_attestation', confirm_attestation, source_format_family = 'json' and reported_schema_family = '3.0' and {{ hpt_trimmed_text('confirm_attestation') }} is null),
+            ('attestation.attester_name', attester_name, source_format_family = 'json' and reported_schema_family = '3.0' and {{ hpt_trimmed_text('attester_name') }} is null),
+            ('affirmation.affirmation', affirmation, source_format_family = 'json' and reported_schema_family in ('2.1', '2.2') and {{ hpt_trimmed_text('affirmation') }} is null),
+            ('affirmation.confirm_affirmation', confirm_affirmation, source_format_family = 'json' and reported_schema_family in ('2.1', '2.2') and {{ hpt_trimmed_text('confirm_affirmation') }} is null)
     ) missing(column_name, raw_value, is_violation)
     where is_violation
 
@@ -134,7 +134,7 @@ violations as (
         reported_state, 'required_field_missing',
         'License state is required.'
     from snapshot_context
-    where {{ hpt_clean_display_text('reported_state') }} is null
+    where {{ hpt_trimmed_text('reported_state') }} is null
 
     union all
 
@@ -151,13 +151,13 @@ violations as (
         and (
             (
                 source_format_family = 'json'
-                and not regexp_matches({{ hpt_clean_display_text('raw_published_last_updated_on') }}, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+                and not regexp_matches({{ hpt_trimmed_text('raw_published_last_updated_on') }}, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
             )
             or (
                 source_format_family = 'csv'
                 and not (
-                    regexp_matches({{ hpt_clean_display_text('raw_published_last_updated_on') }}, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-                    or regexp_matches({{ hpt_clean_display_text('raw_published_last_updated_on') }}, '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$')
+                    regexp_matches({{ hpt_trimmed_text('raw_published_last_updated_on') }}, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+                    or regexp_matches({{ hpt_trimmed_text('raw_published_last_updated_on') }}, '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$')
                 )
             )
         )
@@ -173,8 +173,8 @@ violations as (
         reported_state, 'state_format_invalid',
         'License state must be exactly two alphabetic characters.'
     from snapshot_context
-    where {{ hpt_clean_display_text('reported_state') }} is not null
-        and not regexp_matches({{ hpt_clean_display_text('reported_state') }}, '^[A-Za-z]{2}$')
+    where {{ hpt_trimmed_text('reported_state') }} is not null
+        and not regexp_matches({{ hpt_trimmed_text('reported_state') }}, '^[A-Za-z]{2}$')
 
     union all
 
@@ -187,11 +187,11 @@ violations as (
         reported_state, 'accepted_value_invalid',
         'License state is not in the CMS state and territory abbreviation list.'
     from snapshot_context
-    where regexp_matches({{ hpt_clean_display_text('reported_state') }}, '^[A-Za-z]{2}$')
+    where regexp_matches({{ hpt_trimmed_text('reported_state') }}, '^[A-Za-z]{2}$')
         and not exists (
             select 1
             from {{ ref('states') }} states
-            where states.state_code = upper({{ hpt_clean_display_text('reported_state') }})
+            where states.state_code = upper({{ hpt_trimmed_text('reported_state') }})
         )
 
     union all
@@ -210,13 +210,13 @@ violations as (
     from snapshot_context
     where (
             reported_schema_family = '3.0'
-            and {{ hpt_clean_display_text('attestation') }} is not null
-            and regexp_replace({{ hpt_clean_display_text('attestation') }}, '\\s+', ' ', 'g') != '{{ cms_v3_attestation }}'
+            and {{ hpt_trimmed_text('attestation') }} is not null
+            and regexp_replace({{ hpt_trimmed_text('attestation') }}, '\\s+', ' ', 'g') != '{{ cms_v3_attestation }}'
         )
         or (
             reported_schema_family in ('2.1', '2.2')
-            and {{ hpt_clean_display_text('affirmation') }} is not null
-            and regexp_replace({{ hpt_clean_display_text('affirmation') }}, '\\s+', ' ', 'g') != '{{ cms_v2_affirmation }}'
+            and {{ hpt_trimmed_text('affirmation') }} is not null
+            and regexp_replace({{ hpt_trimmed_text('affirmation') }}, '\\s+', ' ', 'g') != '{{ cms_v2_affirmation }}'
         )
 
     union all
@@ -234,13 +234,13 @@ violations as (
     from snapshot_context
     where (
             reported_schema_family = '3.0'
-            and {{ hpt_clean_display_text('confirm_attestation') }} is not null
-            and lower({{ hpt_clean_display_text('confirm_attestation') }}) not in ('true', '1', 'yes')
+            and {{ hpt_trimmed_text('confirm_attestation') }} is not null
+            and lower({{ hpt_trimmed_text('confirm_attestation') }}) not in ('true', '1', 'yes')
         )
         or (
             reported_schema_family in ('2.1', '2.2')
-            and {{ hpt_clean_display_text('confirm_affirmation') }} is not null
-            and lower({{ hpt_clean_display_text('confirm_affirmation') }}) not in ('true', '1', 'yes')
+            and {{ hpt_trimmed_text('confirm_affirmation') }} is not null
+            and lower({{ hpt_trimmed_text('confirm_affirmation') }}) not in ('true', '1', 'yes')
         )
 
     union all

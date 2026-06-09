@@ -1,7 +1,7 @@
 select
     h.hospital_id,
     h.canonical_hospital_name,
-    {{ hpt_clean_text('h.canonical_hospital_name') }} as clean_canonical_hospital_name,
+    {{ hpt_normalize_text('h.canonical_hospital_name') }} as clean_canonical_hospital_name,
     h.canonical_state,
     states.state_name as canonical_state_name,
     states.state_type as canonical_state_type,
