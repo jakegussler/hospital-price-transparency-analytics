@@ -117,7 +117,7 @@ with cases as (
                 'unitedhealthcare_west',
                 cast(null as varchar),
                 'medical',
-                cast(null as varchar)
+                'CA'
             ),
             (
                 'umr_stays_distinct',
@@ -208,7 +208,7 @@ with cases as (
                 cast(null as varchar),
                 cast(null as varchar),
                 'medical',
-                cast(null as varchar)
+                'CA'
             ),
             (
                 'blue_shield_ca_mcrppo',
@@ -221,7 +221,7 @@ with cases as (
                 cast(null as varchar),
                 cast(null as varchar),
                 'medical',
-                cast(null as varchar)
+                'CA'
             ),
             (
                 'bcbst_bluecare_plus',
@@ -234,7 +234,7 @@ with cases as (
                 'bluecare_plus',
                 'bluecare_tennessee',
                 'medical',
-                cast(null as varchar)
+                'TN'
             ),
             (
                 'bcbs_michigan_bcn',
@@ -247,7 +247,7 @@ with cases as (
                 'blue_care_network',
                 cast(null as varchar),
                 'medical',
-                cast(null as varchar)
+                'MI'
             ),
             (
                 'wellcare_medicare_alias',
