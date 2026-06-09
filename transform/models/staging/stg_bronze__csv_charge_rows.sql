@@ -8,6 +8,7 @@ with staged as (
         {{ hpt_normalize_text('setting') }} as clean_setting,
         billing_class as raw_billing_class,
         {{ hpt_normalize_text('billing_class') }} as clean_billing_class,
+        drug_unit_of_measurement as raw_drug_unit,
         {{ hpt_safe_double('drug_unit_of_measurement') }} as drug_unit,
         drug_type_of_measurement as raw_drug_unit_type,
         {{ hpt_normalize_text('drug_type_of_measurement') }} as clean_drug_unit_type,

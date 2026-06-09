@@ -344,6 +344,150 @@ unit_tests:
           row_ordinal: 1
           rule_id: csv_payer_rate_required_with_identity
 
+  - name: ndc_drug_requirement_uses_raw_unit_presence
+    description: >
+      NDC drug-unit presence is evaluated from the trimmed source literal, not
+      from the parsed numeric value. Present nonnumeric units do not emit a
+      missing-drug-information violation, while null/blank units and missing
+      drug types still do.
+    model: val__charge_item_violations
+    given:
+      - input: ref('stg_bronze__standard_charge_info')
+        format: sql
+        rows: |
+          select 'snapshot-json' as snapshot_id, 'json-v22-present' as charge_item_id,
+              'v2.2 present unit' as raw_description, 'v2.2 present unit' as clean_description,
+              0 as item_ordinal, '2.2.1' as reported_schema_version, '2.2' as reported_schema_family,
+              '2.2' as parser_schema_family, '2.2.1' as parser_schema_version, false as schema_version_mismatch
+          union all
+          select 'snapshot-json', 'json-v3-present', 'v3 present unit', 'v3 present unit',
+              1, '3.0.0', '3.0', '3.0', '3.0.0', false
+          union all
+          select 'snapshot-json', 'json-null-unit', 'null unit', 'null unit',
+              2, '3.0.0', '3.0', '3.0', '3.0.0', false
+          union all
+          select 'snapshot-json', 'json-blank-unit', 'blank unit', 'blank unit',
+              3, '3.0.0', '3.0', '3.0', '3.0.0', false
+          union all
+          select 'snapshot-json', 'json-missing-type', 'missing type', 'missing type',
+              4, '3.0.0', '3.0', '3.0', '3.0.0', false
+      - input: ref('stg_bronze__hospital_mrf_snapshots')
+        format: sql
+        rows: |
+          select 'snapshot-json' as snapshot_id, 'hospital-1' as hospital_id, 'json' as source_format
+          union all
+          select 'snapshot-csv', 'hospital-1', 'csv_tall'
+      - input: ref('stg_bronze__drug_information')
+        format: sql
+        rows: |
+          select 'snapshot-json' as snapshot_id, 'json-v22-present' as charge_item_id,
+              'dose text' as raw_drug_unit, cast(null as double) as drug_unit, 'gr' as clean_drug_unit_type
+          union all
+          select 'snapshot-json', 'json-v3-present', 'not numeric', cast(null as double), 'gr'
+          union all
+          select 'snapshot-json', 'json-null-unit', cast(null as varchar), cast(null as double), 'gr'
+          union all
+          select 'snapshot-json', 'json-blank-unit', '   ', cast(null as double), 'gr'
+          union all
+          select 'snapshot-json', 'json-missing-type', '10', 10.0, cast(null as varchar)
+      - input: ref('stg_bronze__code_information')
+        format: sql
+        rows: |
+          select 'snapshot-json' as snapshot_id, 'json-v22-present' as charge_item_id, 0 as code_ordinal, 'ndc' as clean_code_type
+          union all select 'snapshot-json', 'json-v3-present', 0, 'ndc'
+          union all select 'snapshot-json', 'json-null-unit', 0, 'ndc'
+          union all select 'snapshot-json', 'json-blank-unit', 0, 'ndc'
+          union all select 'snapshot-json', 'json-missing-type', 0, 'ndc'
+      - input: ref('stg_bronze__standard_charges')
+        format: sql
+        rows: |
+          select 'snapshot-json' as snapshot_id, 'json-v22-present' as charge_item_id, 'sc-0' as standard_charge_id
+          union all select 'snapshot-json', 'json-v3-present', 'sc-1'
+          union all select 'snapshot-json', 'json-null-unit', 'sc-2'
+          union all select 'snapshot-json', 'json-blank-unit', 'sc-3'
+          union all select 'snapshot-json', 'json-missing-type', 'sc-4'
+      - input: ref('stg_bronze__csv_charge_rows')
+        format: sql
+        rows: |
+          select 'snapshot-csv' as snapshot_id, 'csv_tall' as source_format, 0 as row_ordinal,
+              'csv present unit' as raw_description, 'csv present unit' as clean_description,
+              'not numeric' as raw_drug_unit, cast(null as double) as drug_unit, 'gr' as clean_drug_unit_type,
+              '00000' as code_1, 'NDC' as code_1_type
+          union all
+          select 'snapshot-csv', 'csv_tall', 1, 'csv blank unit', 'csv blank unit',
+              '   ', cast(null as double), 'gr', '00001', 'NDC'
+      - input: ref('stg_bronze__csv_modifier_rows')
+        format: sql
+        rows: |
+          select 'snapshot-csv' as snapshot_id, 0 as row_ordinal, false as is_standalone_modifier
+          union all
+          select 'snapshot-csv', 1, false
+      - input: ref('cms_code_types')
+        format: sql
+        rows: |
+          select 'ndc' as code_type, true as requires_drug_information
+      - input: ref('cms_validation_rules')
+        format: sql
+        rows: |
+          select
+              'ndc_requires_drug_information' as rule_id,
+              'NDC requires drug fields' as rule_name,
+              'error' as severity,
+              'charge_item' as grain,
+              'exclude_entity' as disposition,
+              'NDC citation' as cms_citation
+    expect:
+      rows:
+        - {snapshot_id: snapshot-json, source_charge_item_id: json-null-unit, rule_id: ndc_requires_drug_information, diagnostic_type: conditional_required_field_missing}
+        - {snapshot_id: snapshot-json, source_charge_item_id: json-blank-unit, rule_id: ndc_requires_drug_information, diagnostic_type: conditional_required_field_missing}
+        - {snapshot_id: snapshot-json, source_charge_item_id: json-missing-type, rule_id: ndc_requires_drug_information, diagnostic_type: conditional_required_field_missing}
+        - {snapshot_id: snapshot-csv, row_ordinal: 1, rule_id: ndc_requires_drug_information, diagnostic_type: conditional_required_field_missing}
+
+  - name: v3_nonnumeric_drug_unit_emits_parseability_violation
+    description: >
+      A present v3 drug unit that is nonnumeric is a drug-grain parseability
+      failure, independent of the charge-item-level NDC presence rule.
+    model: val__drug_violations
+    given:
+      - input: source('bronze', 'drug_information')
+        format: sql
+        rows: |
+          select 'snapshot-json' as snapshot_id, 'charge-item-1' as charge_item_id,
+              'not numeric' as unit, 'GR' as type
+      - input: source('bronze', 'csv_charge_rows')
+        format: sql
+        rows: |
+          select cast(null as varchar) as snapshot_id, cast(null as integer) as row_ordinal,
+              cast(null as varchar) as drug_unit_of_measurement, cast(null as varchar) as drug_type_of_measurement
+          where false
+      - input: ref('stg_bronze__standard_charge_info')
+        format: sql
+        rows: |
+          select 'snapshot-json' as snapshot_id, 'charge-item-1' as charge_item_id, '3.0' as reported_schema_family
+      - input: ref('stg_bronze__csv_charge_rows')
+        format: sql
+        rows: |
+          select cast(null as varchar) as snapshot_id, cast(null as varchar) as source_format,
+              cast(null as integer) as row_ordinal, cast(null as varchar) as clean_drug_unit_type
+          where false
+      - input: ref('stg_bronze__hospital_mrf_snapshots')
+        format: sql
+        rows: |
+          select 'snapshot-json' as snapshot_id, 'hospital-1' as hospital_id, 'json' as source_format
+      - input: ref('cms_validation_rules')
+        format: sql
+        rows: |
+          select
+              'drug_unit_numeric_parseable' as rule_id,
+              'Drug unit numeric parse' as rule_name,
+              'error' as severity,
+              'drug' as grain,
+              'exclude_entity' as disposition,
+              'drug citation' as cms_citation
+    expect:
+      rows:
+        - {snapshot_id: snapshot-json, source_charge_item_id: charge-item-1, rule_id: drug_unit_numeric_parseable, column_name: drug_information.unit, diagnostic_type: numeric_cast_failed}
+
   - name: charge_item_schema_version_mismatch_warns_once
     description: >
       A JSON charge item whose accepted parser shape disagrees with the header
@@ -377,6 +521,7 @@ unit_tests:
           select
               cast(null as varchar) as snapshot_id,
               cast(null as varchar) as charge_item_id,
+              cast(null as varchar) as raw_drug_unit,
               cast(null as double) as drug_unit,
               cast(null as varchar) as clean_drug_unit_type
           where false
@@ -404,6 +549,7 @@ unit_tests:
               cast(null as integer) as row_ordinal,
               cast(null as varchar) as raw_description,
               cast(null as varchar) as clean_description,
+              cast(null as varchar) as raw_drug_unit,
               cast(null as double) as drug_unit,
               cast(null as varchar) as clean_drug_unit_type,
               cast(null as varchar) as code_1,
@@ -497,6 +643,7 @@ unit_tests:
           select
               cast(null as varchar) as snapshot_id,
               cast(null as varchar) as charge_item_id,
+              cast(null as varchar) as raw_drug_unit,
               cast(null as double) as drug_unit,
               cast(null as varchar) as raw_drug_unit_type,
               cast(null as varchar) as clean_drug_unit_type

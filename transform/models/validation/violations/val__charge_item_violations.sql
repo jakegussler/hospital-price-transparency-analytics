@@ -19,6 +19,7 @@ json_items as (
         cast(null as integer) as row_ordinal,
         sci.raw_description,
         sci.clean_description,
+        di.raw_drug_unit,
         di.drug_unit,
         di.clean_drug_unit_type
     from {{ ref('stg_bronze__standard_charge_info') }} sci
@@ -70,6 +71,7 @@ csv_item_rollup as (
         r.row_ordinal,
         r.raw_description,
         r.clean_description,
+        r.raw_drug_unit,
         r.drug_unit,
         r.clean_drug_unit_type,
         count(c.code_ordinal) as code_count,
@@ -106,6 +108,7 @@ items as (
         row_ordinal,
         raw_description,
         clean_description,
+        raw_drug_unit,
         drug_unit,
         clean_drug_unit_type,
         code_count,
@@ -131,13 +134,13 @@ violations as (
         cast(null as varchar) as modifier_code_id,
         'ndc_requires_drug_information' as rule_id,
         'drug_information' as column_name,
-        concat('drug_unit=', coalesce(cast(drug_unit as varchar), '<null>'), '; drug_type=', coalesce(clean_drug_unit_type, '<null>')) as raw_value,
+        concat('drug_unit=', coalesce(raw_drug_unit, '<null>'), '; drug_type=', coalesce(clean_drug_unit_type, '<null>')) as raw_value,
         'conditional_required_field_missing' as diagnostic_type,
         'NDC code rows require both drug unit and drug type for schema families 2.2 and 3.0.' as message
     from items
     where reported_schema_family in ('2.2', '3.0')
         and has_drug_information_code
-        and (drug_unit is null or clean_drug_unit_type is null)
+        and ({{ hpt_trimmed_text('raw_drug_unit') }} is null or clean_drug_unit_type is null)
 
     union all
 
