@@ -58,6 +58,7 @@ class DbtRunConfig:
     snapshot_ids: list[str] | str | None = field(default_factory=list)
     include_seeds: bool = False
     full_refresh: bool = False
+    clear_on_failure: bool = False
     extra_args: list[str] | None = field(default_factory=list)
     retention_mode: str = field(default_factory=_retention_mode_from_env)
     transform_dir: Path = TRANSFORM_DIR
@@ -135,6 +136,7 @@ class DbtRunConfig:
         per_snapshot: bool = False,
         full_refresh: bool = False,
         full_rebuild: bool = False,
+        clear_on_failure: bool = False,
     ) -> DbtRunConfig:
         """Map mutually-exclusive CLI flags to a run mode and build the config.
 
@@ -178,4 +180,5 @@ class DbtRunConfig:
             snapshot_ids=snapshot_ids,
             include_seeds=seeds,
             full_refresh=full_refresh,
+            clear_on_failure=clear_on_failure,
         )

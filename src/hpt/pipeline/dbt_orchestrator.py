@@ -112,6 +112,7 @@ class DbtOrchestrator:
                 selector=selector,
                 extra_args=cfg.extra_args,
             ):
+                self._clear_on_failure(ids)
                 return 1
         if cfg.is_materializing and not self._manager.prune_stale_snapshots():
             return 1
@@ -151,6 +152,7 @@ class DbtOrchestrator:
                     full_refresh=cfg.full_refresh and index == 0,
                     extra_args=cfg.extra_args,
                 ):
+                    self._clear_on_failure([snapshot_id])
                     return 1
         if cfg.is_materializing and not self._manager.prune_stale_snapshots():
             return 1
@@ -186,6 +188,22 @@ class DbtOrchestrator:
         return 0
 
     # -- internals -------------------------------------------------------------
+
+    def _clear_on_failure(self, snapshot_ids: list[str]) -> None:
+        """Delete the just-built snapshot(s) after a failed materializing run.
+
+        Opt-in via ``clear_on_failure``. Only fires for build/run, where rows may
+        have been written before the failure left the snapshot partially
+        materialized; it is a no-op for non-materializing commands. A clear
+        failure is logged but does not change the run's exit code -- the run has
+        already failed.
+        """
+        cfg = self._config
+        if not cfg.clear_on_failure or not cfg.is_materializing:
+            return
+        self._log.warning("dbt_run_failed_clearing_snapshots", extra={"snapshot_ids": snapshot_ids})
+        if not self._manager.clear_snapshots(snapshot_ids):
+            self._log.error("dbt_clear_on_failure_failed", extra={"snapshot_ids": snapshot_ids})
 
     def _resolve_snapshots(self) -> list[str]:
         """Resolve the snapshot IDs this run targets, sourcing hospitals per mode."""

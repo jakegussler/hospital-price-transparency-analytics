@@ -15,7 +15,13 @@ from hpt.ingest.download import Outcome, download_all
 from hpt.ingest.snapshot import SnapshotManager, SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
 from hpt.logging.log import LoggingRunPaths, configure_logging, get_logger
-from hpt.pipeline.dbt_config import DEFAULT_COMMAND, DEFAULT_SELECTOR, DbtRunConfig
+from hpt.pipeline.dbt_config import (
+    DEFAULT_COMMAND,
+    DEFAULT_SELECTOR,
+    TRANSFORM_DIR,
+    DbtRunConfig,
+)
+from hpt.pipeline.dbt_manager import DbtManager
 from hpt.pipeline.dbt_orchestrator import DbtOrchestrator
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
 from hpt.registry.loader import RegistryError, get_hospitals, load_registry
@@ -215,6 +221,16 @@ def run_dbt(
         "--full-rebuild",
         help=("Run a true full-refresh rebuild: no snapshot scope and dbt --full-refresh enabled."),
     ),
+    clear_on_failure: bool = typer.Option(
+        False,
+        "--clear-on-failure",
+        help=(
+            "If a build/run fails partway, delete the snapshot(s) being built from "
+            "every snapshot-grained table so they are not left partially populated. "
+            "Per-snapshot clears the failing snapshot; scoped runs clear the whole "
+            "scoped set."
+        ),
+    ),
     log_level: str = typer.Option(
         "INFO",
         "--log-level",
@@ -235,10 +251,64 @@ def run_dbt(
             per_snapshot=per_snapshot,
             full_refresh=full_refresh,
             full_rebuild=full_rebuild,
+            clear_on_failure=clear_on_failure,
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     raise typer.Exit(code=DbtOrchestrator(config, log=log).run())
+
+
+@cli.command("clear-snapshot")
+def clear_snapshot(
+    snapshot_ids: str = typer.Option(
+        ...,
+        "--snapshot-ids",
+        help=(
+            "Comma-separated snapshot IDs whose rows are deleted from every "
+            "snapshot-grained Silver/validation table in the warehouse."
+        ),
+    ),
+    log_level: str = typer.Option(
+        "INFO",
+        "--log-level",
+        help="Set the logging level.",
+    ),
+) -> None:
+    """Delete a snapshot's rows from every snapshot-grained table in the warehouse.
+
+    Use this to recover from a dbt run that failed partway and left a snapshot
+    partially materialized. It removes warehouse rows only; raw files, snapshot
+    metadata, and Bronze partitions are untouched, so re-running dbt for the
+    snapshot rebuilds it cleanly.
+    """
+    exit_code = clear_snapshot_logic(snapshot_ids=snapshot_ids, log_level=log_level)
+    raise typer.Exit(code=exit_code)
+
+
+def clear_snapshot_logic(
+    *,
+    snapshot_ids: str | list[str],
+    log_level: str = "INFO",
+) -> int:
+    """Run clear-snapshot logic and return a process-style exit code."""
+    configure_logging(log_level=log_level)
+    log = get_logger("cli.clear_snapshot")
+
+    ids = (
+        convert_string_to_list(snapshot_ids)
+        if isinstance(snapshot_ids, str)
+        else list(snapshot_ids)
+    )
+    if not ids:
+        typer.echo("No snapshot IDs provided. Pass --snapshot-ids.", err=True)
+        return 2
+
+    log.info("clear_snapshot_start", extra={"snapshot_ids": ids})
+    if not DbtManager(TRANSFORM_DIR, log).clear_snapshots(ids):
+        log.error("clear_snapshot_failed", extra={"snapshot_ids": ids})
+        return 1
+    log.info("clear_snapshot_complete", extra={"snapshot_ids": ids})
+    return 0
 
 
 def _load_hospitals_for_target(

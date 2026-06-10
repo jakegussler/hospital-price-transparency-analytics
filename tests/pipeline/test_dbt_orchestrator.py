@@ -26,6 +26,14 @@ def _selector(call: list[str]) -> str | None:
     return call[call.index("--selector") + 1] if "--selector" in call else None
 
 
+def _operation(call: list[str]) -> str | None:
+    return call[1] if call[0] == "run-operation" else None
+
+
+def _args(call: list[str]) -> dict:
+    return json.loads(call[call.index("--args") + 1])
+
+
 # ---------------------------------------------------------------------------
 # resolve_snapshot_ids
 # ---------------------------------------------------------------------------
@@ -327,3 +335,60 @@ def test_injected_snapshot_manager_skips_storage(monkeypatch: pytest.MonkeyPatch
     config = DbtRunConfig(hospital_ids="h1", command="build")
     assert DbtOrchestrator(config, snapshots=snapshots).run() == 0
     assert _vars(runner.calls[0]) == {"snapshot_ids": ["snap-h1"]}
+
+
+# ---------------------------------------------------------------------------
+# Clear-on-failure
+# ---------------------------------------------------------------------------
+
+
+def test_no_clear_on_failure_by_default(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner(success=False)
+    assert _run(DbtRunConfig(hospital_ids="h1", command="build"), monkeypatch, runner) == 1
+    assert _commands(runner) == ["build"]
+
+
+def test_single_pass_clears_scoped_ids_on_failure(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner(successes=[False])
+    config = DbtRunConfig(hospital_ids="h1", command="build", clear_on_failure=True)
+    assert _run(config, monkeypatch, runner) == 1
+    assert _commands(runner) == ["build", "run-operation"]
+    assert _operation(runner.calls[1]) == "hpt_clear_snapshots"
+    assert _args(runner.calls[1]) == {"snapshot_ids": ["snap-h1"]}
+
+
+def test_per_snapshot_clears_only_failing_snapshot(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    _patch_two_hospitals(monkeypatch)
+    runner = RecordingRunner(successes=[True, False])
+    config = DbtRunConfig(mode=DbtRunMode.PER_SNAPSHOT, command="build", clear_on_failure=True)
+    assert _run(config, monkeypatch, runner) == 1
+    # First snapshot builds, second fails and is cleared on its own.
+    assert _commands(runner) == ["build", "build", "run-operation"]
+    assert _operation(runner.calls[2]) == "hpt_clear_snapshots"
+    assert _args(runner.calls[2]) == {"snapshot_ids": ["snap-h2"]}
+
+
+def test_clear_on_failure_skips_non_materializing_command(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner(success=False)
+    config = DbtRunConfig(hospital_ids="h1", command="test", clear_on_failure=True)
+    assert _run(config, monkeypatch, runner) == 1
+    assert _commands(runner) == ["test"]
+
+
+def test_no_clear_when_only_prune_fails(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    # build succeeds, prune fails: the build's rows are good, so do not clear them.
+    runner = RecordingRunner(successes=[True, False])
+    config = DbtRunConfig(hospital_ids="h1", command="build", clear_on_failure=True)
+    assert _run(config, monkeypatch, runner) == 1
+    assert _commands(runner) == ["build", "run-operation"]
+    assert _operation(runner.calls[1]) == "hpt_prune_stale_snapshots"

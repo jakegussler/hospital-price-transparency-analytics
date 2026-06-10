@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from hpt.pipeline.dbt_manager import PRUNE_OPERATION, DbtManager
+from hpt.pipeline.dbt_manager import CLEAR_OPERATION, PRUNE_OPERATION, DbtManager
 
 from ._dbt_doubles import RecordingRunner, patch_dbt_runner
 
@@ -50,6 +50,17 @@ def test_prune_invokes_run_operation(manager: tuple[DbtManager, RecordingRunner]
     assert mgr.prune_stale_snapshots() is True
     assert runner.calls[0][:2] == ["run-operation", PRUNE_OPERATION]
     assert "--vars" not in runner.calls[0]
+
+
+def test_clear_snapshots_invokes_run_operation_with_args(
+    manager: tuple[DbtManager, RecordingRunner],
+) -> None:
+    mgr, runner = manager
+    assert mgr.clear_snapshots(["s1", "s2"]) is True
+    args = runner.calls[0]
+    assert args[:2] == ["run-operation", CLEAR_OPERATION]
+    assert _base_args_present(args)
+    assert json.loads(args[args.index("--args") + 1]) == {"snapshot_ids": ["s1", "s2"]}
 
 
 def test_execute_assembles_scoped_args(manager: tuple[DbtManager, RecordingRunner]) -> None:
@@ -106,6 +117,7 @@ def test_failed_invocation_returns_false(monkeypatch: pytest.MonkeyPatch) -> Non
     assert mgr.execute("build", snapshot_ids=["s1"]) is False
     assert mgr.seed() is False
     assert mgr.prune_stale_snapshots() is False
+    assert mgr.clear_snapshots(["s1"]) is False
 
 
 def test_runner_constructed_once(manager: tuple[DbtManager, RecordingRunner]) -> None:
