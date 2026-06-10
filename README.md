@@ -135,6 +135,7 @@ hpt ingest
 hpt download --help
 hpt ingest --help
 hpt export-hospitals-seed --help
+hpt clear-snapshot --help
 
 # dbt
 make dbt-seed
@@ -155,6 +156,15 @@ The dbt project defines selectors for `staging`, `silver_base`, `silver_core`,
 views, Silver tables, and cross-model tests stay coherent. Pass `--selector`
 only for an intentionally partial run; per-snapshot `--full-refresh` rejects
 partial selectors.
+
+When a build fails partway it can leave a snapshot partially materialized across
+the Silver and validation tables. `hpt clear-snapshot --snapshot-ids <id>`
+deletes that snapshot's rows from every snapshot-grained table so it is no longer
+partial; raw files, snapshot metadata, and Bronze partitions are untouched, so
+re-running dbt for the snapshot rebuilds it cleanly. Pass
+`hpt run-dbt --clear-on-failure` to do this automatically when a build/run fails:
+per-snapshot runs clear the failing snapshot, scoped runs clear the whole scoped
+set.
 
 ## Runtime Configuration
 

@@ -100,6 +100,32 @@ materializing runs:
 
 Bronze Parquet is never pruned by this setting.
 
+## Clearing a snapshot
+
+A `build` that fails partway can leave a snapshot partially materialized: some
+snapshot-grained tables have its rows, others do not. `hpt clear-snapshot`
+removes a snapshot cleanly so it can be rebuilt:
+
+```bash
+hpt clear-snapshot --snapshot-ids <snapshot-id>
+```
+
+It runs the `hpt_clear_snapshots` operation, which is the mirror of
+`hpt_prune_stale_snapshots`: both iterate the same
+`hpt_snapshot_grained_incremental_models()` list and delete by `snapshot_id`,
+but clear deletes the rows that *are* the targeted snapshot(s) instead of the
+rows that are *not* current. Table-materialized models (`slv_base__hospitals`,
+`slv_core__*`, `slv_review_queue__*`) are excluded on purpose — they are
+`CREATE OR REPLACE` and self-heal on the next run. Only warehouse rows are
+touched; raw files, snapshot metadata, and Bronze partitions are left intact, so
+re-running dbt for the snapshot rebuilds it.
+
+To clear automatically when a materializing run fails, pass
+`hpt run-dbt --clear-on-failure`. Per-snapshot runs clear the failing snapshot;
+single-pass scoped runs clear the whole scoped set. The clear fires only on a
+`build`/`run` failure — not on a seed or post-run prune failure, since those do
+not leave a half-written snapshot.
+
 ### Verify the scope landed
 
 ```bash

@@ -80,7 +80,7 @@ dbt selectors available: `staging`, `silver_base`, `silver_core`,
 ## Code map
 
 - `src/hpt/cli.py` — Typer CLI (`download`, `ingest`, `export-hospitals-seed`,
-  `run-dbt`). Thin: builds config objects and runs a process.
+  `run-dbt`, `clear-snapshot`). Thin: builds config objects and runs a process.
 - `src/hpt/ingest/` — config, HTTP download, raw storage, compression, snapshot
   metadata, format detection, schema sniffing.
 - `src/hpt/parsers/` — JSON, CSV Tall, CSV Wide, and header parsing.

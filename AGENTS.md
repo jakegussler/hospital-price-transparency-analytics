@@ -12,8 +12,9 @@ for dbt/DuckDB normalization and analysis.
 
 ## Current Architecture
 
-- `src/hpt/cli.py` exposes `hpt download`, `hpt ingest`, and `hpt run-dbt`. It is
-  a thin layer that builds config objects and runs a process.
+- `src/hpt/cli.py` exposes `hpt download`, `hpt ingest`, `hpt run-dbt`, and
+  `hpt clear-snapshot`. It is a thin layer that builds config objects and runs a
+  process.
 - `src/hpt/ingest/` owns config, HTTP download, raw storage, compression,
   snapshot metadata, format detection, and schema sniffing.
 - `src/hpt/parsers/` owns JSON, CSV Tall, CSV Wide, and header parsing.
