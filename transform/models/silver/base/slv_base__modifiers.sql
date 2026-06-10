@@ -10,12 +10,12 @@ select
     m.clean_description,
     m.raw_setting,
     m.clean_setting
-from {{ ref('stg_bronze__modifiers') }} m
-inner join {{ ref('slv_base__hospital_snapshots') }} hs
+from {{ hpt_scoped_ref('stg_bronze__modifiers') }} m
+inner join {{ hpt_scoped_ref('slv_base__hospital_snapshots') }} hs
     on m.snapshot_id = hs.snapshot_id
 where not exists (
     select 1
-    from {{ ref('val__modifier_rejections') }} r
+    from {{ hpt_scoped_ref('val__modifier_rejections') }} r
     where r.source_format_family = 'json'
         and r.snapshot_id = m.snapshot_id
         and r.modifier_code_id = m.modifier_code_id

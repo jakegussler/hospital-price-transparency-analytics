@@ -7,24 +7,24 @@ with snapshots as (
         s.*,
         {{ hpt_source_format_family('s.source_format') }} as source_format_family,
         coalesce({{ hpt_schema_family_from_version('s.schema_version') }}, '3.0') as reported_schema_family
-    from {{ ref('stg_bronze__hospital_mrf_snapshots') }} s
+    from {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} s
 ),
 
 npi_counts as (
     select snapshot_id, count(*) as npi_count
-    from {{ ref('stg_bronze__type2_npi') }}
+    from {{ hpt_scoped_ref('stg_bronze__type2_npi') }}
     group by snapshot_id
 ),
 
 json_charge_counts as (
     select snapshot_id, count(*) as charge_count
-    from {{ ref('stg_bronze__standard_charge_info') }}
+    from {{ hpt_scoped_ref('stg_bronze__standard_charge_info') }}
     group by snapshot_id
 ),
 
 csv_charge_counts as (
     select snapshot_id, count(distinct row_ordinal) as charge_count
-    from {{ ref('stg_bronze__csv_charge_rows') }}
+    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }}
     group by snapshot_id
 ),
 
@@ -55,7 +55,7 @@ npi_values as (
         n.npi_ordinal,
         n.raw_npi,
         n.clean_npi
-    from {{ ref('stg_bronze__type2_npi') }} n
+    from {{ hpt_scoped_ref('stg_bronze__type2_npi') }} n
     inner join snapshots s on n.snapshot_id = s.snapshot_id
 ),
 

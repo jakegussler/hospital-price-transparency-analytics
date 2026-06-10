@@ -41,17 +41,15 @@ with json_rates as (
         pi.count as raw_count,
         pi.additional_payer_notes,
         sc.additional_generic_notes
-    from {{ source('bronze', 'payers_information') }} pi
-    inner join {{ source('bronze', 'standard_charges') }} sc
+    from {{ hpt_scoped_source('bronze', 'payers_information') }} pi
+    inner join {{ hpt_scoped_source('bronze', 'standard_charges') }} sc
         on pi.snapshot_id = sc.snapshot_id
         and pi.standard_charge_id = sc.standard_charge_id
-    inner join {{ ref('stg_bronze__standard_charge_info') }} sci
+    inner join {{ hpt_scoped_ref('stg_bronze__standard_charge_info') }} sci
         on sc.snapshot_id = sci.snapshot_id
         and sc.charge_item_id = sci.charge_item_id
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on pi.snapshot_id = hs.snapshot_id
-    where 1 = 1
-        {{ hpt_snapshot_filter('pi') }}
 ),
 
 csv_raw as (
@@ -83,11 +81,9 @@ csv_raw as (
         b.count as raw_count,
         b.additional_payer_notes,
         b.additional_generic_notes
-    from {{ source('bronze', 'csv_charge_rows') }} b
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }} b
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on b.snapshot_id = hs.snapshot_id
-    where 1 = 1
-        {{ hpt_snapshot_filter('b') }}
 ),
 
 csv_rates as (

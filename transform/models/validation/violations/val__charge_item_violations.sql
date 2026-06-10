@@ -21,10 +21,10 @@ json_items as (
         sci.clean_description,
         di.drug_unit,
         di.clean_drug_unit_type
-    from {{ ref('stg_bronze__standard_charge_info') }} sci
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    from {{ hpt_scoped_ref('stg_bronze__standard_charge_info') }} sci
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on sci.snapshot_id = hs.snapshot_id
-    left join {{ ref('stg_bronze__drug_information') }} di
+    left join {{ hpt_scoped_ref('stg_bronze__drug_information') }} di
         on sci.snapshot_id = di.snapshot_id
         and sci.charge_item_id = di.charge_item_id
 ),
@@ -38,19 +38,19 @@ json_item_rollup as (
         count(sc.standard_charge_id) as standard_charge_count,
         bool_or(coalesce(ct.requires_drug_information, false)) as has_drug_information_code
     from json_items i
-    left join {{ ref('stg_bronze__code_information') }} c
+    left join {{ hpt_scoped_ref('stg_bronze__code_information') }} c
         on i.snapshot_id = c.snapshot_id
         and i.source_charge_item_id = c.charge_item_id
     left join code_types ct
         on c.clean_code_type = ct.code_type
-    left join {{ ref('stg_bronze__standard_charges') }} sc
+    left join {{ hpt_scoped_ref('stg_bronze__standard_charges') }} sc
         on i.snapshot_id = sc.snapshot_id
         and i.source_charge_item_id = sc.charge_item_id
     group by all
 ),
 
 csv_codes as (
-    {{ hpt_csv_code_unpivot("select * from " ~ ref('stg_bronze__csv_charge_rows')) }}
+    {{ hpt_csv_code_unpivot("select * from " ~ hpt_scoped_ref('stg_bronze__csv_charge_rows')) }}
 ),
 
 csv_item_rollup as (
@@ -74,8 +74,8 @@ csv_item_rollup as (
         r.clean_drug_unit_type,
         count(c.code_ordinal) as code_count,
         bool_or(coalesce(ct.requires_drug_information, false)) as has_drug_information_code
-    from {{ ref('stg_bronze__csv_charge_rows') }} r
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on r.snapshot_id = hs.snapshot_id
     left join csv_codes c
         on r.snapshot_id = c.snapshot_id

@@ -8,6 +8,6 @@ select
     l.clean_location_name,
     l.raw_hospital_address,
     l.clean_hospital_address
-from {{ ref('stg_bronze__hospital_locations') }} l
-inner join {{ ref('slv_base__hospital_snapshots') }} s
+from {{ hpt_scoped_ref('stg_bronze__hospital_locations') }} l
+inner join {{ hpt_scoped_ref('slv_base__hospital_snapshots') }} s
     on l.snapshot_id = s.snapshot_id

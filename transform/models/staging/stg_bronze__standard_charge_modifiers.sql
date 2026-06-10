@@ -6,8 +6,6 @@
         {{ hpt_clean_display_text('modifier_code') }} as clean_modifier_code,
         cast(modifier_ordinal as integer) as modifier_ordinal
     from {{ source('bronze', 'standard_charge_modifiers') }}
-    where 1 = 1
-        {{ hpt_snapshot_filter() }}
 {% else %}
     select
         cast(null as varchar) as snapshot_id,

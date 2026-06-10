@@ -10,13 +10,13 @@ with json_drugs as (
         d.drug_unit,
         d.raw_drug_unit_type,
         d.clean_drug_unit_type
-    from {{ ref('stg_bronze__drug_information') }} d
-    inner join {{ ref('slv_base__charge_items') }} ci
+    from {{ hpt_scoped_ref('stg_bronze__drug_information') }} d
+    inner join {{ hpt_scoped_ref('slv_base__charge_items') }} ci
         on d.snapshot_id = ci.snapshot_id
         and d.charge_item_id = ci.source_charge_item_id
     where not exists (
         select 1
-        from {{ ref('val__drug_rejections') }} r
+        from {{ hpt_scoped_ref('val__drug_rejections') }} r
         where r.source_format_family = 'json'
             and r.snapshot_id = d.snapshot_id
             and r.source_charge_item_id = d.charge_item_id
@@ -35,8 +35,8 @@ csv_drugs as (
         ri.drug_unit,
         ri.raw_drug_unit_type,
         ri.clean_drug_unit_type
-    from {{ ref('slv_base__csv_charge_row_items') }} ri
-    inner join {{ ref('slv_base__charge_items') }} ci
+    from {{ hpt_scoped_ref('slv_base__csv_charge_row_items') }} ri
+    inner join {{ hpt_scoped_ref('slv_base__charge_items') }} ci
         on ri.silver_charge_item_id = ci.silver_charge_item_id
     where ri.drug_unit is not null or ri.clean_drug_unit_type is not null
 )

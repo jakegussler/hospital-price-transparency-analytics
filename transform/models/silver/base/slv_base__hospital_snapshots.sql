@@ -35,7 +35,7 @@ select
     s.confirm_affirmation,
     s.reported_state,
     s.license_number
-from {{ ref('stg_bronze__hospital_mrf_snapshots') }} s
+from {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} s
 left join {{ ref('slv_base__hospitals') }} h
     on s.hospital_id = h.hospital_id
 left join snapshot_state state

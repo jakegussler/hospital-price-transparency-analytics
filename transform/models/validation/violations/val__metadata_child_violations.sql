@@ -13,8 +13,8 @@ with violations as (
         n.raw_npi as raw_value,
         'identifier_format_invalid' as diagnostic_type,
         'Type 2 NPI must be exactly ten digits.' as message
-    from {{ ref('stg_bronze__type2_npi') }} n
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    from {{ hpt_scoped_ref('stg_bronze__type2_npi') }} n
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on n.snapshot_id = hs.snapshot_id
     where n.clean_npi is null or not regexp_matches(n.clean_npi, '^[0-9]{10}$')
 
@@ -34,8 +34,8 @@ with violations as (
         g.raw_provisions as raw_value,
         'required_field_missing' as diagnostic_type,
         'General contract provisions object is present but provisions text is missing.' as message
-    from {{ ref('stg_bronze__general_contract_provisions') }} g
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    from {{ hpt_scoped_ref('stg_bronze__general_contract_provisions') }} g
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on g.snapshot_id = hs.snapshot_id
     where g.clean_provisions is null
 ),

@@ -52,8 +52,6 @@ with source_rows as (
         tenth_percentile,
         ninetieth_percentile
     from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1
-        {{ hpt_snapshot_filter() }}
 ),
 
 flagged as (

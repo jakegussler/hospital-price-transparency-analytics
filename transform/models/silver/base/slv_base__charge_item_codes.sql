@@ -1,5 +1,5 @@
 with csv_codes as (
-    {{ hpt_csv_code_unpivot("select * from " ~ ref('stg_bronze__csv_charge_rows')) }}
+    {{ hpt_csv_code_unpivot("select * from " ~ hpt_scoped_ref('stg_bronze__csv_charge_rows')) }}
 ),
 
 code_types as (
@@ -25,15 +25,15 @@ json_codes as (
         c.clean_code_type,
         ct.code_type as canonical_code_system,
         'json_code_information' as source_code_path
-    from {{ ref('stg_bronze__code_information') }} c
-    inner join {{ ref('slv_base__charge_items') }} ci
+    from {{ hpt_scoped_ref('stg_bronze__code_information') }} c
+    inner join {{ hpt_scoped_ref('slv_base__charge_items') }} ci
         on c.snapshot_id = ci.snapshot_id
         and c.charge_item_id = ci.source_charge_item_id
     left join code_types ct
         on c.clean_code_type = ct.code_type
     where not exists (
         select 1
-        from {{ ref('val__code_rejections') }} r
+        from {{ hpt_scoped_ref('val__code_rejections') }} r
         where r.source_format_family = 'json'
             and r.snapshot_id = c.snapshot_id
             and r.source_charge_item_id = c.charge_item_id
@@ -51,12 +51,12 @@ csv_deduped_codes as (
         cc.raw_code_type,
         {{ hpt_clean_text('cc.raw_code_type') }} as clean_code_type
     from csv_codes cc
-    inner join {{ ref('slv_base__csv_charge_row_items') }} row_items
+    inner join {{ hpt_scoped_ref('slv_base__csv_charge_row_items') }} row_items
         on cc.snapshot_id = row_items.snapshot_id
         and cc.row_ordinal = row_items.row_ordinal
     where not exists (
         select 1
-        from {{ ref('val__code_rejections') }} r
+        from {{ hpt_scoped_ref('val__code_rejections') }} r
         where r.source_format_family = 'csv'
             and r.snapshot_id = cc.snapshot_id
             and r.row_ordinal = cc.row_ordinal
@@ -84,7 +84,7 @@ csv_codes_final as (
         ct.code_type as canonical_code_system,
         'csv_charge_rows' as source_code_path
     from csv_deduped_codes c
-    inner join {{ ref('slv_base__charge_items') }} ci
+    inner join {{ hpt_scoped_ref('slv_base__charge_items') }} ci
         on c.silver_charge_item_id = ci.silver_charge_item_id
     left join code_types ct
         on c.clean_code_type = ct.code_type

@@ -12,14 +12,12 @@ with json_drugs as (
         d.unit as raw_drug_unit,
         d.type as raw_drug_type,
         {{ hpt_clean_text('d.type') }} as clean_drug_type
-    from {{ source('bronze', 'drug_information') }} d
-    inner join {{ ref('stg_bronze__standard_charge_info') }} sci
+    from {{ hpt_scoped_source('bronze', 'drug_information') }} d
+    inner join {{ hpt_scoped_ref('stg_bronze__standard_charge_info') }} sci
         on d.snapshot_id = sci.snapshot_id
         and d.charge_item_id = sci.charge_item_id
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on d.snapshot_id = hs.snapshot_id
-    where 1 = 1
-        {{ hpt_snapshot_filter('d') }}
 ),
 
 csv_drugs as (
@@ -34,11 +32,11 @@ csv_drugs as (
         b.drug_unit_of_measurement as raw_drug_unit,
         b.drug_type_of_measurement as raw_drug_type,
         r.clean_drug_unit_type as clean_drug_type
-    from {{ ref('stg_bronze__csv_charge_rows') }} r
-    inner join {{ source('bronze', 'csv_charge_rows') }} b
+    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
+    inner join {{ hpt_scoped_source('bronze', 'csv_charge_rows') }} b
         on r.snapshot_id = b.snapshot_id
         and r.row_ordinal = cast(b.row_ordinal as integer)
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on r.snapshot_id = hs.snapshot_id
     where b.drug_unit_of_measurement is not null
         or b.drug_type_of_measurement is not null

@@ -1,19 +1,19 @@
 with rejected_csv_codes as (
     select distinct snapshot_id, row_ordinal, code_ordinal
-    from {{ ref('val__code_rejections') }}
+    from {{ hpt_scoped_ref('val__code_rejections') }}
     where source_format_family = 'csv'
 ),
 
 rejected_csv_drugs as (
     select distinct snapshot_id, row_ordinal
-    from {{ ref('val__drug_rejections') }}
+    from {{ hpt_scoped_ref('val__drug_rejections') }}
     where source_format_family = 'csv'
 ),
 
 csv_codes as (
     select codes.*
     from (
-        {{ hpt_csv_code_unpivot("select * from " ~ ref('stg_bronze__csv_charge_rows')) }}
+        {{ hpt_csv_code_unpivot("select * from " ~ hpt_scoped_ref('stg_bronze__csv_charge_rows')) }}
     ) codes
     left join rejected_csv_codes r
         on r.snapshot_id = codes.snapshot_id
@@ -46,7 +46,7 @@ csv_rows as (
         case when dr.snapshot_id is null then r.raw_drug_unit_type end as raw_drug_unit_type,
         case when dr.snapshot_id is null then r.clean_drug_unit_type end as clean_drug_unit_type,
         coalesce(cs.code_set_signature, md5('<no_codes>')) as code_set_signature
-    from {{ ref('stg_bronze__csv_charge_rows') }} r
+    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
     left join csv_code_sets cs
         on r.snapshot_id = cs.snapshot_id
         and r.row_ordinal = cs.row_ordinal
@@ -83,7 +83,7 @@ select distinct
 from signed_rows
 where not exists (
     select 1
-    from {{ ref('val__charge_item_rejections') }} r
+    from {{ hpt_scoped_ref('val__charge_item_rejections') }} r
     where r.source_format_family = 'csv'
         and r.snapshot_id = signed_rows.snapshot_id
         and r.row_ordinal = signed_rows.row_ordinal

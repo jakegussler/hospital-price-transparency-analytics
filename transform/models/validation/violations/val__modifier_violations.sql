@@ -24,8 +24,8 @@ with json_modifiers as (
         cast(null as varchar) as clean_plan_name,
         cast(null as varchar) as raw_payer_description,
         cast(null as varchar) as clean_payer_description
-    from {{ ref('stg_bronze__modifiers') }} m
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    from {{ hpt_scoped_ref('stg_bronze__modifiers') }} m
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on m.snapshot_id = hs.snapshot_id
 ),
 
@@ -53,8 +53,8 @@ json_modifier_payers as (
         mpi.clean_plan_name,
         mpi.raw_description as raw_payer_description,
         mpi.clean_description as clean_payer_description
-    from {{ ref('stg_bronze__modifier_payer_info') }} mpi
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    from {{ hpt_scoped_ref('stg_bronze__modifier_payer_info') }} mpi
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on mpi.snapshot_id = hs.snapshot_id
 ),
 
@@ -91,8 +91,8 @@ csv_modifier_rows as (
         r.negotiated_algorithm,
         r.additional_generic_notes,
         r.additional_payer_notes
-    from {{ ref('stg_bronze__csv_charge_rows') }} r
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on r.snapshot_id = hs.snapshot_id
     where r.raw_modifiers is not null
 ),

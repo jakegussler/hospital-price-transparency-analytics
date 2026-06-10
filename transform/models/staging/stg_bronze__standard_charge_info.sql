@@ -10,5 +10,3 @@ select
     parser_schema_version,
     cast(schema_version_mismatch as boolean) as schema_version_mismatch
 from {{ source('bronze', 'standard_charge_info') }}
-where 1 = 1
-    {{ hpt_snapshot_filter() }}

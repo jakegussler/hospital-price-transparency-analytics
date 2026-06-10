@@ -34,13 +34,13 @@ with json_standard_charges as (
         sc.minimum,
         sc.maximum,
         sc.additional_generic_notes
-    from {{ ref('stg_bronze__standard_charges') }} sc
-    inner join {{ ref('slv_base__charge_items') }} ci
+    from {{ hpt_scoped_ref('stg_bronze__standard_charges') }} sc
+    inner join {{ hpt_scoped_ref('slv_base__charge_items') }} ci
         on sc.snapshot_id = ci.snapshot_id
         and sc.charge_item_id = ci.source_charge_item_id
     where not exists (
         select 1
-        from {{ ref('val__standard_charge_rejections') }} r
+        from {{ hpt_scoped_ref('val__standard_charge_rejections') }} r
         where r.source_format_family = 'json'
             and r.snapshot_id = sc.snapshot_id
             and r.source_standard_charge_id = sc.standard_charge_id
@@ -65,15 +65,15 @@ csv_standard_charges as (
             r.maximum,
             r.raw_modifiers,
             r.additional_generic_notes
-        from {{ ref('stg_bronze__csv_charge_rows') }} r
-        inner join {{ ref('slv_base__csv_charge_row_items') }} row_items
+        from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
+        inner join {{ hpt_scoped_ref('slv_base__csv_charge_row_items') }} row_items
             on r.snapshot_id = row_items.snapshot_id
             and r.row_ordinal = row_items.row_ordinal
-        inner join {{ ref('slv_base__hospital_snapshots') }} hs
+        inner join {{ hpt_scoped_ref('slv_base__hospital_snapshots') }} hs
             on r.snapshot_id = hs.snapshot_id
         where not exists (
             select 1
-            from {{ ref('val__standard_charge_rejections') }} rej
+            from {{ hpt_scoped_ref('val__standard_charge_rejections') }} rej
             where rej.source_format_family = 'csv'
                 and rej.snapshot_id = r.snapshot_id
                 and rej.row_ordinal = r.row_ordinal

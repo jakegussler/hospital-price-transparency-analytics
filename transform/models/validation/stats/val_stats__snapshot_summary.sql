@@ -4,59 +4,59 @@ with record_counts as (
     -- JSON child tables and CSV source rows use different physical grains, so
     -- count each representation before combining totals.
     select snapshot_id, 'header' as grain, count(*) as total_records
-    from {{ ref('stg_bronze__hospital_mrf_snapshots') }}
+    from {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }}
     group by snapshot_id
     union all
     select snapshot_id, 'charge_item', count(*)
-    from {{ ref('stg_bronze__standard_charge_info') }}
+    from {{ hpt_scoped_ref('stg_bronze__standard_charge_info') }}
     group by snapshot_id
     union all
     select snapshot_id, 'standard_charge', count(*)
-    from {{ ref('stg_bronze__standard_charges') }}
+    from {{ hpt_scoped_ref('stg_bronze__standard_charges') }}
     group by snapshot_id
     union all
     select snapshot_id, 'payer_rate', count(*)
-    from {{ ref('stg_bronze__payers_information') }}
+    from {{ hpt_scoped_ref('stg_bronze__payers_information') }}
     group by snapshot_id
     union all
     select snapshot_id, 'code', count(*)
-    from {{ ref('stg_bronze__code_information') }}
+    from {{ hpt_scoped_ref('stg_bronze__code_information') }}
     group by snapshot_id
     union all
     select snapshot_id, 'drug', count(*)
-    from {{ ref('stg_bronze__drug_information') }}
+    from {{ hpt_scoped_ref('stg_bronze__drug_information') }}
     group by snapshot_id
     union all
     select snapshot_id, 'modifier', count(*)
-    from {{ ref('stg_bronze__modifiers') }}
+    from {{ hpt_scoped_ref('stg_bronze__modifiers') }}
     group by snapshot_id
     union all
     select snapshot_id, 'modifier_payer', count(*)
-    from {{ ref('stg_bronze__modifier_payer_info') }}
+    from {{ hpt_scoped_ref('stg_bronze__modifier_payer_info') }}
     group by snapshot_id
     union all
     select snapshot_id, 'npi', count(*)
-    from {{ ref('stg_bronze__type2_npi') }}
+    from {{ hpt_scoped_ref('stg_bronze__type2_npi') }}
     group by snapshot_id
     union all
     select snapshot_id, 'provision', count(*)
-    from {{ ref('stg_bronze__general_contract_provisions') }}
+    from {{ hpt_scoped_ref('stg_bronze__general_contract_provisions') }}
     group by snapshot_id
     union all
     select snapshot_id, 'structural', count(*)
-    from {{ ref('stg_bronze__json_record_parse_diagnostics') }}
+    from {{ hpt_scoped_ref('stg_bronze__json_record_parse_diagnostics') }}
     group by snapshot_id
     union all
     select snapshot_id, 'charge_item', count(distinct row_ordinal)
-    from {{ ref('stg_bronze__csv_charge_rows') }}
+    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }}
     group by snapshot_id
     union all
     select snapshot_id, 'standard_charge', count(distinct row_ordinal)
-    from {{ ref('stg_bronze__csv_charge_rows') }}
+    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }}
     group by snapshot_id
     union all
     select snapshot_id, 'payer_rate', count(*)
-    from {{ ref('stg_bronze__csv_charge_rows') }}
+    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }}
     group by snapshot_id
 ),
 
@@ -78,7 +78,7 @@ violations as (
         severity,
         count(*) as violation_count,
         count(*) filter (where excludes_from_silver) as rejected_violation_count
-    from {{ ref('val__all_violations') }}
+    from {{ hpt_scoped_ref('val__all_violations') }}
     group by
         snapshot_id,
         hospital_id,

@@ -37,13 +37,13 @@ with json_rates as (
         pi.ninetieth_percentile,
         pi.raw_count,
         pi.additional_payer_notes
-    from {{ ref('stg_bronze__payers_information') }} pi
-    inner join {{ ref('slv_base__standard_charges') }} standard_charges
+    from {{ hpt_scoped_ref('stg_bronze__payers_information') }} pi
+    inner join {{ hpt_scoped_ref('slv_base__standard_charges') }} standard_charges
         on pi.snapshot_id = standard_charges.snapshot_id
         and pi.standard_charge_id = standard_charges.source_standard_charge_id
     where not exists (
         select 1
-        from {{ ref('val__payer_rate_rejections') }} r
+        from {{ hpt_scoped_ref('val__payer_rate_rejections') }} r
         where r.source_format_family = 'json'
             and r.snapshot_id = pi.snapshot_id
             and r.source_standard_charge_id = pi.standard_charge_id
@@ -70,8 +70,8 @@ csv_rates as (
                 'r.raw_modifiers',
                 'r.additional_generic_notes'
             ]) }} as standard_charge_signature
-        from {{ ref('stg_bronze__csv_charge_rows') }} r
-        inner join {{ ref('slv_base__csv_charge_row_items') }} row_items
+        from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
+        inner join {{ hpt_scoped_ref('slv_base__csv_charge_row_items') }} row_items
             on r.snapshot_id = row_items.snapshot_id
             and r.row_ordinal = row_items.row_ordinal
     )
@@ -115,7 +115,7 @@ csv_rates as (
         r.raw_count,
         r.additional_payer_notes
     from signed_rate_rows r
-    inner join {{ ref('slv_base__standard_charges') }} standard_charges
+    inner join {{ hpt_scoped_ref('slv_base__standard_charges') }} standard_charges
         on r.snapshot_id = standard_charges.snapshot_id
         and r.silver_charge_item_id = standard_charges.silver_charge_item_id
         and r.standard_charge_signature = standard_charges.standard_charge_signature
@@ -134,7 +134,7 @@ csv_rates as (
     )
     and not exists (
         select 1
-        from {{ ref('val__payer_rate_rejections') }} rej
+        from {{ hpt_scoped_ref('val__payer_rate_rejections') }} rej
         where rej.source_format_family = 'csv'
             and rej.snapshot_id = r.snapshot_id
             and rej.row_ordinal = r.row_ordinal

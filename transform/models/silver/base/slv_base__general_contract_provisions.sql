@@ -10,12 +10,12 @@ select
     g.clean_plan_name,
     g.raw_provisions,
     g.clean_provisions
-from {{ ref('stg_bronze__general_contract_provisions') }} g
-inner join {{ ref('slv_base__hospital_snapshots') }} s
+from {{ hpt_scoped_ref('stg_bronze__general_contract_provisions') }} g
+inner join {{ hpt_scoped_ref('slv_base__hospital_snapshots') }} s
     on g.snapshot_id = s.snapshot_id
 where not exists (
     select 1
-    from {{ ref('val__provision_rejections') }} r
+    from {{ hpt_scoped_ref('val__provision_rejections') }} r
     where r.snapshot_id = g.snapshot_id
         and r.provision_ordinal = g.provision_ordinal
 )

@@ -8,5 +8,3 @@ select
     setting as raw_setting,
     {{ hpt_clean_text('setting') }} as clean_setting
 from {{ source('bronze', 'modifiers') }}
-where 1 = 1
-    {{ hpt_snapshot_filter() }}

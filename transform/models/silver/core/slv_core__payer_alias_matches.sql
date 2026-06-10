@@ -5,8 +5,8 @@ with base_rates as (
         pr.silver_payer_rate_id,
         pr.clean_payer_name,
         snapshots.canonical_state
-    from {{ ref('slv_base__payer_rates') }} pr
-    left join {{ ref('slv_base__hospital_snapshots') }} snapshots
+    from {{ hpt_scoped_ref('slv_base__payer_rates') }} pr
+    left join {{ hpt_scoped_ref('slv_base__hospital_snapshots') }} snapshots
         on pr.snapshot_id = snapshots.snapshot_id
 ),
 

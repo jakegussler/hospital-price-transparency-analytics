@@ -10,6 +10,6 @@ select distinct
     severity,
     diagnostic_type,
     message
-from {{ ref('val__all_violations') }}
+from {{ hpt_scoped_ref('val__all_violations') }}
 where excludes_from_silver
     and grain = 'standard_charge'

@@ -3,88 +3,67 @@
 with numeric_values as (
     -- Normalize source-specific numeric columns to a shared long-form contract.
     select snapshot_id, 'standard_charge' as grain, 'gross_charge' as column_name, gross_charge as raw_value, {{ hpt_safe_decimal('gross_charge') }}::double as numeric_value
-    from {{ source('bronze', 'standard_charges') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'standard_charges') }}
     union all
     select snapshot_id, 'standard_charge', 'discounted_cash', discounted_cash, {{ hpt_safe_decimal('discounted_cash') }}::double
-    from {{ source('bronze', 'standard_charges') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'standard_charges') }}
     union all
     select snapshot_id, 'standard_charge', 'minimum', minimum, {{ hpt_safe_decimal('minimum') }}::double
-    from {{ source('bronze', 'standard_charges') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'standard_charges') }}
     union all
     select snapshot_id, 'standard_charge', 'maximum', maximum, {{ hpt_safe_decimal('maximum') }}::double
-    from {{ source('bronze', 'standard_charges') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'standard_charges') }}
     union all
     select snapshot_id, 'payer_rate', 'standard_charge_dollar', standard_charge_dollar, {{ hpt_safe_decimal('standard_charge_dollar') }}::double
-    from {{ source('bronze', 'payers_information') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'payers_information') }}
     union all
     select snapshot_id, 'payer_rate', 'standard_charge_percentage', standard_charge_percentage, {{ hpt_safe_double('standard_charge_percentage') }}
-    from {{ source('bronze', 'payers_information') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'payers_information') }}
     union all
     select snapshot_id, 'payer_rate', 'estimated_amount', estimated_amount, {{ hpt_safe_decimal('estimated_amount') }}::double
-    from {{ source('bronze', 'payers_information') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'payers_information') }}
     union all
     select snapshot_id, 'payer_rate', 'median_amount', median_amount, {{ hpt_safe_decimal('median_amount') }}::double
-    from {{ source('bronze', 'payers_information') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'payers_information') }}
     union all
     select snapshot_id, 'payer_rate', 'tenth_percentile', tenth_percentile, {{ hpt_safe_decimal('tenth_percentile') }}::double
-    from {{ source('bronze', 'payers_information') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'payers_information') }}
     union all
     select snapshot_id, 'payer_rate', 'ninetieth_percentile', ninetieth_percentile, {{ hpt_safe_decimal('ninetieth_percentile') }}::double
-    from {{ source('bronze', 'payers_information') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'payers_information') }}
     union all
     select snapshot_id, 'drug', 'unit', unit, {{ hpt_safe_double('unit') }}
-    from {{ source('bronze', 'drug_information') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'drug_information') }}
     union all
     select snapshot_id, 'standard_charge', 'standard_charge_gross', standard_charge_gross, {{ hpt_safe_decimal('standard_charge_gross') }}::double
-    from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
     union all
     select snapshot_id, 'standard_charge', 'standard_charge_discounted_cash', standard_charge_discounted_cash, {{ hpt_safe_decimal('standard_charge_discounted_cash') }}::double
-    from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
     union all
     select snapshot_id, 'standard_charge', 'standard_charge_min', standard_charge_min, {{ hpt_safe_decimal('standard_charge_min') }}::double
-    from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
     union all
     select snapshot_id, 'standard_charge', 'standard_charge_max', standard_charge_max, {{ hpt_safe_decimal('standard_charge_max') }}::double
-    from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
     union all
     select snapshot_id, 'payer_rate', 'standard_charge_negotiated_dollar', standard_charge_negotiated_dollar, {{ hpt_safe_decimal('standard_charge_negotiated_dollar') }}::double
-    from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
     union all
     select snapshot_id, 'payer_rate', 'standard_charge_negotiated_percentage', standard_charge_negotiated_percentage, {{ hpt_safe_double('standard_charge_negotiated_percentage') }}
-    from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
     union all
     select snapshot_id, 'payer_rate', 'median_amount', median_amount, {{ hpt_safe_decimal('median_amount') }}::double
-    from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
     union all
     select snapshot_id, 'payer_rate', 'tenth_percentile', tenth_percentile, {{ hpt_safe_decimal('tenth_percentile') }}::double
-    from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
     union all
     select snapshot_id, 'payer_rate', 'ninetieth_percentile', ninetieth_percentile, {{ hpt_safe_decimal('ninetieth_percentile') }}::double
-    from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
     union all
     select snapshot_id, 'drug', 'drug_unit_of_measurement', drug_unit_of_measurement, {{ hpt_safe_double('drug_unit_of_measurement') }}
-    from {{ source('bronze', 'csv_charge_rows') }}
-    where 1 = 1 {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
 ),
 
 classified as (

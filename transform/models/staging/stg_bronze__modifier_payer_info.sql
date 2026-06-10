@@ -10,8 +10,6 @@ with staged as (
         description as raw_description,
         {{ hpt_clean_text('description') }} as clean_description
     from {{ source('bronze', 'modifier_payer_info') }}
-    where 1 = 1
-        {{ hpt_snapshot_filter() }}
 )
 
 select

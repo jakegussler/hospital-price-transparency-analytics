@@ -12,8 +12,8 @@ with diagnostics as (
         d.record_ordinal,
         d.section,
         d.error_summary
-    from {{ ref('stg_bronze__json_record_parse_diagnostics') }} d
-    left join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    from {{ hpt_scoped_ref('stg_bronze__json_record_parse_diagnostics') }} d
+    left join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on d.snapshot_id = hs.snapshot_id
 ),
 

@@ -108,7 +108,7 @@ class DbtRunConfig:
             if self.mode is DbtRunMode.PER_SNAPSHOT and self.selectors:
                 raise ValueError(
                     "Per-snapshot full refresh must run without --selector so every "
-                    "snapshot-scoped staging view and dependent model is rebuilt together."
+                    "snapshot-grained dependency is rebuilt together."
                 )
         if self.mode is DbtRunMode.FULL_REBUILD:
             if not self.is_materializing:

@@ -34,7 +34,7 @@ select
     coalesce(alias_matches.payer_review_status, 'candidate') as payer_review_status,
     context_matches.payer_context_review_status,
     context_matches.payer_context_confidence
-from {{ ref('slv_base__payer_rates') }} pr
+from {{ hpt_scoped_ref('slv_base__payer_rates') }} pr
 left join {{ ref('slv_core__payer_alias_matches') }} alias_matches
     on pr.silver_payer_rate_id = alias_matches.silver_payer_rate_id
 left join {{ ref('slv_core__payer_context_matches') }} context_matches

@@ -1,17 +1,17 @@
-select {{ hpt_validation_common_columns() }} from {{ ref('val__header_violations') }}
+select {{ hpt_validation_common_columns() }} from {{ hpt_scoped_ref('val__header_violations') }}
 union all
-select {{ hpt_validation_common_columns() }} from {{ ref('val__metadata_child_violations') }}
+select {{ hpt_validation_common_columns() }} from {{ hpt_scoped_ref('val__metadata_child_violations') }}
 union all
-select {{ hpt_validation_common_columns() }} from {{ ref('val__structural_parse_violations') }}
+select {{ hpt_validation_common_columns() }} from {{ hpt_scoped_ref('val__structural_parse_violations') }}
 union all
-select {{ hpt_validation_common_columns() }} from {{ ref('val__charge_item_violations') }}
+select {{ hpt_validation_common_columns() }} from {{ hpt_scoped_ref('val__charge_item_violations') }}
 union all
-select {{ hpt_validation_common_columns() }} from {{ ref('val__code_violations') }}
+select {{ hpt_validation_common_columns() }} from {{ hpt_scoped_ref('val__code_violations') }}
 union all
-select {{ hpt_validation_common_columns() }} from {{ ref('val__drug_violations') }}
+select {{ hpt_validation_common_columns() }} from {{ hpt_scoped_ref('val__drug_violations') }}
 union all
-select {{ hpt_validation_common_columns() }} from {{ ref('val__standard_charge_violations') }}
+select {{ hpt_validation_common_columns() }} from {{ hpt_scoped_ref('val__standard_charge_violations') }}
 union all
-select {{ hpt_validation_common_columns() }} from {{ ref('val__payer_rate_violations') }}
+select {{ hpt_validation_common_columns() }} from {{ hpt_scoped_ref('val__payer_rate_violations') }}
 union all
-select {{ hpt_validation_common_columns() }} from {{ ref('val__modifier_violations') }}
+select {{ hpt_validation_common_columns() }} from {{ hpt_scoped_ref('val__modifier_violations') }}

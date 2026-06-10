@@ -20,22 +20,22 @@ with json_items as (
         di.raw_drug_unit_type,
         di.clean_drug_unit_type,
         {{ hpt_surrogate_key(['sci.snapshot_id', "'json'", 'sci.charge_item_id']) }} as charge_item_signature
-    from {{ ref('stg_bronze__standard_charge_info') }} sci
-    inner join {{ ref('slv_base__hospital_snapshots') }} hs
+    from {{ hpt_scoped_ref('stg_bronze__standard_charge_info') }} sci
+    inner join {{ hpt_scoped_ref('slv_base__hospital_snapshots') }} hs
         on sci.snapshot_id = hs.snapshot_id
-    left join {{ ref('stg_bronze__drug_information') }} di
+    left join {{ hpt_scoped_ref('stg_bronze__drug_information') }} di
         on sci.snapshot_id = di.snapshot_id
         and sci.charge_item_id = di.charge_item_id
         and not exists (
             select 1
-            from {{ ref('val__drug_rejections') }} r
+            from {{ hpt_scoped_ref('val__drug_rejections') }} r
             where r.source_format_family = 'json'
                 and r.snapshot_id = di.snapshot_id
                 and r.source_charge_item_id = di.charge_item_id
         )
     where not exists (
         select 1
-        from {{ ref('val__charge_item_rejections') }} r
+        from {{ hpt_scoped_ref('val__charge_item_rejections') }} r
         where r.source_format_family = 'json'
             and r.snapshot_id = sci.snapshot_id
             and r.source_charge_item_id = sci.charge_item_id
@@ -64,8 +64,8 @@ csv_items as (
         any_value(r.raw_drug_unit_type) as raw_drug_unit_type,
         r.clean_drug_unit_type,
         r.charge_item_signature
-    from {{ ref('slv_base__csv_charge_row_items') }} r
-    inner join {{ ref('slv_base__hospital_snapshots') }} hs
+    from {{ hpt_scoped_ref('slv_base__csv_charge_row_items') }} r
+    inner join {{ hpt_scoped_ref('slv_base__hospital_snapshots') }} hs
         on r.snapshot_id = hs.snapshot_id
     group by
         r.silver_charge_item_id,

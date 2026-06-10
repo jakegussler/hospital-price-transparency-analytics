@@ -22,5 +22,3 @@ select
     reported_state,
     license_number
 from {{ source('bronze', 'hospital_mrf_snapshots') }}
-where 1 = 1
-    {{ hpt_snapshot_filter() }}

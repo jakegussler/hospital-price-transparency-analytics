@@ -16,9 +16,7 @@ with json_payer_rollup as (
         bool_or({{ hpt_clean_display_text('pi.standard_charge_dollar') }} is not null) as has_payer_dollar,
         bool_or({{ hpt_clean_display_text('pi.standard_charge_percentage') }} is not null) as has_payer_percentage,
         bool_or({{ hpt_clean_display_text('pi.standard_charge_algorithm') }} is not null) as has_payer_algorithm
-    from {{ source('bronze', 'payers_information') }} pi
-    where 1 = 1
-        {{ hpt_snapshot_filter('pi') }}
+    from {{ hpt_scoped_source('bronze', 'payers_information') }} pi
     group by pi.snapshot_id, pi.standard_charge_id
 ),
 
@@ -45,17 +43,15 @@ json_charges as (
         coalesce(pr.has_payer_dollar, false) as has_payer_dollar,
         coalesce(pr.has_payer_percentage, false) as has_payer_percentage,
         coalesce(pr.has_payer_algorithm, false) as has_payer_algorithm
-    from {{ source('bronze', 'standard_charges') }} sc
-    inner join {{ ref('stg_bronze__standard_charge_info') }} sci
+    from {{ hpt_scoped_source('bronze', 'standard_charges') }} sc
+    inner join {{ hpt_scoped_ref('stg_bronze__standard_charge_info') }} sci
         on sc.snapshot_id = sci.snapshot_id
         and sc.charge_item_id = sci.charge_item_id
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on sc.snapshot_id = hs.snapshot_id
     left join json_payer_rollup pr
         on sc.snapshot_id = pr.snapshot_id
         and sc.standard_charge_id = pr.standard_charge_id
-    where 1 = 1
-        {{ hpt_snapshot_filter('sc') }}
 ),
 
 csv_charges as (
@@ -81,11 +77,11 @@ csv_charges as (
         {{ hpt_clean_display_text('b.standard_charge_negotiated_dollar') }} is not null as has_payer_dollar,
         {{ hpt_clean_display_text('b.standard_charge_negotiated_percentage') }} is not null as has_payer_percentage,
         {{ hpt_clean_display_text('b.standard_charge_negotiated_algorithm') }} is not null as has_payer_algorithm
-    from {{ ref('stg_bronze__csv_charge_rows') }} r
-    inner join {{ source('bronze', 'csv_charge_rows') }} b
+    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
+    inner join {{ hpt_scoped_source('bronze', 'csv_charge_rows') }} b
         on r.snapshot_id = b.snapshot_id
         and r.row_ordinal = cast(b.row_ordinal as integer)
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on r.snapshot_id = hs.snapshot_id
 ),
 

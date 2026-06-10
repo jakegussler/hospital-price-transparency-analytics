@@ -1,7 +1,7 @@
 -- Normalize JSON code objects and unpivoted CSV code pairs to one code grain,
 -- then emit code-level and missing-CSV-code violations.
 with csv_codes as (
-    {{ hpt_csv_code_unpivot("select * from " ~ ref('stg_bronze__csv_charge_rows')) }}
+    {{ hpt_csv_code_unpivot("select * from " ~ hpt_scoped_ref('stg_bronze__csv_charge_rows')) }}
 ),
 
 code_types as (
@@ -22,11 +22,11 @@ json_codes as (
         c.clean_code,
         c.raw_code_type,
         c.clean_code_type
-    from {{ ref('stg_bronze__code_information') }} c
-    inner join {{ ref('stg_bronze__standard_charge_info') }} sci
+    from {{ hpt_scoped_ref('stg_bronze__code_information') }} c
+    inner join {{ hpt_scoped_ref('stg_bronze__standard_charge_info') }} sci
         on c.snapshot_id = sci.snapshot_id
         and c.charge_item_id = sci.charge_item_id
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on c.snapshot_id = hs.snapshot_id
 ),
 
@@ -45,10 +45,10 @@ csv_code_rows as (
         c.raw_code_type,
         {{ hpt_clean_text('c.raw_code_type') }} as clean_code_type
     from csv_codes c
-    inner join {{ ref('stg_bronze__csv_charge_rows') }} r
+    inner join {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
         on c.snapshot_id = r.snapshot_id
         and c.row_ordinal = r.row_ordinal
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on c.snapshot_id = hs.snapshot_id
 ),
 
@@ -82,8 +82,8 @@ csv_rows_without_codes as (
         'csv' as source_format_family,
         '3.0' as reported_schema_family,
         r.row_ordinal
-    from {{ ref('stg_bronze__csv_charge_rows') }} r
-    inner join {{ ref('stg_bronze__hospital_mrf_snapshots') }} hs
+    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
+    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on r.snapshot_id = hs.snapshot_id
     left join csv_codes c
         on r.snapshot_id = c.snapshot_id
