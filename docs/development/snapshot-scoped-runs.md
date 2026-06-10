@@ -120,6 +120,13 @@ rows that are *not* current. Table-materialized models (`slv_base__hospitals`,
 touched; raw files, snapshot metadata, and Bronze partitions are left intact, so
 re-running dbt for the snapshot rebuilds it.
 
+Staging views are also intentionally untouched. A snapshot-scoped dbt invocation
+persists its `snapshot_id` filter in each staging view definition, so after a
+failed per-snapshot run the staging views continue to show the snapshot that was
+being processed when the run failed. That does not mean the clear failed; verify
+the clear against snapshot-grained Silver or validation tables. The next coherent
+dbt build replaces the staging views with that build's scope.
+
 To clear automatically when a materializing run fails, pass
 `hpt run-dbt --clear-on-failure`. Per-snapshot runs clear the failing snapshot;
 single-pass scoped runs clear the whole scoped set. The clear fires only on a

@@ -177,6 +177,9 @@
 
     {%- if resolved_mode == 'all_snapshots' -%}
         {{ log("Skipping stale snapshot prune because retention mode is all_snapshots.", info=true) }}
+        {%- if execute and snapshot_state_sync == 'synced' -%}
+            {%- do run_query('commit') -%}
+        {%- endif -%}
         {{ return({
             'status': 'skipped_prune',
             'retention_mode': resolved_mode,
@@ -191,6 +194,9 @@
         )
     {%- endset -%}
     {%- set result = hpt_delete_snapshot_rows(model_names, predicate, label='stale snapshot prune') -%}
+    {%- if execute and (snapshot_state_sync == 'synced' or result['deleted'] | length > 0) -%}
+        {%- do run_query('commit') -%}
+    {%- endif -%}
 
     {{ return({
         'status': 'pruned',
@@ -293,6 +299,10 @@
 
     {{ log("Clearing snapshot rows for snapshot_ids " ~ ids | join(', ') ~ ".", info=true) }}
     {%- set result = hpt_delete_snapshot_rows(model_names, predicate, label='snapshot clear') -%}
+    {#- run-operation connections roll back uncommitted DML when they close. -#}
+    {%- if execute and result['deleted'] | length > 0 -%}
+        {%- do run_query('commit') -%}
+    {%- endif -%}
 
     {{ return({
         'status': 'cleared',

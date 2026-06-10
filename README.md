@@ -164,7 +164,8 @@ partial; raw files, snapshot metadata, and Bronze partitions are untouched, so
 re-running dbt for the snapshot rebuilds it cleanly. Pass
 `hpt run-dbt --clear-on-failure` to do this automatically when a build/run fails:
 per-snapshot runs clear the failing snapshot, scoped runs clear the whole scoped
-set.
+set. Snapshot-scoped staging views retain the most recently compiled snapshot
+filter and are intentionally not changed by `clear-snapshot`.
 
 ## Runtime Configuration
 
