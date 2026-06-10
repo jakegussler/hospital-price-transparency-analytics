@@ -152,8 +152,8 @@ The dbt project defines selectors for `staging`, `silver_base`, `silver_core`,
 `silver_review_queue`, `silver`, `pipeline_snapshot_metadata`, and
 `pipeline_charge_data`.
 
-`hpt run-dbt` defaults to the complete dbt graph so snapshot-scoped staging
-views, Silver tables, and cross-model tests stay coherent. Pass `--selector`
+`hpt run-dbt` defaults to the complete dbt graph so snapshot-grained
+consumers, Silver tables, and cross-model tests stay coherent. Pass `--selector`
 only for an intentionally partial run; per-snapshot `--full-refresh` rejects
 partial selectors.
 
@@ -164,8 +164,8 @@ partial; raw files, snapshot metadata, and Bronze partitions are untouched, so
 re-running dbt for the snapshot rebuilds it cleanly. Pass
 `hpt run-dbt --clear-on-failure` to do this automatically when a build/run fails:
 per-snapshot runs clear the failing snapshot, scoped runs clear the whole scoped
-set. Snapshot-scoped staging views retain the most recently compiled snapshot
-filter and are intentionally not changed by `clear-snapshot`.
+set. Canonical staging views remain unscoped and are intentionally not changed
+by `clear-snapshot`.
 
 ## Runtime Configuration
 

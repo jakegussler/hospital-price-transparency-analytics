@@ -102,7 +102,10 @@ dbt reads Bronze Parquet through `dbt-duckdb` external source definitions in
 
 Implemented behavior:
 
-- Staging views read Bronze sources without changing grain.
+- Staging views read Bronze sources without changing grain or persisting a run
+  scope; they remain canonical views over all available snapshots.
+- Snapshot-grained consumers apply `hpt_scoped_ref()` or
+  `hpt_scoped_source()` at each processing boundary.
 - Snapshot-grained Silver and validation tables use dbt incremental
   `delete+insert` keyed by `snapshot_id`, so scoped dbt runs replace the current
   batch without dropping unrelated snapshots.

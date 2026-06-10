@@ -8,24 +8,20 @@ replace rows for the selected snapshots and preserve unrelated retained rows.
 
 ## How it works
 
-Staging models read Bronze source relations directly. One macro handles
-snapshot scoping through the `snapshot_ids` dbt var:
+Staging models are canonical, unscoped views over Bronze and always expose every
+available snapshot. Snapshot-grained consumers own run scoping through two
+input macros:
 
-- `hpt_snapshot_filter(table_alias=None)` emits
-  `and <alias>.snapshot_id in (...)` in staging `WHERE` clauses when
-  `snapshot_ids` is non-empty (otherwise nothing).
+- `hpt_scoped_ref(model_name)` wraps a snapshot-grained model input.
+- `hpt_scoped_source(source_name, table_name)` wraps a Bronze source input.
 
-Scoped runs read the *full* data for the selected snapshots, with no row cap,
-but only those partitions. Unscoped direct dbt runs read all available Bronze
-partitions.
+Both wrappers call `hpt_snapshot_filter()` inside a derived table. When
+`snapshot_ids` is non-empty, the predicate prunes Bronze hive partitions and
+limits accumulated-table reads to the requested batch. With no `snapshot_ids`,
+the wrappers read all snapshots.
 
-Bidirectional reconciliation tests apply the same `snapshot_ids` filter to
-their accumulated Silver side during scoped runs. Unscoped builds still compare
-the complete Bronze and Silver datasets.
-
-When you call `hpt_snapshot_filter()` inside a join where more than one table
-exposes `snapshot_id`, pass the driving table's alias
-(e.g. `hpt_snapshot_filter('sc')`) to avoid an ambiguous-column error.
+Scoped runs read the *full* data for the selected snapshots, with no row cap.
+Staging remains stable for exploration before and after scoped runs.
 
 ## Running it
 
@@ -78,8 +74,8 @@ prune runs once after every snapshot is built.
 `--full-refresh` to the **first** snapshot only, rebuilding the complete graph
 from scratch so later snapshots append incrementally rather than overwriting.
 It cannot be combined with `--selector`: a partial full refresh would replace
-selected parent tables and scoped staging views while leaving unselected
-siblings and downstream models stale.
+selected parent tables while leaving unselected siblings and downstream models
+stale.
 
 ```bash
 # Rebuild incremental tables from scratch, then append each remaining snapshot.
@@ -120,12 +116,10 @@ rows that are *not* current. Table-materialized models (`slv_base__hospitals`,
 touched; raw files, snapshot metadata, and Bronze partitions are left intact, so
 re-running dbt for the snapshot rebuilds it.
 
-Staging views are also intentionally untouched. A snapshot-scoped dbt invocation
-persists its `snapshot_id` filter in each staging view definition, so after a
-failed per-snapshot run the staging views continue to show the snapshot that was
-being processed when the run failed. That does not mean the clear failed; verify
-the clear against snapshot-grained Silver or validation tables. The next coherent
-dbt build replaces the staging views with that build's scope.
+Staging views are also intentionally untouched. They are canonical, unscoped
+views over Bronze, so they continue to expose every available snapshot before
+and after a clear. Verify the clear against snapshot-grained Silver or validation
+tables.
 
 To clear automatically when a materializing run fails, pass
 `hpt run-dbt --clear-on-failure`. Per-snapshot runs clear the failing snapshot;
@@ -154,11 +148,10 @@ In `current_only` mode, you should see the retained current snapshot rows. In
   historical snapshots in Silver, set `HPT_SILVER_RETENTION_MODE=all_snapshots`
   before building those snapshots.
 - **Partial selectors can leave stale neighbors.** A scoped `pipeline_charge_data`
-  build only updates that subgraph; models and scoped staging views outside it
-  keep their previous rows or previous `snapshot_id` filter. Cross-model
-  `reconcile_*` / `relationships_*` tests can flag the mismatch, and selected
-  models can read stale unselected views. Omit `--selector` for a coherent
-  scoped update; partition pruning still bounds memory.
+  build only updates that subgraph; snapshot-grained models outside it keep
+  their previous rows. Cross-model `reconcile_*` / `relationships_*` tests can
+  flag the mismatch. Omit `--selector` for a coherent scoped update; partition
+  pruning still bounds memory.
 - **Seed mapping changes require explicit reprocessing.** Updating
   `payer_aliases`, `payer_context_rules`, or `canonical_payers` does not
   retro-apply to already materialized `slv_core__payer_rates` rows. Reprocess

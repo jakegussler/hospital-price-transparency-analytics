@@ -53,11 +53,11 @@ external Bronze Parquet sources. Python ingest uses the same `HPT_BRONZE_ROOT`
 name, so a single override points both ingest output and dbt reads at the same
 Bronze directory for local development.
 
-Staging models read Bronze source relations directly. Snapshot-scoped runs pass
-the `snapshot_ids` dbt var so `hpt_snapshot_filter()` can push a
-`snapshot_id in (...)` predicate into staging queries and let DuckDB prune
-Bronze hive partitions. Unscoped direct dbt runs scan all available Bronze
-partitions.
+Staging models are canonical, unscoped views over Bronze source relations.
+Snapshot-scoped runs pass the `snapshot_ids` dbt var so `hpt_scoped_ref()` and
+`hpt_scoped_source()` can push a `snapshot_id in (...)` predicate into
+snapshot-grained consumer queries and let DuckDB prune Bronze hive partitions.
+Unscoped direct dbt runs scan all available Bronze partitions.
 
 Snapshot-grained Silver and validation models are incremental. A true rebuild
 from all Bronze requires both of the following:
@@ -69,5 +69,5 @@ Use `make dbt-rebuild` or `hpt run-dbt --full-rebuild` for that path. Normal
 scoped incremental runs should use `hpt run-dbt --hospital-ids ...` or
 `hpt run-dbt --snapshot-ids ...`; the runner rejects scoped `--full-refresh`
 because it would replace incremental tables with only the scoped rows.
-Per-snapshot full refresh is supported only without `--selector`, so all scoped
-staging views and dependent models are rebuilt together.
+Per-snapshot full refresh is supported only without `--selector`, so the complete
+snapshot-grained dependency graph is rebuilt together.

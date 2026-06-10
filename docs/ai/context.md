@@ -31,6 +31,8 @@ registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
 
 - Bronze is source-faithful and should not contain business normalization.
 - Python handles structural parsing; dbt handles Silver/Gold semantics.
+- dbt staging views are canonical and unscoped; snapshot-grained consumers own
+  run scoping through `hpt_scoped_ref()` and `hpt_scoped_source()`.
 - Raw storage and snapshot metadata use `fsspec`.
 - Local runtime data under `data/` should not be committed.
 - `docs/notes/` is historical source material, not the primary current docs.

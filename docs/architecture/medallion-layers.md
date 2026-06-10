@@ -47,6 +47,9 @@ Snapshot-grained validation models are materialized incrementally with
 `val_stats__rule_summary` remain full-refresh tables because their distinct
 counts span the loaded corpus.
 
+Canonical staging views remain unscoped. Snapshot-grained validation consumers
+apply the requested `snapshot_ids` scope at their Bronze/staging input boundary.
+
 Validation responsibilities:
 
 - Emit one row per failing value in `val__*_violations` models.
@@ -96,10 +99,11 @@ Silver should remain close enough to source data that issues can be traced back
 to a specific `snapshot_id`, source file, and row or ordinal.
 
 Snapshot-grained Silver Base and Silver Core tables are materialized
-incrementally with `delete+insert` on `snapshot_id`. Staging remains views, the
+incrementally with `delete+insert` on `snapshot_id`. Staging remains canonical
+unscoped views; snapshot-grained consumers scope their inputs for each run. The
 registry-backed `slv_base__hospitals` dimension remains a full-refresh table,
-and review queue models remain full-refresh tables because they aggregate across
-snapshots.
+and review queue models remain full-refresh tables because they aggregate
+across snapshots.
 
 Silver retention is controlled by `HPT_SILVER_RETENTION_MODE`:
 
