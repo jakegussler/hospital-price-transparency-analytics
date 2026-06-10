@@ -185,7 +185,34 @@
         }) }}
     {%- endif -%}
 
-    {%- set pruned = [] -%}
+    {%- set predicate -%}
+        snapshot_id not in (
+            {{ current_snapshot_ids_sql }}
+        )
+    {%- endset -%}
+    {%- set result = hpt_delete_snapshot_rows(model_names, predicate, label='stale snapshot prune') -%}
+
+    {{ return({
+        'status': 'pruned',
+        'retention_mode': resolved_mode,
+        'snapshot_state_sync': snapshot_state_sync,
+        'models_pruned': result['deleted'],
+        'models_skipped': result['skipped'],
+    }) }}
+{%- endmacro %}
+
+
+{% macro hpt_delete_snapshot_rows(model_names, predicate, label='snapshot delete') -%}
+    {#-
+        Shared engine for the snapshot-row maintenance operations. For each model
+        in model_names that already exists as a relation, run
+        `delete from <relation> where <predicate>`. Missing relations are skipped,
+        never created. Both hpt_prune_stale_snapshots (predicate: rows that are
+        not current) and hpt_clear_snapshots (predicate: rows for the targeted
+        snapshot_ids) flow through here so relation resolution and the delete
+        mechanics live in exactly one place.
+    -#}
+    {%- set deleted = [] -%}
     {%- set skipped = [] -%}
 
     {%- for model_name in model_names -%}
@@ -198,27 +225,79 @@
 
         {%- if existing_relation is none -%}
             {%- do skipped.append(model_name) -%}
-            {{ log("Skipping stale snapshot prune for missing relation " ~ model_name ~ ".", info=true) }}
+            {{ log("Skipping " ~ label ~ " for missing relation " ~ model_name ~ ".", info=true) }}
         {%- else -%}
-            {%- set prune_sql -%}
+            {%- set delete_sql -%}
                 delete from {{ existing_relation }}
-                where snapshot_id not in (
-                    {{ current_snapshot_ids_sql }}
-                )
+                where {{ predicate }}
             {%- endset -%}
-            {{ log("Pruning stale snapshot rows from " ~ existing_relation ~ ".", info=true) }}
+            {{ log("Running " ~ label ~ " on " ~ existing_relation ~ ".", info=true) }}
             {%- if execute -%}
-                {%- do run_query(prune_sql) -%}
+                {%- do run_query(delete_sql) -%}
             {%- endif -%}
-            {%- do pruned.append(model_name) -%}
+            {%- do deleted.append(model_name) -%}
         {%- endif -%}
     {%- endfor -%}
 
+    {{ return({'deleted': deleted, 'skipped': skipped}) }}
+{%- endmacro %}
+
+
+{% macro hpt_normalize_snapshot_id_list(snapshot_ids) -%}
+    {#- Coerce a comma-separated string or list into a clean list of snapshot ids. -#}
+    {%- if snapshot_ids is none -%}
+        {{ return([]) }}
+    {%- endif -%}
+    {%- set raw = snapshot_ids.split(',') if snapshot_ids is string else snapshot_ids -%}
+    {%- set normalized = [] -%}
+    {%- for snapshot_id in raw -%}
+        {%- set cleaned = snapshot_id | trim -%}
+        {%- if cleaned -%}
+            {%- do normalized.append(cleaned) -%}
+        {%- endif -%}
+    {%- endfor -%}
+    {{ return(normalized) }}
+{%- endmacro %}
+
+
+{% macro hpt_clear_snapshots(snapshot_ids=None, models=None) -%}
+    {#-
+        Imperative maintenance op: delete every snapshot-grained incremental row
+        for the given snapshot_ids. The mirror image of hpt_prune_stale_snapshots
+        -- prune deletes rows that are NOT current, this deletes rows that ARE the
+        targeted snapshot(s). Use it to recover from a dbt run that failed partway
+        and left a snapshot partially materialized across the Silver/validation
+        tables.
+
+        Reuses hpt_snapshot_grained_incremental_models() as the single source of
+        truth for which relations store per-snapshot rows, so it stays in lockstep
+        with the prune. Table-materialized models (slv_base__hospitals, slv_core__*,
+        slv_review_queue__*) are intentionally excluded: they are CREATE OR REPLACE
+        and self-heal on the next run, exactly as in the prune.
+    -#}
+    {%- set ids = hpt_normalize_snapshot_id_list(snapshot_ids) -%}
+    {%- if ids | length == 0 -%}
+        {{ exceptions.raise_compiler_error(
+            "hpt_clear_snapshots requires at least one snapshot_id. Refusing to run "
+            ~ "an unscoped delete."
+        ) }}
+    {%- endif -%}
+
+    {%- set model_names = hpt_normalize_model_list(models) -%}
+
+    {%- set quoted = [] -%}
+    {%- for snapshot_id in ids -%}
+        {%- do quoted.append("'" ~ snapshot_id ~ "'") -%}
+    {%- endfor -%}
+    {%- set predicate = 'snapshot_id in (' ~ quoted | join(', ') ~ ')' -%}
+
+    {{ log("Clearing snapshot rows for snapshot_ids " ~ ids | join(', ') ~ ".", info=true) }}
+    {%- set result = hpt_delete_snapshot_rows(model_names, predicate, label='snapshot clear') -%}
+
     {{ return({
-        'status': 'pruned',
-        'retention_mode': resolved_mode,
-        'snapshot_state_sync': snapshot_state_sync,
-        'models_pruned': pruned,
-        'models_skipped': skipped,
+        'status': 'cleared',
+        'snapshot_ids': ids,
+        'models_cleared': result['deleted'],
+        'models_skipped': result['skipped'],
     }) }}
 {%- endmacro %}
