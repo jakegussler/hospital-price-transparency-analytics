@@ -17,10 +17,8 @@ select
     attestation,
     confirm_attestation,
     attester_name,
-    {{ hpt_bronze_column_or_null('hospital_mrf_snapshots', 'affirmation') }}
-        as affirmation,
-    {{ hpt_bronze_column_or_null('hospital_mrf_snapshots', 'confirm_affirmation') }}
-        as confirm_affirmation,
+    affirmation,
+    confirm_affirmation,
     reported_state,
     license_number
 from {{ source('bronze', 'hospital_mrf_snapshots') }}

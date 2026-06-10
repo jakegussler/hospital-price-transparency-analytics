@@ -26,7 +26,7 @@ with numeric_values as (
     from {{ source('bronze', 'payers_information') }}
     where 1 = 1 {{ hpt_snapshot_filter() }}
     union all
-    select snapshot_id, 'payer_rate', 'estimated_amount', {{ hpt_bronze_column_or_null('payers_information', 'estimated_amount') }}, {{ hpt_safe_decimal(hpt_bronze_column_or_null('payers_information', 'estimated_amount')) }}::double
+    select snapshot_id, 'payer_rate', 'estimated_amount', estimated_amount, {{ hpt_safe_decimal('estimated_amount') }}::double
     from {{ source('bronze', 'payers_information') }}
     where 1 = 1 {{ hpt_snapshot_filter() }}
     union all

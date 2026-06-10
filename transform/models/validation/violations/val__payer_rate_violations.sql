@@ -34,7 +34,7 @@ with json_rates as (
         pi.standard_charge_dollar as raw_standard_charge_dollar,
         pi.standard_charge_percentage as raw_standard_charge_percentage,
         pi.standard_charge_algorithm as raw_standard_charge_algorithm,
-        {{ hpt_bronze_column_or_null('payers_information', 'estimated_amount') }} as raw_estimated_amount,
+        pi.estimated_amount as raw_estimated_amount,
         pi.median_amount as raw_median_amount,
         pi.tenth_percentile as raw_tenth_percentile,
         pi.ninetieth_percentile as raw_ninetieth_percentile,

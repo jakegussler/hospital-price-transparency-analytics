@@ -15,7 +15,7 @@ with json_rate_context as (
         {{ hpt_safe_decimal('sc.maximum') }} as maximum,
         {{ hpt_safe_decimal('pi.standard_charge_dollar') }} as negotiated_dollar,
         {{ hpt_safe_double('pi.standard_charge_percentage') }} as negotiated_percentage,
-        {{ hpt_safe_decimal(hpt_bronze_column_or_null('payers_information', 'estimated_amount')) }} as estimated_amount
+        {{ hpt_safe_decimal('pi.estimated_amount') }} as estimated_amount
     from {{ source('bronze', 'payers_information') }} pi
     inner join {{ source('bronze', 'standard_charges') }} sc
         on pi.snapshot_id = sc.snapshot_id

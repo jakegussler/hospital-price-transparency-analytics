@@ -2,13 +2,7 @@ with staged as (
     select
         snapshot_id,
         modifier_code_id,
-        cast(
-            {{ hpt_bronze_column_or_null(
-                'modifier_payer_info',
-                'modifier_payer_ordinal',
-                'integer'
-            ) }} as integer
-        ) as source_modifier_payer_ordinal,
+        cast(modifier_payer_ordinal as integer) as source_modifier_payer_ordinal,
         payer_name as raw_payer_name,
         {{ hpt_clean_text('payer_name') }} as clean_payer_name,
         plan_name as raw_plan_name,
