@@ -7,7 +7,7 @@ dbt/DuckDB project.
 
 - Python 3.11 or newer.
 - A shell environment that can create virtual environments.
-- Optional: dbt with the DuckDB adapter for transform work.
+- DuckDB 1.5.2 or newer and dbt with the DuckDB adapter for transform work.
 
 ## Install
 
@@ -23,13 +23,32 @@ environment manager consistently within a working copy.
 For dbt work, also install `dbt-duckdb` in the active environment if it is not
 already available.
 
+Use DuckDB 1.5.2 or newer consistently across the Python environment and any
+separately installed DuckDB CLI or UI. DuckDB 1.5.0 cannot checkpoint the
+project's stored dynamic `UNPIVOT ... COLUMNS(regex)` staging view and can leave
+a WAL that fails on the next open with:
+
+```text
+checkpoint WAL cannot contain a checkpoint marker
+```
+
+Close DuckDB CLI/UI sessions connected to `data/hpt.duckdb` before running dbt
+writes. An open UI normally creates or retains `hpt.duckdb.wal`; the WAL's
+presence alone does not indicate corruption.
+
 ## Verify The Environment
 
 ```bash
 make test
 make lint
 hpt --help
+python -c "import duckdb; print(duckdb.__version__)"
+duckdb --version
 ```
+
+The final command checks a separately installed DuckDB CLI, if present. Upgrade
+it before opening the project database if it reports a version older than
+1.5.2.
 
 ## Runtime Paths
 

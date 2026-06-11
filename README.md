@@ -73,13 +73,18 @@ logs/                Local run logs, ignored by git
 
 ## Quickstart
 
-Use Python 3.11 or newer.
+Use Python 3.11 or newer and DuckDB 1.5.2 or newer for dbt/DuckDB work.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,warehouse]"
+duckdb --version
 ```
+
+DuckDB 1.5.2 includes fixes required to checkpoint the project's dynamic
+`UNPIVOT` staging views. Do not keep an older DuckDB CLI or UI connected to
+`data/hpt.duckdb` while dbt is writing to it.
 
 Verify the Python project:
 
@@ -253,6 +258,7 @@ Start with:
 - `docs/architecture/storage-layout.md`
 - `docs/architecture/bronze-schema.md`
 - `docs/architecture/silver-schema.md`
+- `docs/architecture/external-data-enrichment.md`
 - `docs/domain/hpt-glossary.md`
 - `docs/domain/cms-mrf-schema-notes.md`
 - `docs/domain/hospital-registry-rules.md`
