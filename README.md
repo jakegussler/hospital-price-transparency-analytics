@@ -52,6 +52,7 @@ The current implementation includes:
 - Review queue models for unmatched payer and payer/plan candidates.
 - pytest coverage for configuration, registry validation, download, storage,
   snapshots, parser behavior, Parquet writing, and ingest orchestration.
+- Append-only Parquet run audits for download, ingest, and dbt invocations.
 - dbt schema and data tests for Bronze sources, staging, Silver, reconciliation,
   and payer normalization rules.
 - Grain-aware validation rejection: file/header findings are report-only, while
@@ -141,6 +142,7 @@ hpt download --help
 hpt ingest --help
 hpt export-hospitals-seed --help
 hpt clear-snapshot --help
+hpt show-run --run-id <run-uuid>
 
 # dbt
 make dbt-seed
@@ -181,6 +183,7 @@ Most local runs work with defaults. The main overrides are:
 | `HPT_RAW_STORAGE_BASE_URI` | Raw downloads and snapshot metadata root | `file://.../data` |
 | `HPT_BRONZE_ROOT` | Parsed Bronze Parquet root | `data/bronze` |
 | `HPT_QUARANTINE_ROOT` | Parser validation failures | `data/quarantine` |
+| `HPT_AUDIT_ROOT` | Queryable command run and attempt audits | `data/audit` |
 | `HPT_REGISTRY_PATH` | Optional hospital registry override | bundled registry |
 | `HPT_DUCKDB_PATH` | dbt DuckDB database path | `data/hpt.duckdb` |
 | `HPT_SILVER_RETENTION_MODE` | Silver/validation retention, `current_only` or `all_snapshots` | `current_only` |
@@ -235,12 +238,18 @@ local by default and ignored:
 - `data/metadata/` for snapshot metadata;
 - `data/bronze/` for parsed Parquet;
 - `data/quarantine/` for validation failures;
+- `data/audit/` for append-only invocation and attempt audit Parquet;
 - `data/hpt.duckdb` for local dbt/DuckDB work;
 - `logs/` for CLI run logs and failure summaries.
 
 Snapshot lineage is a core design constraint. Downstream tables preserve
 identifiers such as `snapshot_id`, `file_hash`, source URL, source filename, and
 ingest timestamps so modeled rows can be traced back to the source file.
+
+Each `hpt download`, `hpt ingest`, and `hpt run-dbt` invocation receives a
+unique `run_id`. Inspect a run with `hpt show-run --run-id <run-uuid>`.
+Separate command invocations can be correlated through their shared
+`snapshot_id`.
 
 ## Example Use Case
 

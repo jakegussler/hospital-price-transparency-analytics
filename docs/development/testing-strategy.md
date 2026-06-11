@@ -82,6 +82,8 @@ Pipeline changes:
 - Compressed file materialization.
 - Bronze writer integration.
 - Failure artifacts and structured logging.
+- Append-only audit run/attempt records, terminal status, and audit-write
+  failure behavior.
 
 dbt changes:
 

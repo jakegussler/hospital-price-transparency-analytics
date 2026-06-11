@@ -13,6 +13,7 @@ data/
   metadata/
   bronze/
   quarantine/
+  audit/
   hpt.duckdb
 ```
 
@@ -108,6 +109,35 @@ HPT_DUCKDB_PATH
 
 DuckDB should read Bronze Parquet through dbt external source definitions rather
 than by copying Bronze data into ad hoc local tables.
+
+## Run Audit
+
+`hpt download`, `hpt ingest`, and `hpt run-dbt` write append-only Parquet under
+`HPT_AUDIT_ROOT`:
+
+```text
+{audit_root}/runs/run_date=YYYY-MM-DD/*.parquet
+{audit_root}/attempts/run_date=YYYY-MM-DD/*.parquet
+```
+
+Each invocation writes a `started` run-state record and a terminal `completed`
+record. A run with no completed record is reported as `running_or_interrupted`.
+Attempts record one hospital download, one hospital/snapshot ingest, or one
+concrete dbt invocation. Audit writes are fail-closed: a command does not report
+success when its audit record cannot be persisted.
+
+The audit data is outside Bronze and Silver but can be queried directly:
+
+```sql
+select *
+from read_parquet('data/audit/runs/**/*.parquet', hive_partitioning = true)
+where terminal_status in ('failed', 'partial');
+
+select a.run_id, a.snapshot_id, a.attempt_type, a.bronze_row_counts
+from read_parquet('data/audit/attempts/**/*.parquet', hive_partitioning = true) a
+where a.snapshot_id = '<snapshot-id>'
+order by a.started_at;
+```
 
 Snapshot-grained Silver and validation tables inside DuckDB are incremental
 dbt tables. Normal scoped runs replace rows for the requested `snapshot_id`s

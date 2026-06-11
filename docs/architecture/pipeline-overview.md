@@ -13,6 +13,9 @@ flowchart LR
   ingest --> bronze[BronzeParquet]
   bronze --> dbt[dbtDuckDB]
   dbt --> silver[SilverModels]
+  download --> audit[RunAuditParquet]
+  ingest --> audit
+  dbt --> audit
   silver --> gold[GoldModels]
 ```
 
@@ -127,3 +130,11 @@ Python owns source acquisition, source tracking, structural parsing, and Bronze
 file writing. dbt owns semantic normalization and analytics models. Airflow,
 Docker, and Terraform folders exist as planned integration points, not active
 runtime dependencies.
+
+## Run Auditability
+
+Every download, ingest, and dbt CLI invocation has a unique `run_id` present in
+its structured logs and append-only audit Parquet. Invocation records capture
+terminal status and target totals; attempt records capture source lineage,
+stage timings, Bronze row counts, quarantine categories, and concrete dbt
+actions. Use `hpt show-run --run-id <run-uuid>` for a joined JSON view.
