@@ -159,3 +159,12 @@ class TestContextManager:
         writer.write_batch({"charges": _make_df(1)})
         writer.close()
         writer.close()  # should not raise
+
+    def test_row_counts_include_seen_empty_tables(self, tmp_path):
+        writer = BronzeWriter(tmp_path, "snap-1")
+        writer.write_batch(
+            {"charges": _make_df(2), "optional": pl.DataFrame(schema=_simple_schema())}
+        )
+        writer.close()
+
+        assert writer.row_counts == {"charges": 2, "optional": 0}

@@ -51,9 +51,17 @@ class DownloadResult:
     snapshot: SnapshotRecord | None = None
     error: str | None = None
     final_path: str | None = None
-
-
-
+    http_status: int | None = None
+    response_headers: dict[str, str] | None = None
+    hash_changed: bool | None = None
+    compression: str | None = None
+    content_format: str | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    stage_statuses: dict[str, str] | None = None
+    stage_elapsed_s: dict[str, float] | None = None
+    resolved_snapshot_id: str | None = None
+    resolved_source_file_name: str | None = None
 
 _CONTENT_TYPE_TO_EXT: dict[str, str] = {
     "text/csv": ".csv",
@@ -117,6 +125,11 @@ def download_hospital(
     hid = hospital.hospital_id
     url = str(hospital.mrf_source.url)
     t0 = time.monotonic()
+    started_at = datetime.now(UTC)
+    stage_statuses: dict[str, str] = {}
+    stage_elapsed_s: dict[str, float] = {}
+    response_headers: dict[str, str] = {}
+    http_status: int | None = None
     safe_url = sanitize_url(url)
     log_url_event(
         logger,
@@ -137,7 +150,14 @@ def download_hospital(
 
     if dry_run:
         logger.info("dry_run", extra={"hospital_id": hid, "url": safe_url})
-        return DownloadResult(hospital_id=hid, outcome=Outcome.DRY_RUN)
+        return DownloadResult(
+            hospital_id=hid,
+            outcome=Outcome.DRY_RUN,
+            started_at=started_at,
+            ended_at=datetime.now(UTC),
+            stage_statuses=stage_statuses,
+            stage_elapsed_s=stage_elapsed_s,
+        )
 
     tmp = storage.temp_path(hid)
     sha = hashlib.sha256()
@@ -148,37 +168,55 @@ def download_hospital(
         storage.makedirs(posixpath.dirname(tmp))
 
         filename = "mrf_download"
-        with client.stream("GET", url) as resp:
-            resp.raise_for_status()
-            filename = _filename_from_response(url, resp)
-            logger.debug(
-                "filename_resolved",
-                extra={
-                    "hospital_id": hid,
-                    "filename": filename,
-                    "content_type": resp.headers.get("content-type"),
-                },
-            )
-            with storage.open(tmp, "wb") as fh:
-                for chunk in resp.iter_raw():
-                    fh.write(chunk)
-                    sha.update(chunk)
-                    nbytes += len(chunk)
-                    chunk_index += 1
-                    if chunk_index == 1 or chunk_index % 100 == 0:
-                        log_download_chunk(
-                            logger,
-                            hid,
-                            chunk_index=chunk_index,
-                            chunk_bytes=len(chunk),
-                            total_bytes=nbytes,
-                        )
+        transfer_started = time.monotonic()
+        try:
+            with client.stream("GET", url) as resp:
+                http_status = resp.status_code
+                response_headers = {
+                    key: value
+                    for key in ("content-length", "last-modified", "etag")
+                    if (value := resp.headers.get(key)) is not None
+                }
+                resp.raise_for_status()
+                filename = _filename_from_response(url, resp)
+                logger.debug(
+                    "filename_resolved",
+                    extra={
+                        "hospital_id": hid,
+                        "filename": filename,
+                        "content_type": resp.headers.get("content-type"),
+                    },
+                )
+                with storage.open(tmp, "wb") as fh:
+                    for chunk in resp.iter_raw():
+                        fh.write(chunk)
+                        sha.update(chunk)
+                        nbytes += len(chunk)
+                        chunk_index += 1
+                        if chunk_index == 1 or chunk_index % 100 == 0:
+                            log_download_chunk(
+                                logger,
+                                hid,
+                                chunk_index=chunk_index,
+                                chunk_bytes=len(chunk),
+                                total_bytes=nbytes,
+                            )
+        except Exception:
+            stage_statuses["request_transfer"] = "failed"
+            raise
+        else:
+            stage_statuses["request_transfer"] = "success"
+        finally:
+            stage_elapsed_s["request_transfer"] = time.monotonic() - transfer_started
 
         file_hash = sha.hexdigest()
         duration = time.monotonic() - t0
 
-        current_hash = snapshots.current_hash(hid)
-        if current_hash == file_hash:
+        compare_started = time.monotonic()
+        current_snapshot = snapshots.get_current_snapshot(hid)
+        stage_statuses["hash_comparison"] = "success"
+        stage_elapsed_s["hash_comparison"] = time.monotonic() - compare_started
+        if current_snapshot is not None and current_snapshot.file_hash == file_hash:
             storage.rm(tmp)
             log_transfer_summary(
                 logger,
@@ -194,15 +232,30 @@ def download_hospital(
                 file_hash=file_hash,
                 bytes_transferred=nbytes,
                 duration_s=duration,
+                resolved_snapshot_id=current_snapshot.snapshot_id,
+                resolved_source_file_name=current_snapshot.source_file_name,
+                http_status=http_status,
+                response_headers=response_headers,
+                hash_changed=False,
+                started_at=started_at,
+                ended_at=datetime.now(UTC),
+                stage_statuses=stage_statuses,
+                stage_elapsed_s=stage_elapsed_s,
             )
 
         ingested_at = datetime.now(UTC)
         dest = storage.raw_path(
             hid, filename, ingested_at=ingested_at, file_hash=file_hash
         )
+        commit_started = time.monotonic()
         storage.mv(tmp, dest)
+        stage_statuses["raw_commit"] = "success"
+        stage_elapsed_s["raw_commit"] = time.monotonic() - commit_started
 
+        format_started = time.monotonic()
         fmt = detect_format(dest, storage.fs)
+        stage_statuses["format_detection"] = "success"
+        stage_elapsed_s["format_detection"] = time.monotonic() - format_started
         logger.debug(
             "format_detected",
             extra={
@@ -212,6 +265,7 @@ def download_hospital(
             },
         )
 
+        snapshot_started = time.monotonic()
         snapshot = snapshots.write_snapshot(
             hospital_id=hid,
             source_url=url,
@@ -219,6 +273,8 @@ def download_hospital(
             file_hash=file_hash,
             ingested_at=ingested_at,
         )
+        stage_statuses["snapshot_write"] = "success"
+        stage_elapsed_s["snapshot_write"] = time.monotonic() - snapshot_started
 
         log_transfer_summary(
             logger,
@@ -238,6 +294,15 @@ def download_hospital(
             duration_s=duration,
             snapshot=snapshot,
             final_path=dest,
+            http_status=http_status,
+            response_headers=response_headers,
+            hash_changed=True,
+            compression=fmt.compression.value,
+            content_format=fmt.content_format.value,
+            started_at=started_at,
+            ended_at=datetime.now(UTC),
+            stage_statuses=stage_statuses,
+            stage_elapsed_s=stage_elapsed_s,
         )
 
     except httpx.HTTPStatusError as exc:
@@ -261,6 +326,12 @@ def download_hospital(
             bytes_transferred=nbytes,
             duration_s=duration,
             error=error_msg,
+            http_status=exc.response.status_code,
+            response_headers=response_headers,
+            started_at=started_at,
+            ended_at=datetime.now(UTC),
+            stage_statuses=stage_statuses,
+            stage_elapsed_s=stage_elapsed_s,
         )
     except httpx.RequestError as exc:
         storage.rm(tmp)
@@ -282,6 +353,12 @@ def download_hospital(
             bytes_transferred=nbytes,
             duration_s=duration,
             error=error_msg,
+            http_status=http_status,
+            response_headers=response_headers,
+            started_at=started_at,
+            ended_at=datetime.now(UTC),
+            stage_statuses=stage_statuses,
+            stage_elapsed_s=stage_elapsed_s,
         )
     except Exception as exc:
         storage.rm(tmp)
@@ -304,6 +381,12 @@ def download_hospital(
             bytes_transferred=nbytes,
             duration_s=duration,
             error=error_msg,
+            http_status=http_status,
+            response_headers=response_headers,
+            started_at=started_at,
+            ended_at=datetime.now(UTC),
+            stage_statuses=stage_statuses,
+            stage_elapsed_s=stage_elapsed_s,
         )
 
 

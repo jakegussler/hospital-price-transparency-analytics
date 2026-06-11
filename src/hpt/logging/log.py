@@ -15,17 +15,65 @@ formatter installed by ``configure_logging()``.
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import os
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from hpt.utils.paths import get_default_logs_root
 
-__all__ = ["LoggingRunPaths", "configure_logging", "get_logger"]
+__all__ = [
+    "LoggingRunPaths",
+    "clear_context",
+    "configure_logging",
+    "get_logger",
+    "log_context",
+    "set_context",
+]
+
+_log_context: contextvars.ContextVar[dict[str, object]] = contextvars.ContextVar(
+    "hpt_log_context", default={}
+)
+
+
+def set_context(**fields: object) -> contextvars.Token:
+    """Merge ``fields`` into the ambient log context for the current context.
+
+    Returns a token that :func:`contextvars.ContextVar.reset` accepts, so the
+    previous context can be restored. Prefer :func:`log_context` when the scope
+    is a single block; use this directly only when set and reset cannot be
+    paired lexically.
+    """
+    return _log_context.set({**_log_context.get(), **fields})
+
+
+def clear_context(*names: str) -> None:
+    """Remove ``names`` from the ambient log context, ignoring absent keys."""
+    current = dict(_log_context.get())
+    for name in names:
+        current.pop(name, None)
+    _log_context.set(current)
+
+
+@contextmanager
+def log_context(**fields: object) -> Iterator[None]:
+    """Bind ``fields`` to every log record emitted inside the block.
+
+    Fields are attached by :class:`ContextFilter`, so they flow into both the
+    stdout and JSON handlers without being threaded through individual log
+    calls. The previous context is restored on exit, including on exceptions.
+    """
+    token = set_context(**fields)
+    try:
+        yield
+    finally:
+        _log_context.reset(token)
 
 
 @dataclass(frozen=True)
@@ -122,6 +170,27 @@ class StandardOutputFormatter(logging.Formatter):
             return f"{base}\n{payload['exc_info']}"
         return base
 
+
+class ContextFilter(logging.Filter):
+    """Attach the run ID and ambient log context to every HPT log record.
+
+    The run ID is fixed for the process; the ambient context (see
+    :func:`set_context`) varies per call stack. Explicit ``extra=`` fields on a
+    log call win over the ambient context, so a deliberately passed value is
+    never overwritten by a stale binding.
+    """
+
+    def __init__(self, run_id: str) -> None:
+        super().__init__()
+        self.run_id = run_id
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.run_id = self.run_id
+        for key, val in _log_context.get().items():
+            if not hasattr(record, key):
+                setattr(record, key, val)
+        return True
+
 def get_log_level(log_level: str) -> int:
     """Get the log level from the string."""
     try:
@@ -130,8 +199,8 @@ def get_log_level(log_level: str) -> int:
         raise ValueError(f"Invalid log level: {log_level}")
 
 
-def _build_run_paths(logs_root: Path) -> LoggingRunPaths:
-    run_id = f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}_pid{os.getpid()}"
+def _build_run_paths(logs_root: Path, run_id: str | None = None) -> LoggingRunPaths:
+    run_id = run_id or f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}_pid{os.getpid()}"
     std_out_dir = logs_root / "std_out"
     json_dir = logs_root / "json"
     failures_dir = logs_root / "failures"
@@ -156,6 +225,7 @@ def configure_logging(
     log_level: str = "INFO",
     *,
     logs_root: Path | None = None,
+    run_id: str | None = None,
 ) -> LoggingRunPaths:
     """Attach stdout and file handlers to the root ``hpt`` logger.
 
@@ -166,26 +236,36 @@ def configure_logging(
     level = get_log_level(log_level)
     root = logging.getLogger("hpt")
     if root.handlers:
-        _set_handler_levels(root, level)
         existing_paths = getattr(root, "_hpt_log_paths", None)
-        if isinstance(existing_paths, LoggingRunPaths):
+        if isinstance(existing_paths, LoggingRunPaths) and (
+            run_id is None or existing_paths.run_id == run_id
+        ):
+            _set_handler_levels(root, level)
             return existing_paths
-
-    run_paths = _build_run_paths((logs_root or get_default_logs_root()).resolve())
+        for handler in list(root.handlers):
+            root.removeHandler(handler)
+            handler.close()
+        if hasattr(root, "_hpt_log_paths"):
+            delattr(root, "_hpt_log_paths")
+    run_paths = _build_run_paths((logs_root or get_default_logs_root()).resolve(), run_id)
 
     stdout_formatter = StandardOutputFormatter()
+    run_filter = ContextFilter(run_id or run_paths.run_id)
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(stdout_formatter)
+    stream_handler.addFilter(run_filter)
     stream_handler.setLevel(level)
     root.addHandler(stream_handler)
 
     std_out_handler = logging.FileHandler(run_paths.std_out_path, encoding="utf-8")
     std_out_handler.setFormatter(StandardOutputFormatter())
+    std_out_handler.addFilter(run_filter)
     std_out_handler.setLevel(level)
     root.addHandler(std_out_handler)
 
     json_handler = logging.FileHandler(run_paths.json_path, encoding="utf-8")
     json_handler.setFormatter(JsonFormatter())
+    json_handler.addFilter(run_filter)
     json_handler.setLevel(level)
     root.addHandler(json_handler)
 

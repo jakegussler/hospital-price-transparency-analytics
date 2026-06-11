@@ -14,6 +14,10 @@ from __future__ import annotations
 
 import logging
 import posixpath
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +27,7 @@ from hpt.ingest.mrf_sniffer import Layout, sniff_schema
 from hpt.ingest.snapshot import SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
 from hpt.loaders.parquet import BronzeWriter
+from hpt.logging.log import log_context
 from hpt.logging.log_helpers import log_ingest_phase, log_schema_sniff
 from hpt.parsers.base import BaseParser
 from hpt.parsers.csv_tall import CsvTallParser
@@ -49,81 +54,127 @@ def ingest_snapshot(
 
     Returns a small summary dict for logging by the caller.
     """
-    raw_path = resolve_local_path(snapshot, storage)
-    log_ingest_phase(
-        logger,
-        "ingest_start",
-        snapshot.snapshot_id,
-        snapshot.hospital_id,
-        raw_file=raw_path.name,
-    )
+    started_at = datetime.now(UTC)
+    started_monotonic = time.monotonic()
+    stages = StageRecorder()
 
-    parser_path, cleanup_paths = _prepare_parser_path(raw_path, snapshot, storage)
-    try:
-        schema_info = sniff_schema(str(parser_path), storage.fs)
-        log_schema_sniff(
-            logger,
-            parser_path.name,
-            schema_info.layout.value,
-            schema_info.version,
-            level=logging.INFO,
-        )
-
-        source_format = _LAYOUT_TO_SOURCE_FORMAT.get(schema_info.layout)
-        if source_format is None:
-            raise ValueError(
-                f"Cannot ingest snapshot {snapshot.snapshot_id}: unknown layout "
-                f"{schema_info.layout!r} for {parser_path}"
-            )
-
-        snapshot_meta = _snapshot_meta(snapshot, source_format, schema_info.version)
-        parser = _build_parser(
-            schema_info.layout,
-            hospital_config=hospital_config,
-            snapshot_meta=snapshot_meta,
-            quarantine_root=quarantine_root,
-        )
+    with log_context(
+        snapshot_id=snapshot.snapshot_id, hospital_id=snapshot.hospital_id
+    ):
+        with stages.stage("snapshot_raw_resolution"):
+            raw_path = resolve_local_path(snapshot, storage)
         log_ingest_phase(
             logger,
-            "parser_selected",
+            "ingest_start",
             snapshot.snapshot_id,
             snapshot.hospital_id,
-            source_format=source_format,
-            parser=type(parser).__name__,
-            level=logging.DEBUG,
+            raw_file=raw_path.name,
         )
 
-        with BronzeWriter(bronze_root, snapshot.snapshot_id) as writer:
-            for batch in parser.parse(parser_path):
-                writer.write_batch(batch)
-
-        log_ingest_phase(
-            logger,
-            "ingest_complete",
-            snapshot.snapshot_id,
-            snapshot.hospital_id,
-            source_format=source_format,
-            schema_version=schema_info.version,
-        )
-        return {
-            "snapshot_id": snapshot.snapshot_id,
-            "hospital_id": snapshot.hospital_id,
-            "source_format": source_format,
-            "schema_version": schema_info.version,
-            "local_path": str(raw_path),
-            "parser_path": str(parser_path),
-        }
-    finally:
-        for path in cleanup_paths:
-            storage.rm(path)
-            logger.debug(
-                "parser_temp_removed",
-                extra={
-                    "snapshot_id": snapshot.snapshot_id,
-                    "hospital_id": snapshot.hospital_id,
-                    "temp_path": posixpath.basename(path),
-                },
+        with stages.stage("parser_input_preparation"):
+            parser_path, cleanup_paths = _prepare_parser_path(
+                raw_path, snapshot, storage
             )
+        try:
+            with stages.stage("schema_sniff"):
+                schema_info = sniff_schema(str(parser_path), storage.fs)
+            log_schema_sniff(
+                logger,
+                parser_path.name,
+                schema_info.layout.value,
+                schema_info.version,
+                level=logging.INFO,
+            )
+
+            source_format = _LAYOUT_TO_SOURCE_FORMAT.get(schema_info.layout)
+            if source_format is None:
+                raise ValueError(
+                    f"Cannot ingest snapshot {snapshot.snapshot_id}: unknown layout "
+                    f"{schema_info.layout!r} for {parser_path}"
+                )
+
+            snapshot_meta = _snapshot_meta(snapshot, source_format, schema_info.version)
+            parser = _build_parser(
+                schema_info.layout,
+                hospital_config=hospital_config,
+                snapshot_meta=snapshot_meta,
+                quarantine_root=quarantine_root,
+            )
+            log_ingest_phase(
+                logger,
+                "parser_selected",
+                snapshot.snapshot_id,
+                snapshot.hospital_id,
+                source_format=source_format,
+                parser=type(parser).__name__,
+                level=logging.DEBUG,
+            )
+
+            with stages.stage("parse_bronze_write"):
+                with BronzeWriter(bronze_root, snapshot.snapshot_id) as writer:
+                    for batch in parser.parse(parser_path):
+                        writer.write_batch(batch)
+
+            log_ingest_phase(
+                logger,
+                "ingest_complete",
+                snapshot.snapshot_id,
+                snapshot.hospital_id,
+                source_format=source_format,
+                schema_version=schema_info.version,
+            )
+            return {
+                "snapshot_id": snapshot.snapshot_id,
+                "hospital_id": snapshot.hospital_id,
+                "source_format": source_format,
+                "schema_version": schema_info.version,
+                "local_path": str(raw_path),
+                "parser_path": str(parser_path),
+                "parser_class": type(parser).__name__,
+                "bronze_row_counts": writer.row_counts,
+                "quarantine_counts": parser.quarantine_counts,
+                "stage_statuses": stages.statuses,
+                "stage_elapsed_s": stages.elapsed_s,
+                "started_at": started_at,
+                "ended_at": datetime.now(UTC),
+                "elapsed_s": time.monotonic() - started_monotonic,
+            }
+        finally:
+            with stages.stage("cleanup"):
+                for path in cleanup_paths:
+                    storage.rm(path)
+                    logger.debug(
+                        "parser_temp_removed",
+                        extra={"temp_path": posixpath.basename(path)},
+                    )
+
+
+class StageRecorder:
+    """Record per-stage status and wall-clock elapsed time for one run.
+
+    Each :meth:`stage` block is timed and marked ``success`` or ``failed``; the
+    exception propagates after the failure is recorded. ``statuses`` and
+    ``elapsed_s`` are the same dict instances throughout, so a caller can return
+    them and let a later ``finally`` stage (e.g. cleanup) append to the same
+    record.
+    """
+
+    def __init__(self) -> None:
+        self.statuses: dict[str, str] = {}
+        self.elapsed_s: dict[str, float] = {}
+
+    @contextmanager
+    def stage(self, name: str) -> Iterator[None]:
+        started = time.monotonic()
+        try:
+            yield
+        except Exception:
+            self.statuses[name] = "failed"
+            raise
+        else:
+            self.statuses[name] = "success"
+        finally:
+            self.elapsed_s[name] = time.monotonic() - started
 
 
 def resolve_local_path(

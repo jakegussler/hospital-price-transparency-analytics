@@ -115,6 +115,14 @@ class BronzeWriter:
                 },
             )
 
+    @property
+    def row_counts(self) -> dict[str, int]:
+        """Return final row counts for every table emitted by the parser."""
+        return {
+            table_name: self._total_rows.get(table_name, 0)
+            for table_name in self._seen_schemas
+        }
+
     def __enter__(self) -> "BronzeWriter":
         return self
 

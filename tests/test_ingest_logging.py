@@ -9,7 +9,13 @@ import pytest
 
 import hpt.cli as cli
 from hpt.ingest.snapshot import SnapshotRecord
-from hpt.logging.log import configure_logging, get_logger
+from hpt.logging.log import (
+    clear_context,
+    configure_logging,
+    get_logger,
+    log_context,
+    set_context,
+)
 from hpt.registry.models import HospitalSource, MrfSource
 
 
@@ -58,7 +64,9 @@ def _make_snapshot(hospital_id: str) -> SnapshotRecord:
 
 
 def test_configure_logging_writes_stdout_and_json_files(tmp_path):
-    log_paths = configure_logging(log_level="INFO", logs_root=tmp_path / "logs")
+    log_paths = configure_logging(
+        log_level="INFO", logs_root=tmp_path / "logs", run_id="run-123"
+    )
     log = get_logger("tests.ingest_logging")
 
     log.info("test_event", extra={"hospital_id": "h1"})
@@ -73,6 +81,68 @@ def test_configure_logging_writes_stdout_and_json_files(tmp_path):
     assert "hospital_id=h1" in stdout_text
     assert json.loads(json_lines[-1])["msg"] == "test_event"
     assert json.loads(json_lines[-1])["hospital_id"] == "h1"
+    assert json.loads(json_lines[-1])["run_id"] == "run-123"
+    assert log_paths.run_id == "run-123"
+
+
+def _json_records(json_path) -> list[dict[str, Any]]:
+    return [
+        json.loads(line)
+        for line in json_path.read_text(encoding="utf-8").splitlines()
+    ]
+
+
+def test_log_context_binds_fields_and_restores_on_exit(tmp_path):
+    log_paths = configure_logging(
+        log_level="INFO", logs_root=tmp_path / "logs", run_id="run-ctx"
+    )
+    log = get_logger("tests.ingest_logging")
+
+    with log_context(snapshot_id="snap-1", hospital_id="h1"):
+        log.info("inside_event")
+    log.info("outside_event")
+
+    records = {rec["msg"]: rec for rec in _json_records(log_paths.json_path)}
+    assert records["inside_event"]["snapshot_id"] == "snap-1"
+    assert records["inside_event"]["hospital_id"] == "h1"
+    # The context is unbound once the block exits.
+    assert "snapshot_id" not in records["outside_event"]
+    assert "hospital_id" not in records["outside_event"]
+
+
+def test_explicit_extra_wins_over_ambient_context(tmp_path):
+    log_paths = configure_logging(
+        log_level="INFO", logs_root=tmp_path / "logs", run_id="run-ctx2"
+    )
+    log = get_logger("tests.ingest_logging")
+
+    with log_context(hospital_id="ambient"):
+        log.info("explicit_event", extra={"hospital_id": "explicit"})
+
+    record = _json_records(log_paths.json_path)[-1]
+    assert record["hospital_id"] == "explicit"
+
+
+def test_set_and_clear_context_are_incremental(tmp_path):
+    log_paths = configure_logging(
+        log_level="INFO", logs_root=tmp_path / "logs", run_id="run-ctx3"
+    )
+    log = get_logger("tests.ingest_logging")
+
+    set_context(snapshot_id="snap-1")
+    set_context(hospital_id="h1")
+    try:
+        log.info("first")
+        clear_context("snapshot_id")
+        log.info("second")
+    finally:
+        clear_context("snapshot_id", "hospital_id")
+
+    records = {rec["msg"]: rec for rec in _json_records(log_paths.json_path)}
+    assert records["first"]["snapshot_id"] == "snap-1"
+    assert records["first"]["hospital_id"] == "h1"
+    assert "snapshot_id" not in records["second"]
+    assert records["second"]["hospital_id"] == "h1"
 
 
 def test_ingest_logic_writes_descriptive_failure_logs(monkeypatch, tmp_path):
@@ -105,6 +175,7 @@ def test_ingest_logic_writes_descriptive_failure_logs(monkeypatch, tmp_path):
         raw_base_uri=tmp_path / "raw",
         bronze_root=tmp_path / "bronze",
         quarantine_root=tmp_path / "quarantine",
+        audit_root=tmp_path / "audit",
         log_level="INFO",
     )
 

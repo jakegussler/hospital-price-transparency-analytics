@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,7 +11,9 @@ from typing import Any
 
 import typer
 
-from hpt.ingest.config import DownloadConfig, IngestConfig
+from hpt.audit import AuditRun, AuditStore
+from hpt.audit.store import new_run_id
+from hpt.ingest.config import DownloadConfig, IngestConfig, StorageConfig
 from hpt.ingest.download import Outcome, download_all
 from hpt.ingest.snapshot import SnapshotManager, SnapshotRecord
 from hpt.ingest.storage import BronzeStorage
@@ -32,6 +35,78 @@ from hpt.utils.string_utils import convert_string_to_list
 cli = typer.Typer(help="Hospital Price Transparency pipeline CLI.", no_args_is_help=True)
 
 FailureRecord = dict[str, Any]
+
+
+@cli.command("show-run")
+def show_run(
+    run_id: str = typer.Option(..., "--run-id", help="Audit run UUID to inspect."),
+    audit_root: Path | None = typer.Option(
+        None,
+        "--audit-root",
+        file_okay=False,
+        dir_okay=True,
+        help="Directory containing run audit Parquet. Defaults to HPT_AUDIT_ROOT or data/audit.",
+        show_default=False,
+    ),
+) -> None:
+    """Print a joined JSON audit summary for one command invocation."""
+    root = StorageConfig.from_env(audit_root=audit_root).audit_root
+    result = AuditStore(root).get_run(run_id)
+    if result is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(code=2)
+    typer.echo(json.dumps(result, default=str, sort_keys=True, indent=2))
+
+
+def _complete_audit(
+    audit: AuditRun,
+    exit_code: int,
+    log: logging.Logger,
+    *,
+    target_count: int | None = None,
+    failure_category: str | None = None,
+    failure_message: str | None = None,
+) -> int:
+    try:
+        return audit.complete(
+            exit_code,
+            target_count=target_count,
+            failure_category=failure_category,
+            failure_message=failure_message,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.exception("audit_write_failed", extra={"error": str(exc)})
+        return 2
+
+
+def _record_audit_attempt(
+    audit: AuditRun, attempt: dict[str, Any], log: logging.Logger
+) -> bool:
+    try:
+        audit.record_attempt(attempt)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        log.exception("audit_write_failed", extra={"error": str(exc)})
+        return False
+
+
+def _start_audit(
+    *,
+    command: str,
+    audit_root: Path,
+    run_id: str,
+    log_paths: LoggingRunPaths,
+    requested_targets: list[str] | None,
+    options: dict[str, Any],
+) -> AuditRun:
+    return AuditRun(
+        AuditStore(audit_root),
+        command=command,
+        run_id=run_id,
+        requested_targets=requested_targets,
+        options=options,
+        log_paths=log_paths,
+    )
 
 
 @cli.command()
@@ -73,6 +148,17 @@ def ingest(
         ),
         show_default=False,
     ),
+    audit_root: Path | None = typer.Option(
+        None,
+        "--audit-root",
+        file_okay=False,
+        dir_okay=True,
+        help=(
+            "Directory for append-only run audit Parquet. "
+            "Defaults to HPT_AUDIT_ROOT or data/audit."
+        ),
+        show_default=False,
+    ),
     registry_path: Path | None = typer.Option(
         None,
         "--registry-path",
@@ -97,6 +183,7 @@ def ingest(
         raw_base_uri=raw_base_uri,
         bronze_root=bronze_root,
         quarantine_root=quarantine_root,
+        audit_root=audit_root,
         registry_path=registry_path,
         log_level=log_level,
     )
@@ -236,10 +323,51 @@ def run_dbt(
         "--log-level",
         help="Set the logging level.",
     ),
+    audit_root: Path | None = typer.Option(
+        None,
+        "--audit-root",
+        file_okay=False,
+        dir_okay=True,
+        help=(
+            "Directory for append-only run audit Parquet. "
+            "Defaults to HPT_AUDIT_ROOT or data/audit."
+        ),
+        show_default=False,
+    ),
 ) -> None:
     """Run a snapshot-scoped dbt command against the transform/ project."""
-    configure_logging(log_level=log_level)
-    log = get_logger("cli.run_dbt")
+    exit_code = run_dbt_logic(
+        hospital_ids=hospital_ids,
+        snapshot_ids=snapshot_ids,
+        command=command,
+        selector=selector,
+        seeds=seeds,
+        all_hospitals=all_hospitals,
+        per_snapshot=per_snapshot,
+        full_refresh=full_refresh,
+        full_rebuild=full_rebuild,
+        clear_on_failure=clear_on_failure,
+        log_level=log_level,
+        audit_root=audit_root,
+    )
+    raise typer.Exit(code=exit_code)
+
+
+def run_dbt_logic(
+    *,
+    hospital_ids: str | None = None,
+    snapshot_ids: str | None = None,
+    command: str = DEFAULT_COMMAND,
+    selector: str | None = DEFAULT_SELECTOR,
+    seeds: bool = False,
+    all_hospitals: bool = False,
+    per_snapshot: bool = False,
+    full_refresh: bool = False,
+    full_rebuild: bool = False,
+    clear_on_failure: bool = False,
+    log_level: str = "INFO",
+    audit_root: Path | None = None,
+) -> int:
     try:
         config = DbtRunConfig.from_cli(
             hospital_ids=hospital_ids,
@@ -255,7 +383,36 @@ def run_dbt(
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-    raise typer.Exit(code=DbtOrchestrator(config, log=log).run())
+    storage_cfg = StorageConfig.from_env(audit_root=audit_root)
+    run_id = new_run_id()
+    log_paths = configure_logging(log_level=log_level, run_id=run_id)
+    log = get_logger("cli.run_dbt")
+    try:
+        audit = _start_audit(
+            command="run-dbt",
+            audit_root=storage_cfg.audit_root,
+            run_id=run_id,
+            log_paths=log_paths,
+            requested_targets=list(config.snapshot_ids or config.hospital_ids),
+            options={
+                "mode": config.mode.value,
+                "command": config.command,
+                "selectors": ",".join(config.selectors),
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.exception("audit_write_failed", extra={"error": str(exc)})
+        return 2
+    try:
+        exit_code = DbtOrchestrator(
+            config, log=log, audit_recorder=audit.record_attempt
+        ).run()
+    except Exception as exc:  # noqa: BLE001
+        log.exception("dbt_run_unexpected_failure", extra={"error": str(exc)})
+        return _complete_audit(
+            audit, 2, log, failure_category=type(exc).__name__, failure_message=str(exc)
+        )
+    return _complete_audit(audit, exit_code, log)
 
 
 @cli.command("clear-snapshot")
@@ -441,6 +598,7 @@ def ingest_logic(
     raw_base_uri: str | Path | None = None,
     bronze_root: Path | None = None,
     quarantine_root: Path | None = None,
+    audit_root: Path | None = None,
     registry_path: Path | None = None,
     log_level: str = "INFO",
 ) -> int:
@@ -451,13 +609,31 @@ def ingest_logic(
             raw_base_uri=raw_base_uri,
             bronze_root=bronze_root,
             quarantine_root=quarantine_root,
+            audit_root=audit_root,
             registry_path=registry_path,
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    log_paths = configure_logging(log_level=log_level)
+    run_id = new_run_id()
+    log_paths = configure_logging(log_level=log_level, run_id=run_id)
     log = get_logger("cli.ingest")
+    try:
+        audit = _start_audit(
+            command="ingest",
+            audit_root=cfg.storage.audit_root,
+            run_id=run_id,
+            log_paths=log_paths,
+            requested_targets=cfg.hospital_ids,
+            options={
+                "raw_base_uri": cfg.storage.raw_base_uri,
+                "bronze_root": str(cfg.storage.bronze_root),
+                "quarantine_root": str(cfg.storage.quarantine_root),
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.exception("audit_write_failed", extra={"error": str(exc)})
+        return 2
     log.info(
         "ingest_run_start",
         extra={
@@ -495,7 +671,13 @@ def ingest_logic(
             cfg.registry_path,
         )
         if hospitals is None:
-            return 2
+            return _complete_audit(
+                audit,
+                2,
+                log,
+                failure_category="registry_error",
+                failure_message="Registry load failed",
+            )
         log.info("hospitals: %s", [h.hospital_id for h in hospitals])
         log.info("ingest_targets_ready", extra={"hospital_count": len(hospitals)})
 
@@ -516,6 +698,18 @@ def ingest_logic(
                 )
                 log.warning("no_snapshot", extra=_failure_log_extra(failure))
                 failures.append(failure)
+                if not _record_audit_attempt(
+                    audit,
+                    {
+                        "attempt_type": "ingest",
+                        "hospital_id": hid,
+                        "status": "failed",
+                        "failure_category": "no_snapshot",
+                        "failure_message": failure["message"],
+                    },
+                    log,
+                ):
+                    return 2
                 continue
 
             try:
@@ -527,6 +721,17 @@ def ingest_logic(
                     quarantine_root=cfg.storage.quarantine_root,
                 )
                 log.info("ingested", extra=summary)
+                if not _record_audit_attempt(
+                    audit,
+                    {
+                        "attempt_type": "ingest",
+                        "status": "success",
+                        **summary,
+                        "detected_layout": summary["source_format"],
+                    },
+                    log,
+                ):
+                    return 2
             except NotImplementedError as exc:
                 failure = _build_ingest_failure(
                     hospital,
@@ -540,6 +745,22 @@ def ingest_logic(
                 )
                 log.error("unsupported_format", extra=_failure_log_extra(failure))
                 failures.append(failure)
+                if not _record_audit_attempt(
+                    audit,
+                    {
+                        "attempt_type": "ingest",
+                        "hospital_id": hid,
+                        "snapshot_id": snapshot.snapshot_id,
+                        "source_url": snapshot.source_url,
+                        "source_file_name": snapshot.source_file_name,
+                        "file_hash": snapshot.file_hash,
+                        "status": "failed",
+                        "failure_category": "unsupported_format",
+                        "failure_message": str(exc),
+                    },
+                    log,
+                ):
+                    return 2
             except Exception as exc:  # noqa: BLE001
                 failure = _build_ingest_failure(
                     hospital,
@@ -556,6 +777,22 @@ def ingest_logic(
                     extra=_failure_log_extra(failure),
                 )
                 failures.append(failure)
+                if not _record_audit_attempt(
+                    audit,
+                    {
+                        "attempt_type": "ingest",
+                        "hospital_id": hid,
+                        "snapshot_id": snapshot.snapshot_id,
+                        "source_url": snapshot.source_url,
+                        "source_file_name": snapshot.source_file_name,
+                        "file_hash": snapshot.file_hash,
+                        "status": "failed",
+                        "failure_category": type(exc).__name__,
+                        "failure_message": str(exc),
+                    },
+                    log,
+                ):
+                    return 2
 
         failure_artifacts: dict[str, str] = {}
         if failures:
@@ -583,14 +820,16 @@ def ingest_logic(
             },
         )
         if failures and len(failures) == len(hospitals):
-            return 2
+            return _complete_audit(audit, 2, log, target_count=len(hospitals))
         if failures:
-            return 1
-        return 0
+            return _complete_audit(audit, 1, log, target_count=len(hospitals))
+        return _complete_audit(audit, 0, log, target_count=len(hospitals))
 
     except RegistryError as exc:
         log.error("registry_error", extra={"error": str(exc)})
-        return 2
+        return _complete_audit(
+            audit, 2, log, failure_category="registry_error", failure_message=str(exc)
+        )
 
 
 @cli.command()
@@ -631,6 +870,17 @@ def download(
         ),
         show_default=False,
     ),
+    audit_root: Path | None = typer.Option(
+        None,
+        "--audit-root",
+        file_okay=False,
+        dir_okay=True,
+        help=(
+            "Directory for append-only run audit Parquet. "
+            "Defaults to HPT_AUDIT_ROOT or data/audit."
+        ),
+        show_default=False,
+    ),
     log_level: str = typer.Option(
         "INFO",
         "--log-level",
@@ -645,6 +895,7 @@ def download(
         dry_run=dry_run,
         force=force,
         registry_path=registry_path,
+        audit_root=audit_root,
         log_level=log_level,
     )
 
@@ -657,6 +908,7 @@ def download_logic(
     dry_run: bool = False,
     force: bool = False,
     registry_path: Path | None = None,
+    audit_root: Path | None = None,
     log_level: str = "INFO",
 ) -> int:
     """Run download logic and return a process-style exit code."""
@@ -667,12 +919,30 @@ def download_logic(
             dry_run=dry_run,
             force=force,
             registry_path=registry_path,
+            audit_root=audit_root,
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    configure_logging(log_level)
+    run_id = new_run_id()
+    log_paths = configure_logging(log_level, run_id=run_id)
     log = get_logger("cli.download")
+    try:
+        audit = _start_audit(
+            command="download",
+            audit_root=cfg.storage.audit_root,
+            run_id=run_id,
+            log_paths=log_paths,
+            requested_targets=cfg.hospital_ids,
+            options={
+                "raw_base_uri": cfg.storage.raw_base_uri,
+                "dry_run": cfg.dry_run,
+                "force": cfg.force,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.exception("audit_write_failed", extra={"error": str(exc)})
+        return 2
     log.info(
         "download_run_start",
         extra={
@@ -710,10 +980,60 @@ def download_logic(
             cfg.registry_path,
         )
         if hospitals is None:
-            return 2
+            return _complete_audit(
+                audit,
+                2,
+                log,
+                failure_category="registry_error",
+                failure_message="Registry load failed",
+            )
         log.info("download_targets_ready", extra={"hospital_count": len(hospitals)})
 
         results = download_all(hospitals, storage, snapshots, cfg)
+        hospitals_by_id = {hospital.hospital_id: hospital for hospital in hospitals}
+        for result in results:
+            hospital = hospitals_by_id[result.hospital_id]
+            snapshot = result.snapshot
+            headers = result.response_headers or {}
+            if not _record_audit_attempt(
+                audit,
+                {
+                    "attempt_type": "download",
+                    "hospital_id": result.hospital_id,
+                    "snapshot_id": (
+                        snapshot.snapshot_id if snapshot else result.resolved_snapshot_id
+                    ),
+                    "source_url": str(hospital.mrf_source.url),
+                    "source_file_name": (
+                        snapshot.source_file_name
+                        if snapshot
+                        else result.resolved_source_file_name
+                    ),
+                    "file_hash": result.file_hash,
+                    "started_at": result.started_at,
+                    "ended_at": result.ended_at,
+                    "elapsed_s": result.duration_s,
+                    "status": "failed" if result.outcome is Outcome.FAILED else "success",
+                    "failure_category": (
+                        "download_failed" if result.outcome is Outcome.FAILED else None
+                    ),
+                    "failure_message": result.error,
+                    "stage_statuses": result.stage_statuses,
+                    "stage_elapsed_s": result.stage_elapsed_s,
+                    "download_outcome": result.outcome.value,
+                    "http_status": result.http_status,
+                    "content_length": headers.get("content-length"),
+                    "last_modified": headers.get("last-modified"),
+                    "etag": headers.get("etag"),
+                    "bytes_downloaded": result.bytes_transferred,
+                    "hash_changed": result.hash_changed,
+                    "raw_path": result.final_path,
+                    "compression": result.compression,
+                    "content_format": result.content_format,
+                },
+                log,
+            ):
+                return 2
 
         counts = Counter(r.outcome for r in results)
         summary = {o.value: counts.get(o, 0) for o in Outcome}
@@ -724,14 +1044,16 @@ def download_logic(
         )
 
         if counts.get(Outcome.FAILED, 0) == len(results):
-            return 2
+            return _complete_audit(audit, 2, log, target_count=len(results))
         if counts.get(Outcome.FAILED, 0) > 0:
-            return 1
-        return 0
+            return _complete_audit(audit, 1, log, target_count=len(results))
+        return _complete_audit(audit, 0, log, target_count=len(results))
 
     except RegistryError as exc:
         log.error("registry_error", extra={"error": str(exc)})
-        return 2
+        return _complete_audit(
+            audit, 2, log, failure_category="registry_error", failure_message=str(exc)
+        )
 
 
 if __name__ == "__main__":

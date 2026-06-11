@@ -57,6 +57,7 @@ class TestStorageConfig:
         monkeypatch.delenv("HPT_RAW_STORAGE_BASE_URI", raising=False)
         monkeypatch.delenv("HPT_BRONZE_ROOT", raising=False)
         monkeypatch.delenv("HPT_QUARANTINE_ROOT", raising=False)
+        monkeypatch.delenv("HPT_AUDIT_ROOT", raising=False)
 
         cfg = StorageConfig.from_env()
         data_root = get_default_data_root()
@@ -64,17 +65,20 @@ class TestStorageConfig:
         assert cfg.raw_base_uri == data_root.as_uri()
         assert cfg.bronze_root == data_root / "bronze"
         assert cfg.quarantine_root == data_root / "quarantine"
+        assert cfg.audit_root == data_root / "audit"
 
     def test_from_env(self, monkeypatch):
         monkeypatch.setenv("HPT_RAW_STORAGE_BASE_URI", "file:///raw")
         monkeypatch.setenv("HPT_BRONZE_ROOT", "env/bronze")
         monkeypatch.setenv("HPT_QUARANTINE_ROOT", "env/quarantine")
+        monkeypatch.setenv("HPT_AUDIT_ROOT", "env/audit")
 
         cfg = StorageConfig.from_env()
 
         assert cfg.raw_base_uri == "file:///raw"
         assert cfg.bronze_root == Path("env/bronze")
         assert cfg.quarantine_root == Path("env/quarantine")
+        assert cfg.audit_root == Path("env/audit")
 
     def test_cli_output_values_override_env(self, monkeypatch):
         monkeypatch.setenv("HPT_BRONZE_ROOT", "env/bronze")

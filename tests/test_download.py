@@ -91,6 +91,9 @@ class TestFirstFetch:
         assert result.bytes_transferred == len(MRF_BYTES_V1)
         assert result.snapshot is not None
         assert result.snapshot.valid_from is not None
+        assert result.http_status == 200
+        assert result.hash_changed is True
+        assert result.stage_statuses["request_transfer"] == "success"
 
     def test_raw_file_exists_on_disk(self, httpx_mock, storage, snapshots, client_cfg):
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V1)
@@ -140,6 +143,9 @@ class TestUnchangedFetch:
         assert r2.outcome == Outcome.UNCHANGED
         assert r2.file_hash == r1.file_hash
         assert r2.snapshot is None
+        assert r2.resolved_snapshot_id == r1.snapshot.snapshot_id
+        assert r2.resolved_source_file_name == r1.snapshot.source_file_name
+        assert r2.hash_changed is False
 
 
 class TestChangedFetch:

@@ -57,11 +57,12 @@ class ClientConfig:
 
 @dataclass(frozen=True)
 class StorageConfig:
-    """Storage roots for raw source files, parsed Bronze, and quarantine."""
+    """Storage roots for raw source files, parsed Bronze, quarantine, and audit."""
 
     raw_base_uri: str = field(default_factory=lambda: to_storage_uri(get_default_data_root()))
     bronze_root: Path = field(default_factory=lambda: get_default_data_root() / "bronze")
     quarantine_root: Path = field(default_factory=lambda: get_default_data_root() / "quarantine")
+    audit_root: Path = field(default_factory=lambda: get_default_data_root() / "audit")
 
     @classmethod
     def from_env(
@@ -70,6 +71,7 @@ class StorageConfig:
         raw_base_uri: str | Path | None = None,
         bronze_root: Path | None = None,
         quarantine_root: Path | None = None,
+        audit_root: Path | None = None,
     ) -> StorageConfig:
         data_root = get_default_data_root()
         env_raw_base_uri = os.environ.get("HPT_RAW_STORAGE_BASE_URI")
@@ -83,6 +85,8 @@ class StorageConfig:
             or Path(os.environ.get("HPT_BRONZE_ROOT", data_root / "bronze")),
             quarantine_root=quarantine_root
             or Path(os.environ.get("HPT_QUARANTINE_ROOT", data_root / "quarantine")),
+            audit_root=audit_root
+            or Path(os.environ.get("HPT_AUDIT_ROOT", data_root / "audit")),
         )
 
 
@@ -110,13 +114,14 @@ class DownloadConfig:
         *,
         hospital_ids: list[str] | str | None = None,
         raw_base_uri: str | Path | None = None,
+        audit_root: Path | None = None,
         dry_run: bool = False,
         force: bool = False,
         registry_path: Path | None = None,
     ) -> DownloadConfig:
         return cls(
             hospital_ids=hospital_ids,
-            storage=StorageConfig.from_env(raw_base_uri=raw_base_uri),
+            storage=StorageConfig.from_env(raw_base_uri=raw_base_uri, audit_root=audit_root),
             registry_path=_registry_path_from_env(registry_path),
             client=ClientConfig.from_env(),
             dry_run=dry_run,
@@ -147,6 +152,7 @@ class IngestConfig:
         raw_base_uri: str | Path | None = None,
         bronze_root: Path | None = None,
         quarantine_root: Path | None = None,
+        audit_root: Path | None = None,
         registry_path: Path | None = None,
     ) -> IngestConfig:
         return cls(
@@ -155,6 +161,7 @@ class IngestConfig:
                 raw_base_uri=raw_base_uri,
                 bronze_root=bronze_root,
                 quarantine_root=quarantine_root,
+                audit_root=audit_root,
             ),
             registry_path=_registry_path_from_env(registry_path),
         )

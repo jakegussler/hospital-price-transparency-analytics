@@ -14,6 +14,7 @@ run completes.
 from __future__ import annotations
 
 import logging
+from typing import Any, Callable
 
 from hpt.ingest.config import StorageConfig
 from hpt.ingest.snapshot import SnapshotManager
@@ -70,11 +71,12 @@ class DbtOrchestrator:
         *,
         log: logging.Logger | None = None,
         snapshots: SnapshotManager | None = None,
+        audit_recorder: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self._config = config
         self._log = log or logger
         self._snapshots = snapshots
-        self._manager = DbtManager(config.transform_dir, self._log)
+        self._manager = DbtManager(config.transform_dir, self._log, audit_recorder)
 
     def run(self) -> int:
         """Dispatch on the run mode and return a process-style exit code."""

@@ -46,6 +46,11 @@ class BaseParser(ABC):
         self.snapshot_meta = snapshot_meta
         self.quarantine_root = quarantine_root
 
+    @property
+    def quarantine_counts(self) -> dict[str, int]:
+        """Return categorized structural quarantine counts for this parse."""
+        return {}
+
     @abstractmethod
     def parse(self, file_path: Path) -> Iterator[dict[str, "pl.DataFrame"]]:
         """Yield batches of Bronze rows as ``{table_name: DataFrame}``.

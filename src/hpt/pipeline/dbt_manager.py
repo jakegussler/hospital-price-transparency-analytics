@@ -13,7 +13,10 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import time
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +31,16 @@ UNIT_TEST_EXCLUDED_COMMANDS = {"build", "test"}
 class DbtManager:
     """Executes seed, scoped commands, and the stale-snapshot prune in transform/."""
 
-    def __init__(self, transform_dir: Path, log: logging.Logger | None = None) -> None:
+    def __init__(
+        self,
+        transform_dir: Path,
+        log: logging.Logger | None = None,
+        audit_recorder: Callable[[dict[str, Any]], None] | None = None,
+    ) -> None:
         self._transform_dir = Path(transform_dir)
         self._log = log or logger
         self._runner: object | None = None
+        self._audit_recorder = audit_recorder
         self._base_args = [
             "--project-dir",
             str(self._transform_dir),
@@ -41,13 +50,18 @@ class DbtManager:
 
     def seed(self) -> bool:
         """Run ``dbt seed``; log and return False on failure."""
-        return self._invoke(["seed", *self._base_args], failure_event="dbt_seed_failed")
+        return self._invoke(
+            ["seed", *self._base_args],
+            failure_event="dbt_seed_failed",
+            audit_extra={"dbt_action": "seed", "dbt_command": "seed"},
+        )
 
     def prune_stale_snapshots(self) -> bool:
         """Run the stale-snapshot prune operation; log and return False on failure."""
         return self._invoke(
             ["run-operation", PRUNE_OPERATION, *self._base_args],
             failure_event="dbt_prune_failed",
+            audit_extra={"dbt_action": "prune", "dbt_command": "run-operation"},
         )
 
     def clear_snapshots(self, snapshot_ids: list[str]) -> bool:
@@ -63,6 +77,11 @@ class DbtManager:
             ["run-operation", CLEAR_OPERATION, "--args", args, *self._base_args],
             failure_event="dbt_clear_failed",
             failure_extra={"snapshot_ids": list(snapshot_ids)},
+            audit_extra={
+                "dbt_action": "clear",
+                "dbt_command": "run-operation",
+                "snapshot_ids": list(snapshot_ids),
+            },
         )
 
     def execute(
@@ -95,6 +114,13 @@ class DbtManager:
             args,
             failure_event="dbt_run_failed",
             failure_extra={"command": command, "selector": selector},
+            audit_extra={
+                "dbt_action": "command",
+                "dbt_command": command,
+                "dbt_selector": selector,
+                "snapshot_ids": list(snapshot_ids or []),
+                "dbt_full_refresh": full_refresh,
+            },
         )
 
     # -- internals -------------------------------------------------------------
@@ -113,15 +139,42 @@ class DbtManager:
         *,
         failure_event: str,
         failure_extra: dict[str, object] | None = None,
+        audit_extra: dict[str, Any] | None = None,
     ) -> bool:
         """Run one dbt invocation from within transform/; log on failure."""
         runner = self._ensure_runner()
+        started_at = datetime.now(UTC)
+        started_monotonic = time.monotonic()
         # The dbt profile and Bronze source globs use paths relative to transform/
         # (matching the `make dbt-*` targets that cd into it). dbtRunner does not
         # change the working directory, so we do it here.
-        with contextlib.chdir(self._transform_dir):
-            result = runner.invoke(args)
-        if result.success:
-            return True
-        self._log.error(failure_event, extra=failure_extra or {})
-        return False
+        error: Exception | None = None
+        try:
+            with contextlib.chdir(self._transform_dir):
+                result = runner.invoke(args)
+            success = bool(result.success)
+        except Exception as exc:
+            error = exc
+            success = False
+        if not success:
+            self._log.error(failure_event, extra=failure_extra or {})
+        if self._audit_recorder is not None:
+            self._audit_recorder(
+                {
+                    "attempt_type": "dbt",
+                    "status": "success" if success else "failed",
+                    "failure_category": None if success else failure_event,
+                    "failure_message": (
+                        None
+                        if success
+                        else str(error) if error else f"{failure_event}: dbt returned failure"
+                    ),
+                    "started_at": started_at,
+                    "ended_at": datetime.now(UTC),
+                    "elapsed_s": time.monotonic() - started_monotonic,
+                    **(audit_extra or {}),
+                }
+            )
+        if error is not None:
+            raise error
+        return success

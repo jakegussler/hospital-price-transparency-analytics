@@ -127,3 +127,20 @@ def test_runner_constructed_once(manager: tuple[DbtManager, RecordingRunner]) ->
     mgr.prune_stale_snapshots()
     # All three actions land on the same recorded runner instance.
     assert [c[0] for c in runner.calls] == ["seed", "build", "run-operation"]
+
+
+def test_invocations_emit_audit_attempts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("hpt.pipeline.dbt_manager.contextlib.chdir", _noop_chdir)
+    runner = RecordingRunner(successes=[True, False])
+    patch_dbt_runner(monkeypatch, runner)
+    attempts: list[dict[str, object]] = []
+    mgr = DbtManager(TRANSFORM, audit_recorder=attempts.append)
+
+    assert mgr.seed() is True
+    assert mgr.execute("build", snapshot_ids=["s1"], selector="silver") is False
+
+    assert attempts[0]["dbt_action"] == "seed"
+    assert attempts[0]["status"] == "success"
+    assert attempts[1]["snapshot_ids"] == ["s1"]
+    assert attempts[1]["dbt_selector"] == "silver"
+    assert attempts[1]["status"] == "failed"

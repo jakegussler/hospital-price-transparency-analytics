@@ -18,6 +18,7 @@ from hpt.parsers.csv_tall import CsvTallParser
 from hpt.parsers.csv_wide import CsvWideParser
 from hpt.parsers.json_mrf import JsonMrfParser
 from hpt.pipeline.ingest_snapshot import (
+    StageRecorder,
     _build_parser,
     _snapshot_meta,
     ingest_snapshot,
@@ -256,6 +257,10 @@ class TestIngestSnapshotE2E:
 
         assert result["snapshot_id"] == "snap-001"
         assert result["source_format"] == "json"
+        assert result["parser_class"] == "JsonMrfParser"
+        assert result["bronze_row_counts"]["hospital_mrf_snapshots"] == 1
+        assert result["quarantine_counts"] == {}
+        assert result["stage_statuses"]["schema_sniff"] == "success"
 
         # Bronze output should contain at minimum hospital_mrf_snapshots
         snap_parts = list(
@@ -291,3 +296,31 @@ class TestIngestSnapshotE2E:
         assert not (partition / "charges.json").exists()
         tmp_files = list((tmp_path / ".tmp").glob("*")) if (tmp_path / ".tmp").exists() else []
         assert tmp_files == []
+
+
+class TestStageRecorder:
+    def test_records_success_and_timing(self):
+        stages = StageRecorder()
+        with stages.stage("step"):
+            pass
+        assert stages.statuses == {"step": "success"}
+        assert "step" in stages.elapsed_s
+        assert stages.elapsed_s["step"] >= 0.0
+
+    def test_records_failure_and_reraises(self):
+        stages = StageRecorder()
+        with pytest.raises(ValueError):
+            with stages.stage("step"):
+                raise ValueError("boom")
+        assert stages.statuses == {"step": "failed"}
+        # A failed stage is still timed.
+        assert "step" in stages.elapsed_s
+
+    def test_stages_accumulate_in_one_record(self):
+        stages = StageRecorder()
+        with stages.stage("a"):
+            pass
+        with stages.stage("b"):
+            pass
+        assert stages.statuses == {"a": "success", "b": "success"}
+        assert set(stages.elapsed_s) == {"a", "b"}

@@ -89,6 +89,13 @@ class ParsedChargeItem:
 class JsonMrfParser(BaseParser):
     """Parse CMS JSON MRF files using streaming (ijson)."""
 
+    @property
+    def quarantine_counts(self) -> dict[str, int]:
+        return {
+            f"{section}.structural_validation_error": count
+            for section, count in getattr(self, "_quarantine_counts", {}).items()
+        }
+
     def parse(self, file_path: Path) -> Iterator[dict[str, pl.DataFrame]]:
         snapshot_id = self.snapshot_meta["snapshot_id"]
         self._quarantine_counts: dict[str, int] = defaultdict(int)
