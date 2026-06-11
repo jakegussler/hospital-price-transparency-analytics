@@ -1,13 +1,11 @@
 with bronze as (
     select snapshot_id
-    from {{ ref('stg_bronze__hospital_mrf_snapshots') }}
+    from {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }}
 ),
 
 silver as (
     select snapshot_id
-    from {{ ref('slv_base__hospital_snapshots') }}
-    where 1 = 1
-        {{ hpt_snapshot_filter() }}
+    from {{ hpt_scoped_ref('slv_base__hospital_snapshots') }}
 )
 
 select bronze.snapshot_id

@@ -1,11 +1,11 @@
 with base_counts as (
     select count(*) as row_count
-    from {{ ref('slv_base__payer_rates') }}
+    from {{ hpt_scoped_ref('slv_base__payer_rates') }}
 ),
 
 core_counts as (
     select count(*) as row_count
-    from {{ ref('slv_core__payer_rates') }}
+    from {{ hpt_scoped_ref('slv_core__payer_rates') }}
 )
 
 select

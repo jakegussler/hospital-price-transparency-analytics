@@ -146,3 +146,28 @@ def test_accumulated_snapshot_inputs_are_scoped(manifest: dict[str, object]) -> 
         assert_scoped_dependencies(nodes_by_name[snapshot_name])
 
     assert not ACCUMULATED_UNSCOPED_ALLOWLIST
+
+
+def test_reconciliation_inputs_are_scoped(manifest: dict[str, object]) -> None:
+    model_nodes = _model_nodes(manifest)
+    snapshot_names = _snapshot_model_names_from_macro()
+
+    reconciliation_nodes = [
+        node
+        for node in manifest["nodes"].values()
+        if node["resource_type"] == "test" and node["name"].startswith("reconcile_")
+    ]
+
+    for node in reconciliation_nodes:
+        for dependency_id in node["depends_on"]["nodes"]:
+            dependency = model_nodes.get(dependency_id)
+            if dependency is None:
+                continue
+            if (
+                dependency["name"].startswith("stg_bronze__")
+                or dependency["name"] in snapshot_names
+            ):
+                assert _has_scoped_ref(node["raw_code"], dependency["name"]), (
+                    node["name"],
+                    dependency["name"],
+                )

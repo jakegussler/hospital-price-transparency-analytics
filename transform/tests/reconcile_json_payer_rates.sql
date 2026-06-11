@@ -2,27 +2,27 @@ with expected as (
     select
         pi.snapshot_id,
         count(*) as expected_rows
-    from {{ ref('stg_bronze__payers_information') }} pi
-    inner join {{ ref('stg_bronze__standard_charges') }} sc
+    from {{ hpt_scoped_ref('stg_bronze__payers_information') }} pi
+    inner join {{ hpt_scoped_ref('stg_bronze__standard_charges') }} sc
         on pi.snapshot_id = sc.snapshot_id
         and pi.standard_charge_id = sc.standard_charge_id
     where not exists (
             select 1
-            from {{ ref('val__charge_item_rejections') }} r
+            from {{ hpt_scoped_ref('val__charge_item_rejections') }} r
             where r.source_format_family = 'json'
                 and r.snapshot_id = sc.snapshot_id
                 and r.source_charge_item_id = sc.charge_item_id
         )
         and not exists (
             select 1
-            from {{ ref('val__standard_charge_rejections') }} r
+            from {{ hpt_scoped_ref('val__standard_charge_rejections') }} r
             where r.source_format_family = 'json'
                 and r.snapshot_id = pi.snapshot_id
                 and r.source_standard_charge_id = pi.standard_charge_id
         )
         and not exists (
             select 1
-            from {{ ref('val__payer_rate_rejections') }} r
+            from {{ hpt_scoped_ref('val__payer_rate_rejections') }} r
             where r.source_format_family = 'json'
                 and r.snapshot_id = pi.snapshot_id
                 and r.source_standard_charge_id = pi.standard_charge_id
@@ -35,9 +35,8 @@ actual as (
     select
         snapshot_id,
         count(*) as actual_rows
-    from {{ ref('slv_base__payer_rates') }}
+    from {{ hpt_scoped_ref('slv_base__payer_rates') }}
     where source_format = 'json'
-        {{ hpt_snapshot_filter() }}
     group by snapshot_id
 )
 
