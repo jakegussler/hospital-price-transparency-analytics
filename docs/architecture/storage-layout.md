@@ -118,6 +118,8 @@ than by copying Bronze data into ad hoc local tables.
 ```text
 {audit_root}/runs/run_date=YYYY-MM-DD/*.parquet
 {audit_root}/attempts/run_date=YYYY-MM-DD/*.parquet
+{audit_root}/runs/run_date=1970-01-01/_schema.parquet
+{audit_root}/attempts/run_date=1970-01-01/_schema.parquet
 ```
 
 Each invocation writes a `started` run-state record and a terminal `completed`
@@ -126,7 +128,13 @@ Attempts record one hospital download, one hospital/snapshot ingest, or one
 concrete dbt invocation. Audit writes are fail-closed: a command does not report
 success when its audit record cannot be persisted.
 
-The audit data is outside Bronze and Silver but can be queried directly:
+On the first audit append, `AuditStore` atomically creates zero-row schema
+sentinels for both datasets. They keep both Parquet sources queryable before the
+first attempt is recorded and do not contribute rows.
+
+The audit data is outside the Bronze/Silver/Gold medallion flow. It can be
+queried directly or through the unscoped dbt views in DuckDB schema
+`main_audit`:
 
 ```sql
 select *
@@ -138,6 +146,10 @@ from read_parquet('data/audit/attempts/**/*.parquet', hive_partitioning = true) 
 where a.snapshot_id = '<snapshot-id>'
 order by a.started_at;
 ```
+
+The dbt `audit` selector builds source-faithful staging views, one-row-per-run
+and one-row-per-attempt marts, and long-form stage/count detail views. All audit
+models remain views so newly completed command records are immediately visible.
 
 Snapshot-grained Silver and validation tables inside DuckDB are incremental
 dbt tables. Normal scoped runs replace rows for the requested `snapshot_id`s

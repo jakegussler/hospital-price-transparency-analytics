@@ -157,7 +157,8 @@ make dbt-build-selector DBT_SELECTOR=pipeline_charge_data
 
 The dbt project defines selectors for `staging`, `silver_base`, `silver_core`,
 `silver_review_queue`, `silver`, `pipeline_snapshot_metadata`, and
-`pipeline_charge_data`.
+`pipeline_charge_data`, plus the operational `audit`, `audit_staging`, and
+`audit_marts` selectors.
 
 `hpt run-dbt` defaults to the complete dbt graph so snapshot-grained
 consumers, Silver tables, and cross-model tests stay coherent. Pass `--selector`
@@ -220,6 +221,7 @@ Python owns:
 dbt owns:
 
 - external Bronze source definitions for DuckDB;
+- external audit source definitions and operational audit views;
 - staging views over Bronze;
 - Silver Base normalization across JSON and CSV inputs;
 - Silver Core payer identity and payer/plan context enrichment;

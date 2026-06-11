@@ -127,13 +127,14 @@ The profile reads:
 
 - `HPT_DUCKDB_PATH`, defaulting to `../data/hpt.duckdb`.
 - `HPT_BRONZE_ROOT`, defaulting to `../data/bronze`.
+- `HPT_AUDIT_ROOT`, defaulting to `../data/audit`.
 
 The Makefile exposes a registry-to-seed export plus dbt commands for dependency
 install, seed, run, test, build, list, compile, and clean. Selector targets take
 `DBT_SELECTOR`; the dbt project currently defines layer selectors for
 `staging`, `silver_base`, `silver_core`, and `silver`, plus pipeline selectors for
-`pipeline_snapshot_metadata` and `pipeline_charge_data`, in
-`transform/selectors.yml`.
+`pipeline_snapshot_metadata` and `pipeline_charge_data`, and operational selectors
+for `audit`, `audit_staging`, and `audit_marts` in `transform/selectors.yml`.
 
 `make dbt-incremental` delegates to `hpt run-dbt`, resolves
 `HOSPITAL_IDS`/`SNAPSHOT_IDS`, and runs a snapshot-scoped incremental build.
@@ -145,9 +146,10 @@ snapshot rows from snapshot-grained Silver and validation tables after
 successful materializing runs. Set `HPT_SILVER_RETENTION_MODE=all_snapshots` to
 retain historical Silver/validation rows.
 
-Layer tags live in `transform/dbt_project.yml`. Pipeline selectors reuse the
-pipeline tags there so a single selector can span staging and Silver models for
-the selected pipeline.
+Layer and operational-domain tags live in `transform/dbt_project.yml`. Pipeline
+selectors reuse the pipeline tags there so a single selector can span staging
+and Silver models for the selected pipeline. Audit selectors are intentionally
+unscoped from snapshots and only build views over `HPT_AUDIT_ROOT`.
 
 ## Ad Hoc Scripts
 

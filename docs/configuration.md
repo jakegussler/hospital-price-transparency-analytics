@@ -49,10 +49,10 @@ change instead of a code rewrite.
 ## dbt And DuckDB
 
 The dbt project in `transform/` uses `transform/profiles.yml`. It reads
-`HPT_DUCKDB_PATH` for the local DuckDB database and `HPT_BRONZE_ROOT` for
-external Bronze Parquet sources. Python ingest uses the same `HPT_BRONZE_ROOT`
-name, so a single override points both ingest output and dbt reads at the same
-Bronze directory for local development.
+`HPT_DUCKDB_PATH` for the local DuckDB database, `HPT_BRONZE_ROOT` for external
+Bronze Parquet sources, and `HPT_AUDIT_ROOT` for external operational audit
+sources. Python uses the same root names, so one override points writers and dbt
+reads at the same directories for local development.
 
 Staging models are canonical, unscoped views over Bronze source relations.
 Snapshot-scoped runs pass the `snapshot_ids` dbt var so `hpt_scoped_ref()` and

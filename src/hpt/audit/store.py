@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from datetime import UTC, datetime
@@ -55,7 +56,25 @@ class AuditStore:
     def append_attempt(self, record: dict[str, Any]) -> Path:
         return self._append("attempts", record, ATTEMPT_SCHEMA)
 
+    def _initialize_datasets(self) -> None:
+        for dataset_name, schema in (("runs", RUN_SCHEMA), ("attempts", ATTEMPT_SCHEMA)):
+            directory = self.root / dataset_name
+            sentinel_directory = directory / "run_date=1970-01-01"
+            sentinel_directory.mkdir(parents=True, exist_ok=True)
+            sentinel = sentinel_directory / "_schema.parquet"
+            if sentinel.exists():
+                (directory / "_schema.parquet").unlink(missing_ok=True)
+                continue
+            temporary = sentinel_directory / f".schema-{uuid.uuid4().hex}.tmp"
+            try:
+                pq.write_table(pa.Table.from_pylist([], schema=schema), temporary)
+                os.replace(temporary, sentinel)
+                (directory / "_schema.parquet").unlink(missing_ok=True)
+            finally:
+                temporary.unlink(missing_ok=True)
+
     def _append(self, dataset_name: str, record: dict[str, Any], schema: pa.Schema) -> Path:
+        self._initialize_datasets()
         run_date = str(record["run_date"])
         directory = self.root / dataset_name / f"run_date={run_date}"
         directory.mkdir(parents=True, exist_ok=True)

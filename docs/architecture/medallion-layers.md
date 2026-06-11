@@ -136,6 +136,19 @@ Likely responsibilities:
 Gold models can trade some source detail for usability, but they should retain
 lineage back to Silver and Bronze identifiers.
 
+## Operational Audit
+
+Status: implemented in dbt under `models/audit/`.
+
+Operational audit data records pipeline execution rather than hospital pricing
+semantics, so it remains outside the Bronze/Silver/Gold medallion flow. dbt
+exposes append-only run and attempt Parquet through source-faithful staging views
+and operational marts in the `main_audit` DuckDB schema.
+
+Audit models are deliberately unscoped from `snapshot_ids` and materialized as
+views. The run mart resolves started/completed events to one row per invocation;
+attempt, stage, and output-count marts retain their distinct operational grains.
+
 ## Layer Ownership
 
 ```mermaid
@@ -148,5 +161,7 @@ flowchart LR
 
 - Python owns raw acquisition and Bronze structural parsing.
 - dbt owns Silver and Gold SQL transformations.
+- Python writes operational audit records; dbt exposes operational audit views
+  outside the medallion flow.
 - DuckDB is the expected local analytical database.
 - Airflow, Docker, and Terraform will orchestrate and deploy this flow later.
