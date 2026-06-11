@@ -1,0 +1,20 @@
+select
+    run_id,
+    cast(run_date as date) as run_date,
+    state,
+    command,
+    requested_targets,
+    options,
+    started_at,
+    ended_at,
+    elapsed_s,
+    exit_code,
+    terminal_status,
+    target_count,
+    success_count,
+    failure_count,
+    failure_category,
+    failure_message,
+    stdout_log_path,
+    json_log_path
+from {{ source('audit', 'runs') }}

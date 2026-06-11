@@ -59,7 +59,11 @@ def test_download_logic_writes_completed_audit_run(monkeypatch, tmp_path):
     )
 
     assert exit_code == 0
-    run_files = list((tmp_path / "audit" / "runs").rglob("*.parquet"))
+    run_files = [
+        path
+        for path in (tmp_path / "audit" / "runs").glob("run_date=*/*.parquet")
+        if path.name != "_schema.parquet"
+    ]
     assert len(run_files) == 2
     run_id = run_files[0].name.split("_", 1)[0]
     result = AuditStore(tmp_path / "audit").get_run(run_id)

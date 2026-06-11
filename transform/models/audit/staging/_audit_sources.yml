@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: audit
+    description: "Append-only operational audit Parquet written by HPT commands."
+    meta:
+      external_location: "read_parquet('{{ env_var('HPT_AUDIT_ROOT', '../data/audit') }}/{name}/**/*.parquet', hive_partitioning=true, union_by_name=true)"
+    tables:
+      - name: runs
+        description: "Append-only started and completed state events for command invocations."
+      - name: attempts
+        description: "Append-only records for concrete download, ingest, and dbt attempts."

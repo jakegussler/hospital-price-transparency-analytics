@@ -171,3 +171,28 @@ def test_reconciliation_inputs_are_scoped(manifest: dict[str, object]) -> None:
                     node["name"],
                     dependency["name"],
                 )
+
+
+def test_audit_models_are_unscoped_views_outside_snapshot_registry(
+    manifest: dict[str, object],
+) -> None:
+    snapshot_names = _snapshot_model_names_from_macro()
+    audit_nodes = [
+        node
+        for node in _model_nodes(manifest).values()
+        if "audit" in node["config"]["tags"]
+    ]
+
+    assert {node["name"] for node in audit_nodes} == {
+        "stg_audit__run_events",
+        "stg_audit__attempts",
+        "audit__runs",
+        "audit__attempts",
+        "audit__attempt_stages",
+        "audit__attempt_row_counts",
+    }
+    for node in audit_nodes:
+        assert node["config"]["materialized"] == "view", node["name"]
+        assert node["name"] not in snapshot_names
+        assert "hpt_scoped_" not in node["raw_code"], node["name"]
+        assert "hpt_snapshot_filter" not in node["raw_code"], node["name"]

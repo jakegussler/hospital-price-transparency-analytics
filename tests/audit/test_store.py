@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 
+import pyarrow.dataset as ds
+import pytest
 from typer.testing import CliRunner
 
 from hpt.audit import AuditRun, AuditStore
+from hpt.audit.models import ATTEMPT_SCHEMA, RUN_SCHEMA
 from hpt.cli import cli
 
 
@@ -36,7 +39,37 @@ def test_audit_run_appends_states_and_joined_attempts(tmp_path):
     assert result["run"]["terminal_status"] == "success"
     assert result["run"]["options"] == {"bronze_root": "/tmp/bronze"}
     assert result["attempts"][0]["bronze_row_counts"] == {"csv_charge_rows": 4}
-    assert len(list((tmp_path / "audit" / "runs").rglob("*.parquet"))) == 2
+    run_partitions = tmp_path / "audit" / "runs"
+    run_files = [
+        path
+        for path in run_partitions.glob("run_date=*/*.parquet")
+        if path.name != "_schema.parquet"
+    ]
+    assert len(run_files) == 2
+
+
+def test_first_append_initializes_empty_schema_datasets(tmp_path):
+    store = AuditStore(tmp_path / "audit")
+
+    audit = AuditRun(store, command="download")
+
+    run_sentinel = store.root / "runs" / "run_date=1970-01-01" / "_schema.parquet"
+    attempt_sentinel = store.root / "attempts" / "run_date=1970-01-01" / "_schema.parquet"
+    assert run_sentinel.exists()
+    assert attempt_sentinel.exists()
+    assert ds.dataset(run_sentinel, schema=RUN_SCHEMA).count_rows() == 0
+    assert ds.dataset(attempt_sentinel, schema=ATTEMPT_SCHEMA).count_rows() == 0
+    duckdb = pytest.importorskip("duckdb")
+    connection = duckdb.connect()
+    run_glob = store.root / "runs" / "**" / "*.parquet"
+    attempt_glob = store.root / "attempts" / "**" / "*.parquet"
+    assert connection.sql(
+        f"select count(*) from read_parquet('{run_glob}', hive_partitioning=true)"
+    ).fetchone() == (1,)
+    assert connection.sql(
+        f"select count(*) from read_parquet('{attempt_glob}', hive_partitioning=true)"
+    ).fetchone() == (0,)
+    assert store.get_run(audit.run_id) is not None
 
 
 def test_started_only_run_is_reported_as_interrupted(tmp_path):

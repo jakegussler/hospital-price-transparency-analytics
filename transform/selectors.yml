@@ -46,3 +46,21 @@ selectors:
     definition:
       method: tag
       value: validation
+
+  - name: audit
+    description: "All operational audit staging and mart models."
+    definition:
+      method: tag
+      value: audit
+
+  - name: audit_staging
+    description: "Source-faithful operational audit staging models."
+    definition:
+      method: tag
+      value: audit_staging
+
+  - name: audit_marts
+    description: "Operational audit marts."
+    definition:
+      method: tag
+      value: audit_marts

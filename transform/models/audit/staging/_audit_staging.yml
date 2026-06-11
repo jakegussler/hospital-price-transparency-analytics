@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: stg_audit__run_events
+    description: "Source-faithful started and completed state events for audited commands."
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+      - name: run_date
+        tests:
+          - not_null
+      - name: state
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["started", "completed"]
+      - name: command
+        tests:
+          - not_null
+
+  - name: stg_audit__attempts
+    description: "Source-faithful records for concrete download, ingest, and dbt attempts."
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+      - name: attempt_id
+        tests:
+          - not_null
+          - unique
+      - name: attempt_ordinal
+        tests:
+          - not_null
+      - name: attempt_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["download", "ingest", "dbt"]
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["success", "failed"]

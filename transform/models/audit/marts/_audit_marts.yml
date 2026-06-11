@@ -1,0 +1,74 @@
+version: 2
+
+models:
+  - name: audit__runs
+    description: "One row per audited command invocation, resolved to its latest terminal state."
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+      - name: terminal_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["success", "partial", "failed", "running_or_interrupted"]
+
+  - name: audit__attempts
+    description: "One row per audit attempt enriched with its parent command and terminal status."
+    columns:
+      - name: attempt_id
+        tests:
+          - not_null
+          - unique
+      - name: run_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('audit__runs')
+                field: run_id
+      - name: run_command
+        tests:
+          - not_null
+      - name: run_terminal_status
+        tests:
+          - not_null
+
+  - name: audit__attempt_stages
+    description: "One row per attempt and named pipeline stage, combining stage status and elapsed time."
+    columns:
+      - name: attempt_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('audit__attempts')
+                field: attempt_id
+      - name: stage_name
+        tests:
+          - not_null
+
+  - name: audit__attempt_row_counts
+    description: "One row per attempt, count type, and output table reported by ingest."
+    columns:
+      - name: attempt_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('audit__attempts')
+                field: attempt_id
+      - name: count_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["bronze", "quarantine"]
+      - name: table_name
+        tests:
+          - not_null
+      - name: row_count
+        tests:
+          - not_null

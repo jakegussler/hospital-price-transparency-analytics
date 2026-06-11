@@ -110,6 +110,14 @@ models:
           +materialized: table
         val_stats__rule_summary:
           +materialized: table
+    audit:
+      +schema: audit
+      +materialized: view
+      +tags: ["audit"]
+      staging:
+        +tags: ["audit_staging"]
+      marts:
+        +tags: ["audit_marts"]
 
 seeds:
   hospital_price_transparency:
