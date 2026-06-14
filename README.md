@@ -162,8 +162,8 @@ The dbt project defines selectors for `staging`, `silver_base`, `silver_core`,
 
 `hpt run-dbt` defaults to the complete dbt graph so snapshot-grained
 consumers, Silver tables, and cross-model tests stay coherent. Pass `--selector`
-only for an intentionally partial run; per-snapshot `--full-refresh` rejects
-partial selectors.
+only for an intentionally partial run. Per-snapshot runs, including
+`--full-refresh`, accept partial selectors.
 
 When a build fails partway it can leave a snapshot partially materialized across
 the Silver and validation tables. `hpt clear-snapshot --snapshot-ids <id>`

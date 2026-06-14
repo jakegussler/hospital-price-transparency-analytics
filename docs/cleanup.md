@@ -7,6 +7,22 @@ to the relevant docs and delete resolved items from here.
 
 ## dbt And Bronze Source Risks
 
+- Billing-code normalization added `modifier_signature`, `modifier_count`,
+  `clean_setting`, and `clean_billing_class` to `slv_core__payer_rates` via
+  `on_schema_change: append_new_columns`, so payer-rate rows for snapshots not
+  rebuilt since the change hold nulls in those columns and the two `not_null`
+  tests on `modifier_signature`/`modifier_count` fail until those snapshots are
+  rebuilt. The three pinned AGENTS.md snapshots are already backfilled by
+  scoped builds. Run an unscoped rebuild (for example `make dbt-rebuild`) to
+  backfill the rest; that run also executes the new `_core_unit_tests.yml`
+  unit tests, which snapshot-scoped runs exclude by design.
+- Charge-item normalization has the same backfill caveat: `code_is_specific`
+  on `slv_core__charge_item_codes` holds nulls (and its `not_null` test fails)
+  for snapshots not rebuilt since the change, the new `slv_core__charge_items`
+  model holds rows only for rebuilt snapshots, and `slv_core__service_items`
+  — rebuilt from whatever `slv_core__charge_items` holds — covers only those
+  snapshots until an unscoped rebuild. The three pinned AGENTS.md snapshots
+  are backfilled by scoped builds.
 - `reconcile_csv_rows_to_standard_charges` reports a small number of CSV charge
   rows (8 observed for `ballad-jcmc`) that map to no Silver standard charge and
   are not captured by any rejection model. Snapshot scoping surfaced this

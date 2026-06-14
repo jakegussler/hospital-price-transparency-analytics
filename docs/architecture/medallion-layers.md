@@ -75,11 +75,15 @@ diagram.
 
 ## Silver
 
-Status: foundation implemented. The dbt project has `models/silver/base/`
-models that normalize Bronze snapshots, hospitals, charge items, standard charge
-contexts, payer rates, codes, NPIs, locations, and modifiers. Conformed Silver
-models for reviewed payer, plan, and cross-snapshot item identity are still
-planned.
+Status: foundation and core implemented. The dbt project has
+`models/silver/base/` models that normalize Bronze snapshots, hospitals, charge
+items, standard charge contexts, payer rates, codes, NPIs, locations, and
+modifiers, and `models/silver/core/` models that add canonical payer identity
+plus payer/plan context, billing-code enrichment (match keys, format status,
+comparability, NDC canonical-11), modifier and drug-unit reference enrichment,
+and deterministic within-hospital cross-snapshot service-item identity
+(`slv_core__charge_items` signatures and the `slv_core__service_items`
+dimension). Data-quality finding views live under `models/silver/audit/`.
 
 Silver converts source-faithful, validation-filtered Bronze data into
 normalized analytical entities.
@@ -103,7 +107,12 @@ incrementally with `delete+insert` on `snapshot_id`. Staging remains canonical
 unscoped views; snapshot-grained consumers scope their inputs for each run. The
 registry-backed `slv_base__hospitals` dimension remains a full-refresh table,
 and review queue models remain full-refresh tables because they aggregate
-across snapshots.
+across snapshots. The cross-snapshot `slv_core__service_items` dimension is
+likewise a full-refresh table that reads its inputs unscoped and is excluded
+from the snapshot prune: it spans snapshots by design, and a snapshot-scoped
+run must not shrink it. Under `current_only` retention it builds correctly but
+shows `snapshot_count = 1` everywhere; continuity tracking needs
+`all_snapshots` retention and multi-snapshot ingestion.
 
 Silver retention is controlled by `HPT_SILVER_RETENTION_MODE`:
 

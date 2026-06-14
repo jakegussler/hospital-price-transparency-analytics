@@ -74,7 +74,7 @@ targeted run cannot validate the change. See
 permission to use its unscoped/full-refresh examples.
 
 dbt selectors available: `staging`, `silver_base`, `silver_core`,
-`silver_review_queue`, `silver`, `validation`,
+`silver_review_queue`, `silver_audit`, `silver`, `validation`,
 `pipeline_snapshot_metadata`, `pipeline_charge_data`.
 
 ## Code map
