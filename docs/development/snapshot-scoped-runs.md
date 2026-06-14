@@ -71,15 +71,18 @@ memory on large registries. `--seeds` seeds once up front; the stale-snapshot
 prune runs once after every snapshot is built.
 
 `--full-refresh` is allowed here (unlike a plain scoped run) and applies dbt
-`--full-refresh` to the **first** snapshot only, rebuilding the complete graph
-from scratch so later snapshots append incrementally rather than overwriting.
-It cannot be combined with `--selector`: a partial full refresh would replace
-selected parent tables while leaving unselected siblings and downstream models
-stale.
+`--full-refresh` to the **first** snapshot for each selector, rebuilding the
+selected graph from scratch so later snapshots append incrementally rather than
+overwriting. Partial selectors are allowed, but callers are responsible for
+choosing a selector whose selected parents and downstream models can be
+refreshed coherently.
 
 ```bash
 # Rebuild incremental tables from scratch, then append each remaining snapshot.
 hpt run-dbt --per-snapshot --full-refresh --seeds
+
+# Rebuild only the selected graph one snapshot at a time.
+hpt run-dbt --per-snapshot --full-refresh --selector per_snapshot
 ```
 
 ## Retention

@@ -299,8 +299,8 @@ def run_dbt(
         False,
         "--full-refresh",
         help=(
-            "With --per-snapshot and no --selector, apply dbt --full-refresh to the "
-            "first snapshot only so the full graph is rebuilt before later snapshots append."
+            "With --per-snapshot, apply dbt --full-refresh to the first snapshot "
+            "for each selector so later snapshots append."
         ),
     ),
     full_rebuild: bool = typer.Option(

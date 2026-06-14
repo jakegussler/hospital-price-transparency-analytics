@@ -138,14 +138,14 @@ def test_full_refresh_only_for_per_snapshot_or_rebuild() -> None:
         DbtRunConfig(mode=DbtRunMode.SCOPED, command="build", full_refresh=True)
 
 
-def test_per_snapshot_full_refresh_rejects_partial_selector() -> None:
-    with pytest.raises(ValueError, match="must run without --selector"):
-        DbtRunConfig(
-            mode=DbtRunMode.PER_SNAPSHOT,
-            command="build",
-            selectors="pipeline_charge_data",
-            full_refresh=True,
-        )
+def test_per_snapshot_full_refresh_allows_partial_selector() -> None:
+    cfg = DbtRunConfig.from_cli(
+        per_snapshot=True,
+        selector="per_snapshot",
+        full_refresh=True,
+    )
+    assert cfg.mode is DbtRunMode.PER_SNAPSHOT
+    assert cfg.selectors == ["per_snapshot"]
 
 
 def test_full_rebuild_requires_materializing_command() -> None:

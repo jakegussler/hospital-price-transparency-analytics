@@ -124,10 +124,9 @@ class DbtOrchestrator:
     def _run_per_snapshot(self) -> int:
         """PER_SNAPSHOT: iterate snapshots (per selector) to bound peak memory.
 
-        ``full_refresh`` is valid only without selectors and applies
-        ``--full-refresh`` to the first snapshot, rebuilding the complete graph
-        so later snapshots append rather than overwrite. The prune runs once
-        after every snapshot is built.
+        ``full_refresh`` applies ``--full-refresh`` to the first snapshot for
+        each selector, rebuilding that selected graph so later snapshots append
+        rather than overwrite. The prune runs once after every snapshot is built.
         """
         cfg = self._config
         ids = self._resolve_snapshots()

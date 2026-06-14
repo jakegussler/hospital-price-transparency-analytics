@@ -296,6 +296,23 @@ def test_per_snapshot_runs_dbt_once_per_snapshot(
     assert runner.calls[2][:2] == ["run-operation", "hpt_prune_stale_snapshots"]
 
 
+def test_per_snapshot_runs_selected_graph_once_per_snapshot(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    _patch_two_hospitals(monkeypatch)
+    runner = RecordingRunner()
+    config = DbtRunConfig(
+        mode=DbtRunMode.PER_SNAPSHOT,
+        command="build",
+        selectors="per_snapshot",
+    )
+    assert _run(config, monkeypatch, runner) == 0
+
+    assert _commands(runner) == ["build", "build", "run-operation"]
+    assert _selector(runner.calls[0]) == "per_snapshot"
+    assert _selector(runner.calls[1]) == "per_snapshot"
+
+
 def test_per_snapshot_seeds_once_and_full_refreshes_first_only(
     monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
 ) -> None:
@@ -309,6 +326,29 @@ def test_per_snapshot_seeds_once_and_full_refreshes_first_only(
     assert _commands(runner) == ["seed", "build", "build", "run-operation"]
     assert "--full-refresh" in runner.calls[1]
     assert "--full-refresh" not in runner.calls[2]
+
+
+def test_per_snapshot_selected_full_refresh_refreshes_first_snapshot_per_selector(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    _patch_two_hospitals(monkeypatch)
+    runner = RecordingRunner()
+    config = DbtRunConfig(
+        mode=DbtRunMode.PER_SNAPSHOT,
+        command="build",
+        selectors="per_snapshot,audit",
+        full_refresh=True,
+    )
+    assert _run(config, monkeypatch, runner) == 0
+
+    assert _selector(runner.calls[0]) == "per_snapshot"
+    assert _selector(runner.calls[1]) == "per_snapshot"
+    assert _selector(runner.calls[2]) == "audit"
+    assert _selector(runner.calls[3]) == "audit"
+    assert "--full-refresh" in runner.calls[0]
+    assert "--full-refresh" not in runner.calls[1]
+    assert "--full-refresh" in runner.calls[2]
+    assert "--full-refresh" not in runner.calls[3]
 
 
 def test_per_snapshot_stops_on_first_failure(

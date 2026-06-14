@@ -70,5 +70,6 @@ Use `make dbt-rebuild` or `hpt run-dbt --full-rebuild` for that path. Normal
 scoped incremental runs should use `hpt run-dbt --hospital-ids ...` or
 `hpt run-dbt --snapshot-ids ...`; the runner rejects scoped `--full-refresh`
 because it would replace incremental tables with only the scoped rows.
-Per-snapshot full refresh is supported only without `--selector`, so the complete
-snapshot-grained dependency graph is rebuilt together.
+Per-snapshot full refresh accepts `--selector` and refreshes the first snapshot
+for each selected graph. Callers are responsible for selecting a coherent set
+of snapshot-grained dependencies.

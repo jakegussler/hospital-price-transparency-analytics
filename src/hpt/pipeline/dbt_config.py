@@ -105,11 +105,6 @@ class DbtRunConfig:
                 raise ValueError("full_refresh only applies to per-snapshot or full-rebuild runs.")
             if not self.is_materializing:
                 raise ValueError("full_refresh only applies to dbt build or run.")
-            if self.mode is DbtRunMode.PER_SNAPSHOT and self.selectors:
-                raise ValueError(
-                    "Per-snapshot full refresh must run without --selector so every "
-                    "snapshot-grained dependency is rebuilt together."
-                )
         if self.mode is DbtRunMode.FULL_REBUILD:
             if not self.is_materializing:
                 raise ValueError(
