@@ -116,6 +116,105 @@ models:
               arguments:
                 values: ["needs_review"]
 
+  - name: slv_review_queue__code_system_candidates
+    description: >
+      Review queue of clean code-type labels that did not resolve to a
+      canonical code system through the cms_code_types seed. Empty today (100%
+      of code rows resolve); a future unrecognized label becomes a curation
+      signal here instead of a silent gap. Recurring volume in this queue is
+      the trigger to consider a code_system_aliases seed.
+    config:
+      tags: ["silver_review_queue", "silver", "code_normalization"]
+    columns:
+      - name: code_system_candidate_key
+        description: "Stable key for the unresolved clean code-type label."
+        tests:
+          - not_null
+          - unique
+      - name: clean_code_type
+        description: "Deterministically cleaned code-type label with no canonical code-system match."
+        tests:
+          - not_null
+      - name: example_raw_code_type
+        description: "Example raw code-type value observed for this unresolved label."
+      - name: example_clean_code
+        description: "Example cleaned code value observed with this unresolved label, when present."
+      - name: example_raw_code
+        description: "Example raw code value observed with this unresolved label, when present."
+      - name: code_rows
+        description: "Number of Silver Base code rows carrying this unresolved code-type label."
+        tests:
+          - not_null
+      - name: hospital_count
+        description: "Number of hospitals where this unresolved code-type label appears."
+        tests:
+          - not_null
+      - name: snapshot_count
+        description: "Number of hospital MRF snapshots where this unresolved code-type label appears."
+        tests:
+          - not_null
+      - name: source_format_count
+        description: "Number of source formats where this unresolved code-type label appears."
+        tests:
+          - not_null
+      - name: distinct_clean_codes
+        description: "Number of distinct non-null cleaned code values observed with this unresolved label."
+        tests:
+          - not_null
+      - name: review_queue_status
+        description: "Review status for this queue row. This model only emits needs_review rows."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["needs_review"]
+
+  - name: slv_review_queue__modifier_candidates
+    description: >
+      Review queue of modifier codes observed on charge or rate rows that have
+      no entry in the modifier_reference seed. Sustained volume here is the
+      signal to research the modifier and extend the seed; source-defined JSON
+      modifier descriptions are surfaced as review evidence when available.
+    config:
+      tags: ["silver_review_queue", "silver", "code_normalization"]
+    columns:
+      - name: modifier_candidate_key
+        description: "Stable key for the unreferenced uppercased modifier code."
+        tests:
+          - not_null
+          - unique
+      - name: match_modifier_code
+        description: "Uppercased modifier code with no modifier_reference seed entry."
+        tests:
+          - not_null
+      - name: example_raw_modifier_code
+        description: "Example raw modifier code observed for this candidate."
+      - name: example_source_definition
+        description: "Example source-defined modifier description from JSON snapshot metadata, when available."
+      - name: modifier_rows
+        description: "Number of Silver Core charge-modifier rows carrying this unreferenced code."
+        tests:
+          - not_null
+      - name: hospital_count
+        description: "Number of hospitals where this unreferenced modifier code appears."
+        tests:
+          - not_null
+      - name: snapshot_count
+        description: "Number of hospital MRF snapshots where this unreferenced modifier code appears."
+        tests:
+          - not_null
+      - name: source_format_count
+        description: "Number of source formats where this unreferenced modifier code appears."
+        tests:
+          - not_null
+      - name: review_queue_status
+        description: "Review status for this queue row. This model only emits needs_review rows."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["needs_review"]
+
   - name: slv_review_queue__plan_context_candidates
     description: >
       Review queue of known canonical payer and clean plan name combinations

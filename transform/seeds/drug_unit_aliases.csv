@@ -1,0 +1,8 @@
+raw_unit_code,clean_unit_code,canonical_unit,unit_group,notes
+EA,ea,each,count,CMS HCPCS/NDC unit of measure code for each
+UN,un,unit,count,Generic unit such as insulin units
+F2,f2,international_unit,activity,International unit
+ME,me,mg,mass,Milligram
+GR,gr,g,mass,Gram
+GM,gm,g,mass,Gram alternate code observed alongside GR
+ML,ml,ml,volume,Milliliter

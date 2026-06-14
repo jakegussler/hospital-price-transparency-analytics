@@ -141,6 +141,65 @@ seeds:
         tests:
           - not_null
 
+  - name: modifier_reference
+    description: "CMS-standard modifier reference used by Silver Core modifier enrichment. A shared baseline classification, especially for CSV snapshots without source-defined modifier metadata; it does not override source-defined JSON modifier definitions."
+    columns:
+      - name: modifier_code
+        description: "Uppercase CMS modifier code joined against uppercased clean modifier codes."
+        tests:
+          - not_null
+          - unique
+      - name: modifier_class
+        description: "Specific modifier classification used by downstream cohort logic."
+        tests:
+          - not_null
+      - name: modifier_meaning
+        description: "Short CMS meaning of the modifier."
+        tests:
+          - not_null
+      - name: affects_pro_tech_split
+        description: "Whether the modifier splits a global service into professional and technical components (26 and TC). Rates differing on this flag must never be aggregated together."
+        tests:
+          - not_null
+      - name: modifier_category
+        description: "Broad modifier grouping for review and filtering."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["payment", "anatomic", "dme", "lab", "therapy", "drug", "billing", "supply"]
+      - name: evidence_source
+        description: "Source category supporting the classification; cms for CMS-published modifier definitions."
+        tests:
+          - not_null
+      - name: notes
+        description: "Reviewer notes for classifications that need context."
+
+  - name: drug_unit_aliases
+    description: "Observed CMS unit-of-measure codes mapped to a canonical drug unit and unit group for Silver Core drug enrichment. No cross-unit quantity conversion is implied; quantities are only comparable within a unit group."
+    columns:
+      - name: raw_unit_code
+        description: "Source-cased unit code as observed in MRF drug information."
+        tests:
+          - not_null
+          - unique
+      - name: clean_unit_code
+        description: "Lowercase cleaned unit code joined against clean_drug_unit_type."
+        tests:
+          - not_null
+          - unique
+      - name: canonical_unit
+        description: "Canonical unit token (each, unit, international_unit, mg, g, ml)."
+        tests:
+          - not_null
+      - name: unit_group
+        description: "Unit family used to gate any future same-group comparison."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["count", "activity", "mass", "volume"]
+      - name: notes
+        description: "Reviewer notes on the unit code mapping."
+
   - name: canonical_payers
     description: "Reviewed broad payer identities used for Silver Core payer normalization. Product, program, segment, network, and benefit-line context lives in payer_context_rules."
     columns:

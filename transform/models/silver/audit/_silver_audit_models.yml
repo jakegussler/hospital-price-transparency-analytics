@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: slv_audit__service_item_overmerge
+    description: >
+      Over-merge findings for the deterministic service-item identity:
+      specific_code-basis service_item_ids whose key absorbs more than one
+      description or source item, ranked by within-snapshot description
+      spread (the regression signal; cross-snapshot drift is the design
+      working as intended). These are findings for humans to read — there is
+      no accept/reject workflow because item identity is algorithmic, not
+      curated.
+    columns:
+      - name: service_item_id
+        description: "The flagged within-hospital service-item identity."
+      - name: max_snapshot_distinct_descriptions
+        description: "Largest number of distinct clean descriptions the ID absorbs inside a single snapshot. Values above 1 are token-equal variants; sustained growth indicates a signature regression."
+      - name: max_snapshot_source_items
+        description: "Largest number of distinct Silver Base items rolled into the ID inside a single snapshot."
+
+  - name: slv_audit__code_validation_findings
+    description: >
+      Code-quality findings from the Silver Core code enrichment, aggregated
+      by hospital, code system, and status over current snapshots. Excludes
+      the not_validated status on purpose: CDM/LOCAL systems have no
+      canonical format and would flood the findings. Complements the
+      code-system review queue, which only covers unresolved system labels.
+    columns:
+      - name: code_system
+        description: "Canonical code system when resolved, otherwise the clean label, otherwise '<missing>'."
+      - name: code_rows
+        description: "Offending code rows for this hospital/system/status combination."

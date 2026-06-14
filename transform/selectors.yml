@@ -23,8 +23,14 @@ selectors:
       method: tag
       value: silver_review_queue
 
+  - name: silver_audit
+    description: "Silver data-quality audit finding views."
+    definition:
+      method: tag
+      value: silver_audit
+
   - name: silver
-    description: "All Silver base and Silver core models."
+    description: "All Silver models: base, core, review queue, and audit findings."
     definition:
       method: tag
       value: silver
@@ -40,6 +46,16 @@ selectors:
     definition:
       method: tag
       value: pipeline_charge_data
+
+  - name: per_snapshot
+    description: "All standard per-snapshot pipeline models, excluding operational audit models."
+    definition:
+      union:
+        - method: path
+          value: models
+        - exclude:
+            - method: path
+              value: models/audit
 
   - name: validation
     description: "Validation models, rejection keysets, and validation statistics."

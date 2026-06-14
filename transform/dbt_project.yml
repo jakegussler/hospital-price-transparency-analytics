@@ -93,6 +93,9 @@ models:
       review_queue:
         +materialized: table
         +tags: ["silver_review_queue", "silver"]
+      audit:
+        +materialized: view
+        +tags: ["silver_audit", "silver"]
     validation:
       +schema: validation
       +materialized: incremental
@@ -158,3 +161,19 @@ seeds:
     payer_context_rules:
       +column_types:
         plan_type: varchar
+    modifier_reference:
+      +column_types:
+        modifier_code: varchar
+        modifier_class: varchar
+        modifier_meaning: varchar
+        affects_pro_tech_split: boolean
+        modifier_category: varchar
+        evidence_source: varchar
+        notes: varchar
+    drug_unit_aliases:
+      +column_types:
+        raw_unit_code: varchar
+        clean_unit_code: varchar
+        canonical_unit: varchar
+        unit_group: varchar
+        notes: varchar

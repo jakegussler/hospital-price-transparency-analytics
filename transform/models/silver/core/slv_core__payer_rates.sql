@@ -1,5 +1,9 @@
 select
     pr.*,
+    standard_charges.clean_setting,
+    standard_charges.clean_billing_class,
+    coalesce(rate_modifiers.modifier_signature, md5('<no_modifiers>')) as modifier_signature,
+    coalesce(rate_modifiers.modifier_count, 0) as modifier_count,
     alias_matches.canonical_payer_id,
     canonical_payers.canonical_payer_name,
     canonical_payers.payer_parent_id,
@@ -35,6 +39,10 @@ select
     context_matches.payer_context_review_status,
     context_matches.payer_context_confidence
 from {{ hpt_scoped_ref('slv_base__payer_rates') }} pr
+left join {{ hpt_scoped_ref('slv_base__standard_charges') }} standard_charges
+    on pr.silver_standard_charge_id = standard_charges.silver_standard_charge_id
+left join {{ ref('slv_core__rate_modifier_signature') }} rate_modifiers
+    on pr.silver_payer_rate_id = rate_modifiers.silver_payer_rate_id
 left join {{ ref('slv_core__payer_alias_matches') }} alias_matches
     on pr.silver_payer_rate_id = alias_matches.silver_payer_rate_id
 left join {{ ref('slv_core__payer_context_matches') }} context_matches

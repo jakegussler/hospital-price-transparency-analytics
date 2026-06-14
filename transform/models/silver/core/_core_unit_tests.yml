@@ -1,0 +1,135 @@
+version: 2
+
+unit_tests:
+  - name: charge_item_code_match_and_format_derivations
+    description: >
+      Fixture coverage for the Silver Core code enrichment: per-system
+      zero-padding (revenue codes to 4, DRG family to 3, APC to 4 including
+      over-padded 5-digit values), every NDC layout (canonical 11-digit,
+      paddable 10-digit hyphenated 4-4-2 / 5-3-2 / 5-4-1, ambiguous
+      unhyphenated, invalid layouts and lengths), generic match-key cleanup,
+      format statuses, and the cross-hospital comparability flag.
+    model: slv_core__charge_item_codes
+    given:
+      - input: ref('slv_base__charge_item_codes')
+        format: sql
+        rows: |
+          select * from (
+              values
+                  ('rc_3digit', 'item-1', 'snap-1', 'hosp-1', 'json', 0, '450', '450', 'RC', 'rc', 'rc', 'json_code_information'),
+                  ('rc_4digit', 'item-1', 'snap-1', 'hosp-1', 'json', 1, '0450', '0450', 'RC', 'rc', 'rc', 'json_code_information'),
+                  ('msdrg_1digit', 'item-2', 'snap-1', 'hosp-1', 'json', 0, '5', '5', 'MS-DRG', 'ms-drg', 'ms-drg', 'json_code_information'),
+                  ('trisdrg_2digit', 'item-2', 'snap-1', 'hosp-1', 'json', 1, '45', '45', 'TRIS-DRG', 'tris-drg', 'tris-drg', 'json_code_information'),
+                  ('apc_3digit', 'item-3', 'snap-1', 'hosp-1', 'json', 0, '604', '604', 'APC', 'apc', 'apc', 'json_code_information'),
+                  ('apc_overpadded', 'item-3', 'snap-1', 'hosp-1', 'json', 1, '05302', '05302', 'APC', 'apc', 'apc', 'json_code_information'),
+                  ('ndc_4_4_2', 'item-4', 'snap-1', 'hosp-1', 'json', 0, '1234-5678-90', '1234-5678-90', 'NDC', 'ndc', 'ndc', 'json_code_information'),
+                  ('ndc_5_3_2', 'item-4', 'snap-1', 'hosp-1', 'json', 1, '12345-678-90', '12345-678-90', 'NDC', 'ndc', 'ndc', 'json_code_information'),
+                  ('ndc_5_4_1', 'item-4', 'snap-1', 'hosp-1', 'json', 2, '12345-6789-0', '12345-6789-0', 'NDC', 'ndc', 'ndc', 'json_code_information'),
+                  ('ndc_11_hyphenated', 'item-4', 'snap-1', 'hosp-1', 'json', 3, '12345-6789-01', '12345-6789-01', 'NDC', 'ndc', 'ndc', 'json_code_information'),
+                  ('ndc_11_plain', 'item-4', 'snap-1', 'hosp-1', 'json', 4, '12345678901', '12345678901', 'NDC', 'ndc', 'ndc', 'json_code_information'),
+                  ('ndc_10_plain', 'item-4', 'snap-1', 'hosp-1', 'json', 5, '1234567890', '1234567890', 'NDC', 'ndc', 'ndc', 'json_code_information'),
+                  ('ndc_5_5', 'item-4', 'snap-1', 'hosp-1', 'json', 6, '12345-67890', '12345-67890', 'NDC', 'ndc', 'ndc', 'json_code_information'),
+                  ('ndc_8_digits', 'item-4', 'snap-1', 'hosp-1', 'json', 7, '12345678', '12345678', 'NDC', 'ndc', 'ndc', 'json_code_information'),
+                  ('cdm_code', 'item-5', 'snap-1', 'hosp-1', 'csv_tall', 0, 'ABC 123', 'ABC 123', 'CDM', 'cdm', 'cdm', 'csv_charge_rows'),
+                  ('local_code', 'item-5', 'snap-1', 'hosp-1', 'csv_tall', 1, 'pharm 001', 'pharm 001', 'LOCAL', 'local', 'local', 'csv_charge_rows'),
+                  ('hcpcs_level2', 'item-6', 'snap-1', 'hosp-1', 'csv_tall', 0, 'J1100', 'J1100', 'HCPCS', 'hcpcs', 'hcpcs', 'csv_charge_rows'),
+                  ('hcpcs_with_junk', 'item-6', 'snap-1', 'hosp-1', 'csv_tall', 1, 'J1100TC26', 'J1100TC26', 'HCPCS', 'hcpcs', 'hcpcs', 'csv_charge_rows'),
+                  ('cpt_5digit', 'item-7', 'snap-1', 'hosp-1', 'csv_tall', 0, '99213', '99213', 'CPT', 'cpt', 'cpt', 'csv_charge_rows'),
+                  ('cpt_pla', 'item-7', 'snap-1', 'hosp-1', 'csv_tall', 1, '0001U', '0001U', 'CPT', 'cpt', 'cpt', 'csv_charge_rows'),
+                  ('missing_code', 'item-8', 'snap-1', 'hosp-1', 'json', 0, null, null, 'RC', 'rc', 'rc', 'json_code_information'),
+                  ('missing_system', 'item-8', 'snap-1', 'hosp-1', 'json', 1, '123', '123', null, null, null, 'json_code_information'),
+                  ('unknown_system', 'item-8', 'snap-1', 'hosp-1', 'json', 2, '456', '456', 'Mystery Code', 'mystery code', null, 'json_code_information')
+          ) as fixture(
+              silver_charge_item_code_id, silver_charge_item_id, snapshot_id,
+              hospital_id, source_format, code_ordinal, raw_code, clean_code,
+              raw_code_type, clean_code_type, canonical_code_system, source_code_path
+          )
+    expect:
+      rows:
+        - {silver_charge_item_code_id: rc_3digit, match_code: "0450", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: false, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: rc_4digit, match_code: "0450", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: false, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: msdrg_1digit, match_code: "005", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: trisdrg_2digit, match_code: "045", code_format_status: not_validated, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: apc_3digit, match_code: "0604", code_format_status: not_validated, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: apc_overpadded, match_code: "5302", code_format_status: not_validated, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: ndc_4_4_2, match_code: "01234567890", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: "01234567890", ndc_format_status: padded_from_10_4_4_2}
+        - {silver_charge_item_code_id: ndc_5_3_2, match_code: "12345067890", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: "12345067890", ndc_format_status: padded_from_10_5_3_2}
+        - {silver_charge_item_code_id: ndc_5_4_1, match_code: "12345678900", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: "12345678900", ndc_format_status: padded_from_10_5_4_1}
+        - {silver_charge_item_code_id: ndc_11_hyphenated, match_code: "12345678901", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: "12345678901", ndc_format_status: canonical_11}
+        - {silver_charge_item_code_id: ndc_11_plain, match_code: "12345678901", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: "12345678901", ndc_format_status: canonical_11_unhyphenated}
+        - {silver_charge_item_code_id: ndc_10_plain, match_code: "1234567890", code_format_status: invalid_format, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: ambiguous_10_unhyphenated}
+        - {silver_charge_item_code_id: ndc_5_5, match_code: "12345-67890", code_format_status: invalid_format, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: invalid_layout}
+        - {silver_charge_item_code_id: ndc_8_digits, match_code: "12345678", code_format_status: invalid_format, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: invalid_length}
+        - {silver_charge_item_code_id: cdm_code, match_code: "ABC123", code_format_status: not_validated, code_cross_hospital_comparable: false, code_is_specific: false, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: local_code, match_code: "PHARM001", code_format_status: not_validated, code_cross_hospital_comparable: false, code_is_specific: false, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: hcpcs_level2, match_code: "J1100", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: hcpcs_with_junk, match_code: "J1100TC26", code_format_status: invalid_format, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: cpt_5digit, match_code: "99213", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: cpt_pla, match_code: "0001U", code_format_status: valid, code_cross_hospital_comparable: true, code_is_specific: true, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: missing_code, match_code: null, code_format_status: missing_code, code_cross_hospital_comparable: true, code_is_specific: false, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: missing_system, match_code: "123", code_format_status: missing_code_system, code_cross_hospital_comparable: false, code_is_specific: false, canonical_ndc_11: null, ndc_format_status: null}
+        - {silver_charge_item_code_id: unknown_system, match_code: "456", code_format_status: unknown_code_system, code_cross_hospital_comparable: false, code_is_specific: false, canonical_ndc_11: null, ndc_format_status: null}
+
+  - name: charge_items_cross_format_identity_consistency
+    description: >
+      Fixture coverage for the Option C identity key: a JSON item and a CSV
+      item from different snapshots of the same hospital, with identical
+      specific codes and a word-order-drifted description, must produce
+      identical signatures and the same service_item_id even though their
+      categorical revenue codes differ. Also covers the categorical-only and
+      uncoded fallback paths, and two drug items differing only in drug_unit
+      quantity (deliberately excluded from identity) sharing one ID.
+    model: slv_core__charge_items
+    given:
+      - input: ref('slv_base__charge_items')
+        rows:
+          - {silver_charge_item_id: item-json-ct, snapshot_id: snap-1, hospital_id: hosp-1, source_format: json, clean_description: "CT ABDOMEN W/CONTRAST"}
+          - {silver_charge_item_id: item-csv-ct, snapshot_id: snap-2, hospital_id: hosp-1, source_format: csv_tall, clean_description: "CT W/CONTRAST ABDOMEN"}
+          - {silver_charge_item_id: item-cat, snapshot_id: snap-1, hospital_id: hosp-1, source_format: json, clean_description: "CLINIC VISIT LEVEL 1"}
+          - {silver_charge_item_id: item-unc, snapshot_id: snap-1, hospital_id: hosp-1, source_format: json, clean_description: "MISC SUPPLY"}
+          - {silver_charge_item_id: item-drug-1, snapshot_id: snap-1, hospital_id: hosp-1, source_format: json, clean_description: "AMOXICILLIN 500 MG CAP", drug_unit: 1, clean_drug_unit_type: ea}
+          - {silver_charge_item_id: item-drug-2, snapshot_id: snap-2, hospital_id: hosp-1, source_format: csv_tall, clean_description: "AMOXICILLIN 500 MG CAP", drug_unit: 10, clean_drug_unit_type: ea}
+      - input: ref('slv_core__charge_item_codes')
+        rows:
+          - {silver_charge_item_id: item-json-ct, match_code: "74160", canonical_code_system: cpt, clean_code_type: cpt, code_is_specific: true}
+          - {silver_charge_item_id: item-json-ct, match_code: "0452", canonical_code_system: rc, clean_code_type: rc, code_is_specific: false}
+          - {silver_charge_item_id: item-csv-ct, match_code: "74160", canonical_code_system: cpt, clean_code_type: cpt, code_is_specific: true}
+          - {silver_charge_item_id: item-csv-ct, match_code: "0450", canonical_code_system: rc, clean_code_type: rc, code_is_specific: false}
+          - {silver_charge_item_id: item-cat, match_code: "0510", canonical_code_system: rc, clean_code_type: rc, code_is_specific: false}
+          - {silver_charge_item_id: item-drug-1, match_code: "12345678901", canonical_code_system: ndc, clean_code_type: ndc, code_is_specific: true}
+          - {silver_charge_item_id: item-drug-2, match_code: "12345678901", canonical_code_system: ndc, clean_code_type: ndc, code_is_specific: true}
+      - input: ref('drug_unit_aliases')
+        rows:
+          - {raw_unit_code: EA, clean_unit_code: ea, canonical_unit: each, unit_group: count}
+    expect:
+      rows:
+        - {silver_charge_item_id: item-json-ct, description_token_signature: e0d3e748cbdb9f005d8dc74123d6696f, code_signature_specific: ab1b277550644f631d3fd49af7b672dd, code_signature_all: 3172b9bfd26cfdce1dc7bb71ebafe6ff, drug_signature: null, service_item_identity_basis: specific_code, service_item_identity_confidence: high, service_item_id: 2aaeb2cc67e8b2852e6c4029b949636c}
+        - {silver_charge_item_id: item-csv-ct, description_token_signature: e0d3e748cbdb9f005d8dc74123d6696f, code_signature_specific: ab1b277550644f631d3fd49af7b672dd, code_signature_all: c3dd9ca8d6eeed49e7eeba5f6dad550b, drug_signature: null, service_item_identity_basis: specific_code, service_item_identity_confidence: high, service_item_id: 2aaeb2cc67e8b2852e6c4029b949636c}
+        - {silver_charge_item_id: item-cat, description_token_signature: 06e7ee1d29a9c0b841757fdc531d7774, code_signature_specific: null, code_signature_all: c3bf85991c901e2f462534e9e83e854c, drug_signature: null, service_item_identity_basis: categorical_code, service_item_identity_confidence: medium, service_item_id: 6da820b2602a4a475a57a9d62ac670fa}
+        - {silver_charge_item_id: item-unc, description_token_signature: 2e06f5f011e2969663fe3f744f3e778c, code_signature_specific: null, code_signature_all: null, drug_signature: null, service_item_identity_basis: uncoded, service_item_identity_confidence: low, service_item_id: df95060ad941f3a2587e2ff8a433bc9c}
+        - {silver_charge_item_id: item-drug-1, description_token_signature: 0141d059c48262b4a76e29286bbacbf2, code_signature_specific: f315472c792d27762937b94dbcabf5e1, code_signature_all: f315472c792d27762937b94dbcabf5e1, drug_signature: 940cde81163ef742db536a54a85dc7d5, service_item_identity_basis: specific_code, service_item_identity_confidence: high, service_item_id: 63ea2d2cb6303d6d11228769f187c325}
+        - {silver_charge_item_id: item-drug-2, description_token_signature: 0141d059c48262b4a76e29286bbacbf2, code_signature_specific: f315472c792d27762937b94dbcabf5e1, code_signature_all: f315472c792d27762937b94dbcabf5e1, drug_signature: 940cde81163ef742db536a54a85dc7d5, service_item_identity_basis: specific_code, service_item_identity_confidence: high, service_item_id: 63ea2d2cb6303d6d11228769f187c325}
+
+  - name: service_items_cross_snapshot_continuity
+    description: >
+      Continuity fixture for the cross-snapshot dimension: the same
+      service_item_id appearing in two snapshots of one hospital with a
+      drifted description rolls up to one row with snapshot_count 2, correct
+      first/last seen lineage, and the most recent description as
+      representative. Real-data continuity validation is pending
+      multi-snapshot ingestion; this fixture is the correctness contract.
+    model: slv_core__service_items
+    given:
+      - input: ref('slv_core__charge_items')
+        rows:
+          - {service_item_id: svc-1, hospital_id: hosp-1, snapshot_id: snap-1, silver_charge_item_id: item-a, clean_description: "CT ABDOMEN W CONTRAST", service_item_identity_basis: specific_code, service_item_identity_confidence: high, code_signature_specific: sig-s1, code_signature_all: sig-a1}
+          - {service_item_id: svc-1, hospital_id: hosp-1, snapshot_id: snap-2, silver_charge_item_id: item-b, clean_description: "CT W CONTRAST ABDOMEN", service_item_identity_basis: specific_code, service_item_identity_confidence: high, code_signature_specific: sig-s1, code_signature_all: sig-a2}
+          - {service_item_id: svc-2, hospital_id: hosp-1, snapshot_id: snap-2, silver_charge_item_id: item-c, clean_description: "MISC SUPPLY", service_item_identity_basis: categorical_code, service_item_identity_confidence: medium, code_signature_all: sig-a3}
+      - input: ref('slv_base__hospital_snapshots')
+        rows:
+          - {snapshot_id: snap-1, hospital_id: hosp-1, valid_from: "2025-01-01 00:00:00"}
+          - {snapshot_id: snap-2, hospital_id: hosp-1, valid_from: "2025-06-01 00:00:00"}
+    expect:
+      rows:
+        - {service_item_id: svc-1, hospital_id: hosp-1, service_item_identity_basis: specific_code, code_signature_specific: sig-s1, code_signature_all: sig-a2, representative_clean_description: "CT W CONTRAST ABDOMEN", first_seen_snapshot_id: snap-1, last_seen_snapshot_id: snap-2, snapshot_count: 2, source_item_count: 2, distinct_description_count: 2}
+        - {service_item_id: svc-2, hospital_id: hosp-1, service_item_identity_basis: categorical_code, code_signature_specific: null, code_signature_all: sig-a3, representative_clean_description: "MISC SUPPLY", first_seen_snapshot_id: snap-2, last_seen_snapshot_id: snap-2, snapshot_count: 1, source_item_count: 1, distinct_description_count: 1}

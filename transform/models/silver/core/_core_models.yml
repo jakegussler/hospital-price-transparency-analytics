@@ -55,8 +55,267 @@ models:
           - accepted_values:
               values: ["medical", "dental", "vision", "behavioral_health", "transplant", "unknown"]
 
-  - name: slv_core__payer_rates
-    description: "Row-preserving Silver Core payer-rate fact with broad canonical payer identity and separate payer/plan context columns."
+  - name: slv_core__charge_item_codes
+    description: >
+      Row-preserving Silver Core enrichment of Silver Base charge-item codes.
+      Adds a deterministic per-system match key (zero-padding for fixed-width
+      numeric systems), a format status, a cross-hospital comparability flag,
+      and NDC canonical-11 fields. Codes are enrichment, never a row-inclusion
+      gate: malformed or hospital-local codes keep their rows and receive a
+      status.
+    columns:
+      - name: silver_charge_item_code_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('slv_base__charge_item_codes')
+              field: silver_charge_item_code_id
+      - name: silver_charge_item_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__charge_items')
+              field: silver_charge_item_id
+      - name: canonical_code_system
+        description: "Canonical CMS code-system token carried through from Silver Base."
+        tests:
+          - relationships:
+              to: ref('cms_code_types')
+              field: code_type
+      - name: match_code
+        description: >
+          Derived match key for cohort grouping: uppercased and
+          whitespace-stripped, zero-padded to 4 digits for revenue codes and
+          APC, zero-padded to 3 digits for the DRG family, and the canonical
+          11-digit form for NDC when derivable. clean_code stays untouched for
+          display and audit.
+      - name: code_format_status
+        description: "Per-system format check on the match key. Status only, never a row filter. not_validated covers systems without a defined canonical format (CDM, LOCAL, and others)."
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - valid
+                - invalid_format
+                - not_validated
+                - missing_code
+                - missing_code_system
+                - unknown_code_system
+      - name: code_cross_hospital_comparable
+        description: "False for hospital-internal systems (CDM, LOCAL) and codes without a resolved system; such codes remain valid for within-hospital analysis."
+        tests:
+          - not_null
+      - name: code_is_specific
+        description: >
+          True for code systems that pin down one item (CPT, HCPCS, NDC, the
+          DRG family, APC, EAPG, HIPPS, CDT, CMG); false for categorical
+          systems (revenue codes, CDM, LOCAL), for ICD (a diagnosis, treated
+          as supporting), and for unresolved systems. Comparable and specific
+          are different axes: revenue codes are standardized but categorical.
+          Item identity is built from the specific subset of an item's codes.
+        tests:
+          - not_null
+      - name: clean_ndc
+        description: "Digits-only form of the clean code for NDC rows; null for other systems."
+      - name: canonical_ndc_11
+        description: "Canonical 11-digit NDC. Populated for 11-digit values and for 10-digit hyphenated values whose layout (4-4-2, 5-3-2, 5-4-1) discloses the short segment; null when ambiguous or invalid."
+      - name: ndc_format_status
+        description: "Authority for NDC format quality. Ambiguous 10-digit unhyphenated values are flagged, never guessed."
+        tests:
+          - accepted_values:
+              values:
+                - canonical_11
+                - canonical_11_unhyphenated
+                - padded_from_10_4_4_2
+                - padded_from_10_5_3_2
+                - padded_from_10_5_4_1
+                - ambiguous_10_unhyphenated
+                - invalid_layout
+                - invalid_length
+
+  - name: slv_core__charge_items
+    description: >
+      Row-preserving Silver Core enrichment of Silver Base charge items with
+      the snapshot-independent content signatures and the derived
+      within-hospital service_item_id. Identity is algorithmic (deterministic
+      signatures), not curated: specific clinical codes anchor the key, the
+      drift-tolerant description token signature separates genuinely
+      different items that share a code, and categorical-only or uncoded
+      items fall back to lower-confidence keys. Setting and billing class are
+      deliberately not part of item identity — they are charge context.
+    columns:
+      - name: silver_charge_item_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('slv_base__charge_items')
+              field: silver_charge_item_id
+      - name: description_token_signature
+        description: >
+          Drift-tolerant description signature: md5 of the sorted distinct
+          tokens after lowercasing, expanding the small abbreviation set
+          (w/o, w/, &), and stripping punctuation. Absorbs word-order and
+          punctuation drift without merging genuinely different descriptions.
+          Additional column; never replaces clean_description.
+      - name: code_signature_specific
+        description: "md5 of the item's sorted distinct (system, match_code) pairs restricted to specific codes; null when the item has no usable specific code."
+      - name: code_signature_all
+        description: "md5 of the item's full sorted distinct (system, match_code) set, for audit and exact dedup; null when the item has no usable code."
+      - name: drug_signature
+        description: >
+          md5 of the item's sorted canonical NDC match codes plus the
+          canonical drug unit type; null for non-drug items. drug_unit (the
+          pricing quantity) is deliberately excluded: profiling showed
+          quantity-only distinctions are negligible and including it would
+          mint a new ID whenever a hospital re-baselines its quantity.
+      - name: canonical_drug_unit_type
+        description: "Canonical unit token from drug_unit_aliases, carried at item grain for the drug signature."
+      - name: service_item_identity_basis
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["specific_code", "categorical_code", "uncoded"]
+      - name: service_item_identity_confidence
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["high", "medium", "low"]
+      - name: service_item_id
+        description: >
+          Within-hospital, cross-snapshot item identity. Built from the
+          specific code signature plus the description token signature plus
+          the drug signature when specific codes exist; from the full code
+          signature when only categorical codes exist; from description and
+          drug alone when uncoded. The basis column records which path
+          produced the key.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_core__service_items')
+              field: service_item_id
+
+  - name: slv_core__service_items
+    description: >
+      Within-hospital, cross-snapshot service-item dimension: one row per
+      service_item_id aggregated over every retained snapshot of
+      slv_core__charge_items. Table materialization rebuilt from the retained
+      corpus on every run; deliberately not snapshot-pruned and deliberately
+      reading unscoped inputs so scoped runs cannot shrink it. Under the
+      default current_only retention every hospital holds one snapshot, so
+      snapshot_count = 1 everywhere; real continuity tracking is pending
+      multi-snapshot ingestion under all_snapshots retention.
+    columns:
+      - name: service_item_id
+        tests:
+          - not_null
+          - unique
+      - name: hospital_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__hospitals')
+              field: hospital_id
+      - name: service_item_identity_basis
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["specific_code", "categorical_code", "uncoded"]
+      - name: service_item_identity_confidence
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["high", "medium", "low"]
+      - name: representative_clean_description
+        description: "Description from the most recent snapshot containing the item, with deterministic tie-breaking."
+      - name: first_seen_snapshot_id
+        tests:
+          - not_null
+      - name: last_seen_snapshot_id
+        tests:
+          - not_null
+      - name: snapshot_count
+        description: "How many retained snapshots contained this item. 1 for every item under current_only retention."
+        tests:
+          - not_null
+      - name: source_item_count
+        description: "Distinct silver_charge_item_id rolled into this identity across retained snapshots; an over-merge signal."
+        tests:
+          - not_null
+      - name: distinct_description_count
+        description: "Distinct clean descriptions absorbed by this identity across retained snapshots; an over-merge signal."
+        tests:
+          - not_null
+
+  - name: slv_core__charge_modifiers
+    description: >
+      Row-preserving Silver Core enrichment of Silver Base charge modifiers.
+      Joins the CMS modifier_reference seed for modifier class and the
+      professional/technical split flag. The seed is a shared baseline,
+      especially for CSV snapshots without source-defined modifier metadata; it
+      does not replace modifier_definition_match_status.
+    columns:
+      - name: silver_charge_modifier_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('slv_base__charge_modifiers')
+              field: silver_charge_modifier_id
+      - name: match_modifier_code
+        description: "Uppercased clean modifier code used for reference matching and signature grouping."
+      - name: modifier_class
+        description: "Reviewed modifier classification from the modifier_reference seed."
+      - name: modifier_category
+        description: "Broad modifier grouping from the modifier_reference seed."
+      - name: affects_pro_tech_split
+        description: "True for modifiers 26 and TC, which change what the dollar amount represents. Gold must not aggregate professional and technical component rates together."
+        tests:
+          - not_null
+      - name: modifier_reference_status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["matched_reference", "no_reference", "missing_modifier_code"]
+
+  - name: slv_core__drug_information
+    description: >
+      Row-preserving Silver Core enrichment of Silver Base drug information.
+      Maps observed CMS unit-of-measure codes to a canonical unit and unit
+      group via the drug_unit_aliases seed. Deliberately does not compute
+      cross-unit quantity conversion: the dominant units are count/activity
+      units with no shared base.
+    columns:
+      - name: silver_drug_information_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__drug_information')
+              field: silver_drug_information_id
+      - name: canonical_drug_unit_type
+        description: "Canonical unit token from drug_unit_aliases (each, unit, international_unit, mg, g, ml)."
+      - name: drug_unit_group
+        description: "Unit family; quantities are only meaningfully comparable within a group, and count/activity groups are not convertible at all."
+        tests:
+          - accepted_values:
+              values: ["count", "activity", "mass", "volume"]
+      - name: drug_unit_status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["canonical", "unknown_unit", "missing_unit"]
+      - name: item_has_ndc_code
+        description: "Whether the parent charge item carries an NDC code."
+        tests:
+          - not_null
+      - name: ndc_item_missing_drug_unit
+        description: "Defensive guardrail flag: the parent item has an NDC code but this drug row has no unit type. Zero rows today."
+        tests:
+          - not_null
+
+  - name: slv_core__rate_modifier_signature
+    description: "Ephemeral bridge computing the sorted-set modifier signature per payer rate. CSV modifiers attach directly to rates; JSON modifiers fan out from the standard charge to every rate beneath it."
     columns:
       - name: silver_payer_rate_id
         tests:
@@ -65,6 +324,37 @@ models:
           - relationships:
               to: ref('slv_base__payer_rates')
               field: silver_payer_rate_id
+      - name: modifier_signature
+        description: "MD5 of the sorted distinct uppercased modifier codes on the rate."
+        tests:
+          - not_null
+      - name: modifier_count
+        description: "Number of distinct modifier codes on the rate."
+        tests:
+          - not_null
+
+  - name: slv_core__payer_rates
+    description: "Row-preserving Silver Core payer-rate fact with broad canonical payer identity, separate payer/plan context columns, denormalized charge context, and the modifier signature that makes the rate a self-contained comparable unit."
+    columns:
+      - name: silver_payer_rate_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('slv_base__payer_rates')
+              field: silver_payer_rate_id
+      - name: clean_setting
+        description: "Care setting denormalized from the parent Silver Base standard charge."
+      - name: clean_billing_class
+        description: "Billing class denormalized from the parent Silver Base standard charge."
+      - name: modifier_signature
+        description: "Sorted-set hash of the rate's modifier codes; rates without modifiers share the md5('<no_modifiers>') sentinel so no-modifier is a joinable cohort value."
+        tests:
+          - not_null
+      - name: modifier_count
+        description: "Number of distinct modifier codes attached to the rate; 0 when the rate carries no modifiers."
+        tests:
+          - not_null
       - name: canonical_payer_id
         tests:
           - relationships:

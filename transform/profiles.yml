@@ -4,4 +4,4 @@ hospital_price_transparency:
     dev:
       type: duckdb
       path: "{{ env_var('HPT_DUCKDB_PATH', '../data/hpt.duckdb') }}"
-      threads: 4
+      threads: 2
