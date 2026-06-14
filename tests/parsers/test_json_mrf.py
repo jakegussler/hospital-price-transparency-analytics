@@ -220,11 +220,18 @@ class TestHeaderBatch:
     def test_parse_accepts_utf8_bom(self, tmp_path):
         mrf_path = tmp_path / "mrf.json"
         _write_mrf_with_bom(mrf_path, _minimal_mrf())
-        parser = _make_parser(tmp_path / "quarantine")
+        parser = _make_parser(
+            tmp_path / "quarantine",
+            snapshot_meta={**_SNAPSHOT_META, "schema_version": None},
+        )
 
         batches = list(parser.parse(mrf_path))
+        charge_df = _collect_table(batches[2:], "standard_charge_info")
 
         assert batches[0]["hospital_mrf_snapshots"]["snapshot_id"][0] == "snap-001"
+        assert batches[0]["hospital_mrf_snapshots"]["schema_version"][0] == "3.0.0"
+        assert charge_df["reported_schema_version"][0] == "3.0.0"
+        assert charge_df["reported_schema_family"][0] == "3.0"
         assert len(batches[2]["standard_charge_info"]) == 1
 
     def test_snapshot_record_merges_meta_and_source(self, tmp_path):

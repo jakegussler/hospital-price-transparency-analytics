@@ -126,6 +126,7 @@ def _sniff_json(
     """Stream the JSON MRF with ijson to locate the top-level ``version``."""
     try:
         with _open_stream(path, fs, compression) as stream:
+            _skip_utf8_bom(stream)
             for prefix, event, value in ijson.parse(stream):
                 if prefix == "version" and event in ("string", "number"):
                     logger.debug(
@@ -255,3 +256,10 @@ def _open_stream(
             yield raw
     finally:
         raw.close()
+
+
+def _skip_utf8_bom(stream: IO[bytes]) -> None:
+    """Advance past a leading UTF-8 BOM when present."""
+    first_bytes = stream.read(3)
+    if first_bytes != b"\xef\xbb\xbf":
+        stream.seek(0)

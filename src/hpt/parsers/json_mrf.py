@@ -196,6 +196,7 @@ class JsonMrfParser(BaseParser):
 
         snapshot_id = self.snapshot_meta["snapshot_id"]
         snapshot_record = self._build_snapshot_record(h)
+        self.snapshot_meta["schema_version"] = snapshot_record["schema_version"]
 
         location_names = h.get("location_names") or []
         hospital_addrs = h.get("hospital_addresses") or []

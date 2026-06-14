@@ -76,6 +76,17 @@ def test_sniff_gzipped_json(tmp_path: Path, local_fs: fsspec.AbstractFileSystem)
     )
 
 
+def test_sniff_json_with_utf8_bom(
+    tmp_path: Path, local_fs: fsspec.AbstractFileSystem
+) -> None:
+    dest = tmp_path / "mrf.json"
+    dest.write_bytes(b"\xef\xbb\xbf" + JSON_V3.read_bytes())
+
+    assert sniff_schema(str(dest), local_fs) == SchemaInfo(
+        layout=Layout.JSON, version="3.0.0"
+    )
+
+
 def test_sniff_gzipped_csv(tmp_path: Path, local_fs: fsspec.AbstractFileSystem) -> None:
     dest = tmp_path / "mrf.csv.gz"
     with gzip.open(dest, "wb") as fh:
