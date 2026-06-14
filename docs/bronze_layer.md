@@ -297,12 +297,12 @@ This table is populated by **both the CSV Tall parser and the CSV Wide parser**.
 
 ### `csv_charge_rows`
 
-**Grain:** One row per source file row (after Wide unpivoting). Each row represents one payer rate for one charge item context.  
+**Grain:** One row per payer rate for a charge item, plus one item-only row for any charge item that has no payer rate. (CSV Tall: one row per source file row. CSV Wide: see below.)  
 **Role:** Flat staging table for all CSV-sourced charge data. Code columns (`code_1`, `code_1_type`, etc.) are retained as flat numbered columns here and normalized into rows at Silver.
 
 > **On CSV Tall:** Each source row maps directly to one row in this table with no structural transformation.
 >
-> **On CSV Wide:** Payer names and plan names are embedded in column headers in the Wide format (e.g., `standard_charge|BlueCross|Blue Choice PPO|negotiated_dollar`). These column headers encode data values — not structure — and cannot be modeled in SQL without knowing payer names at model-write time. The Wide parser extracts the payer name and plan name from each header and unpivots the payer-specific columns into rows, producing one row per source row × payer combination. After unpivoting, the output is structurally identical to CSV Tall Bronze. This is a parsing concern, not a transformation — no business logic is applied.
+> **On CSV Wide:** Payer names and plan names are embedded in column headers in the Wide format (e.g., `standard_charge|BlueCross|Blue Choice PPO|negotiated_dollar`). These column headers encode data values — not structure — and cannot be modeled in SQL without knowing payer names at model-write time. The Wide parser extracts the payer name and plan name from each header and unpivots the payer-specific columns into rows. It emits a payer row **only for the (item, payer) combinations the source actually populates** — an empty payer block is the absence of a rate, not a source-asserted row, so materializing it would invent a payer-rate fact and inflate Bronze with null rows. When a charge item has no populated payer block at all, a single item-only baseline row (null payer/plan) is emitted so the item-level standard charge survives. After unpivoting, the output is structurally identical to CSV Tall Bronze — including the item-only rows a Tall file can also contain. This is a parsing concern, not a transformation — no business logic is applied.
 >
 > **On numbered code columns:** The CMS CSV format encodes billing codes as `code|1`, `code|1|type`, `code|2`, `code|2|type`, etc. These are retained as flat numbered columns in Bronze (`code_1`, `code_1_type`, `code_2`, `code_2_type`, ...). Silver normalizes them into rows via `UNPIVOT`. The maximum number of code columns encountered in a file can optionally be recorded as metadata on `hospital_mrf_snapshots` to help Silver models bound their unpivot range.
 >

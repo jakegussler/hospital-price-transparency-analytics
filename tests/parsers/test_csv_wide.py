@@ -80,6 +80,77 @@ def test_csv_wide_parse_unpivots_payer_columns(tmp_path):
     assert charge_df["source_format"][0] == "csv_wide"
 
 
+def test_csv_wide_skips_empty_payer_blocks(tmp_path):
+    # Aetna|PPO has a negotiated dollar for this item; Cigna|HMO has nothing.
+    # The empty Cigna block must not be materialized as a null payer-rate row.
+    path = tmp_path / "wide_sparse.csv"
+    _write_csv(
+        path,
+        [
+            (
+                "hospital_name,last_updated_on,version,location_name,hospital_address,"
+                f"license_number|TN,type_2_npi,{_ATTESTATION_TEXT},attester_name"
+            ),
+            (
+                "General Hospital,2025-01-01,3.0.0,Main Campus,123 Main St,"
+                "12345,1234567890,true,Jane Smith"
+            ),
+            (
+                "description,code|1,code|1|type,setting,standard_charge|gross,"
+                "standard_charge|Aetna|PPO|negotiated_dollar,"
+                "standard_charge|Cigna|HMO|negotiated_dollar"
+            ),
+            "X-Ray,99213,CPT,outpatient,200,150,",
+        ],
+    )
+
+    parser = _make_parser(tmp_path)
+    batches = list(parser.parse(path))
+    charge_df = batches[1]["csv_charge_rows"]
+
+    assert len(charge_df) == 1
+    assert charge_df["payer_name"][0] == "Aetna"
+    assert charge_df["plan_name"][0] == "PPO"
+    assert charge_df["standard_charge_negotiated_dollar"][0] == "150"
+    # Item-level standard charge still rides on the emitted payer row.
+    assert charge_df["standard_charge_gross"][0] == "200"
+
+
+def test_csv_wide_item_without_payer_values_emits_single_baseline_row(tmp_path):
+    # Every payer block is blank, but the item carries a gross charge, so a single
+    # item-only baseline row (null payer identity) must survive to preserve it.
+    path = tmp_path / "wide_item_only.csv"
+    _write_csv(
+        path,
+        [
+            (
+                "hospital_name,last_updated_on,version,location_name,hospital_address,"
+                f"license_number|TN,type_2_npi,{_ATTESTATION_TEXT},attester_name"
+            ),
+            (
+                "General Hospital,2025-01-01,3.0.0,Main Campus,123 Main St,"
+                "12345,1234567890,true,Jane Smith"
+            ),
+            (
+                "description,code|1,code|1|type,setting,standard_charge|gross,"
+                "standard_charge|Aetna|PPO|negotiated_dollar,"
+                "standard_charge|Cigna|HMO|negotiated_dollar"
+            ),
+            "X-Ray,99213,CPT,outpatient,200,,",
+        ],
+    )
+
+    parser = _make_parser(tmp_path)
+    batches = list(parser.parse(path))
+    charge_df = batches[1]["csv_charge_rows"]
+
+    assert len(charge_df) == 1
+    assert charge_df["payer_name"][0] is None
+    assert charge_df["plan_name"][0] is None
+    assert charge_df["standard_charge_gross"][0] == "200"
+    assert charge_df["row_ordinal"][0] == 0
+
+
 def test_csv_wide_preserves_malformed_numeric_as_raw_text(tmp_path):
     path = tmp_path / "wide_bad_number.csv"
     _write_csv(

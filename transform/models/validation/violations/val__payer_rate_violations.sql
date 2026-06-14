@@ -330,6 +330,10 @@ violations as (
         ),
         'conditional_required_value_missing',
         'CSV payer or plan identity is encoded without any payer-specific negotiated charge value.'
+    -- The CSV Wide parser only emits a payer row when the source encodes a
+    -- payer-specific value for that item/payer (it does not materialize empty
+    -- payer blocks), so any row carrying payer/plan identity but no negotiated
+    -- charge is a genuine CR1-converse violation in both Tall and Wide.
     from rate_flags
     where source_format_family = 'csv'
         and (clean_payer_name is not null or clean_plan_name is not null)

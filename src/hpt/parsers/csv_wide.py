@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 
 from hpt.parsers.base import BaseParser
 from hpt.parsers.csv_header import (
-    PayerColumnGroup,
     build_header_batch,
     build_wide_column_catalog,
     get_charge_reader,
@@ -47,33 +46,49 @@ class CsvWideParser(BaseParser):
 
             for row_ordinal, row in enumerate(reader):
                 fixed_values = _extract_values(row, catalog.fixed_columns)
-                payer_groups = catalog.payer_groups or [
-                    PayerColumnGroup(payer_name="", plan_name="", columns={})
-                ]
+                emitted_payer_row = False
 
-                for payer_group in payer_groups:
-                    out_row = {column: None for column in schema}
-                    out_row["snapshot_id"] = snapshot_id
-                    out_row["row_ordinal"] = row_ordinal
-                    out_row["source_format"] = source_format
-
-                    for key, value in fixed_values.items():
-                        out_row[key] = value
-
-                    out_row["payer_name"] = payer_group.payer_name or None
-                    out_row["plan_name"] = payer_group.plan_name or None
+                for payer_group in catalog.payer_groups:
                     payer_values = _extract_values(row, payer_group.columns)
-                    for key, value in payer_values.items():
-                        out_row[key] = value
-
                     notes_idx = catalog.additional_payer_notes_cols.get(
                         (payer_group.payer_name, payer_group.plan_name)
                     )
-                    note_value = _safe_cell(row, notes_idx) if notes_idx is not None else None
+                    note_value = (
+                        _safe_cell(row, notes_idx) if notes_idx is not None else None
+                    )
+
+                    # In wide format the payer/plan identity lives in the column
+                    # headers and is shared by every item, so an empty payer block
+                    # is the absence of a rate rather than a source-asserted row.
+                    # Skip it: materializing it would invent a payer-rate fact the
+                    # source never stated and inflate Bronze with null rows.
+                    if not payer_values and note_value is None:
+                        continue
+
+                    out_row = _new_row(
+                        schema, snapshot_id, row_ordinal, source_format, fixed_values
+                    )
+                    out_row["payer_name"] = payer_group.payer_name or None
+                    out_row["plan_name"] = payer_group.plan_name or None
+                    for key, value in payer_values.items():
+                        out_row[key] = value
                     if note_value is not None:
                         out_row["additional_payer_notes"] = note_value
 
                     rows_buffer.append(out_row)
+                    emitted_payer_row = True
+
+                # Every item must still surface its item-level standard charge
+                # (gross, discounted cash, min/max, codes). When no payer column
+                # carried a value for this item, emit a single item-only baseline
+                # row with null payer identity — the same shape a CSV Tall
+                # item-only row takes.
+                if not emitted_payer_row:
+                    rows_buffer.append(
+                        _new_row(
+                            schema, snapshot_id, row_ordinal, source_format, fixed_values
+                        )
+                    )
 
                 if len(rows_buffer) >= _BATCH_SIZE:
                     yield {"csv_charge_rows": _df(rows_buffer, schema)}
@@ -83,6 +98,22 @@ class CsvWideParser(BaseParser):
                 yield {"csv_charge_rows": _df(rows_buffer, schema)}
         finally:
             handle.close()
+
+
+def _new_row(
+    schema: dict[str, Any],
+    snapshot_id: str,
+    row_ordinal: int,
+    source_format: str,
+    fixed_values: dict[str, str | None],
+) -> dict[str, Any]:
+    out_row: dict[str, Any] = {column: None for column in schema}
+    out_row["snapshot_id"] = snapshot_id
+    out_row["row_ordinal"] = row_ordinal
+    out_row["source_format"] = source_format
+    for key, value in fixed_values.items():
+        out_row[key] = value
+    return out_row
 
 
 def _extract_values(
