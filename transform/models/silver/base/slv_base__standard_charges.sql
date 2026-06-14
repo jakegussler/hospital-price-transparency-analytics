@@ -33,7 +33,10 @@ with json_standard_charges as (
         sc.discounted_cash,
         sc.minimum,
         sc.maximum,
-        sc.additional_generic_notes
+        sc.additional_generic_notes,
+        -- JSON modifiers live in their own array (stg_bronze__standard_charge_modifiers),
+        -- not on the charge row, so there is no row-level modifier string here.
+        cast(null as varchar) as raw_modifiers
     from {{ hpt_scoped_ref('stg_bronze__standard_charges') }} sc
     inner join {{ hpt_scoped_ref('slv_base__charge_items') }} ci
         on sc.snapshot_id = ci.snapshot_id
@@ -130,7 +133,11 @@ csv_standard_charges as (
         r.discounted_cash,
         r.minimum,
         r.maximum,
-        r.additional_generic_notes
+        r.additional_generic_notes,
+        -- raw_modifiers is part of standard_charge_signature, so it is constant
+        -- across every row grouped into one standard charge. Surfacing it lets
+        -- slv_base__charge_modifiers derive CSV modifiers at standard-charge grain.
+        r.raw_modifiers
     from signed_context_rows r
     group by
         r.silver_charge_item_id,
@@ -146,7 +153,8 @@ csv_standard_charges as (
         r.discounted_cash,
         r.minimum,
         r.maximum,
-        r.additional_generic_notes
+        r.additional_generic_notes,
+        r.raw_modifiers
 )
 
 select * from json_standard_charges

@@ -315,7 +315,7 @@ models:
           - not_null
 
   - name: slv_core__rate_modifier_signature
-    description: "Ephemeral bridge computing the sorted-set modifier signature per payer rate. CSV modifiers attach directly to rates; JSON modifiers fan out from the standard charge to every rate beneath it."
+    description: "Ephemeral bridge computing the sorted-set modifier signature per payer rate. Modifiers attach to a standard charge and fan out here to every payer rate beneath it, for both formats."
     columns:
       - name: silver_payer_rate_id
         tests:

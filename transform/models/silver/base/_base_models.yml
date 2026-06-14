@@ -127,6 +127,12 @@ models:
       - name: standard_charge_signature
         tests:
           - not_null
+      - name: raw_modifiers
+        description: >
+          For CSV, the source row-level pipe-delimited modifier string, constant
+          across the rows grouped into this standard charge because it is part of
+          standard_charge_signature. Null for JSON, whose modifiers live in their
+          own array. slv_base__charge_modifiers unnests this for CSV.
 
   - name: slv_base__charge_item_codes
     description: "Exploded billing codes attached to Silver charge items."
@@ -192,7 +198,12 @@ models:
     description: "Accepted modifier payer-information children attached to Silver modifiers."
 
   - name: slv_base__charge_modifiers
-    description: "Modifier codes attached to Silver standard-charge contexts, with payer-rate linkage where source grain provides it."
+    description: >
+      Modifier codes attached to a Silver standard charge, at one uniform grain
+      for both formats: one row per (silver_standard_charge_id, modifier_ordinal,
+      clean_modifier_code). Modifiers belong to the standard charge and apply to
+      every payer rate beneath it; the standard-charge -> payer-rate fan-out is
+      done once in slv_core__rate_modifier_signature, not duplicated here.
     columns:
       - name: silver_charge_modifier_id
         tests:
@@ -204,11 +215,6 @@ models:
           - relationships:
               to: ref('slv_base__standard_charges')
               field: silver_standard_charge_id
-      - name: silver_payer_rate_id
-        tests:
-          - relationships:
-              to: ref('slv_base__payer_rates')
-              field: silver_payer_rate_id
       - name: modifier_definition_match_status
         tests:
           - accepted_values:

@@ -80,3 +80,24 @@ selectors:
     definition:
       method: tag
       value: audit_marts
+
+  - name: charge_modifier_regrain
+    description: >
+      Exactly the models affected by re-graining slv_base__charge_modifiers to
+      standard-charge grain: the modifier models, the standard_charges parent
+      (which gained raw_modifiers), the payer-rate model (whose inlined ephemeral
+      modifier signature recompiled), and the modifier review queue (whose counts
+      shift). Lets you refresh only these per snapshot without rebuilding base or
+      core wholesale. Safe to delete once every snapshot has been re-run.
+    definition:
+      union:
+        - method: fqn
+          value: slv_base__standard_charges
+        - method: fqn
+          value: slv_base__charge_modifiers
+        - method: fqn
+          value: slv_core__charge_modifiers
+        - method: fqn
+          value: slv_core__payer_rates
+        - method: fqn
+          value: slv_review_queue__modifier_candidates

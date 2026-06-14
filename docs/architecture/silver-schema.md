@@ -89,9 +89,7 @@ flowchart TD
     M7 --> M10
 
     S10 --> M11
-    S9 --> M11
     M7 --> M11
-    M10 --> M11
     M8 --> M11
     S5 --> M12
     M6 --> M12
@@ -430,25 +428,27 @@ rates come directly from the charge row with payer/plan columns.
 ### `slv_base__charge_modifiers`
 
 **Sources:** `stg_bronze__standard_charge_modifiers`,
-`stg_bronze__csv_charge_rows`, `slv_base__standard_charges`,
-`slv_base__payer_rates`, `slv_base__modifiers`  
-**Purpose:** Modifier codes attached to a charge context. JSON modifiers are
-joined to `standard_charges` and then looked up against `slv_base__modifiers`
-to populate `source_modifier_code_id` and set `modifier_definition_match_status`.
-CSV modifiers are parsed by splitting the pipe-delimited `raw_modifiers` column
-and are linked to both `standard_charges` and `payer_rates` via `row_ordinal`.
+`slv_base__standard_charges`, `slv_base__modifiers`  
+**Purpose:** Modifier codes attached to a standard charge, at one uniform grain
+for both formats: one row per `silver_standard_charge_id + modifier_ordinal +
+clean_modifier_code`. Modifiers belong to the standard charge and apply to every
+payer rate beneath it; the standard-charge → payer-rate fan-out happens once
+downstream in `slv_core__rate_modifier_signature`, never here. JSON modifiers are
+joined to `standard_charges` and looked up against `slv_base__modifiers` to
+populate `source_modifier_code_id` and set `modifier_definition_match_status`.
+CSV modifiers are derived by unnesting `slv_base__standard_charges.raw_modifiers`
+(constant per standard charge because it is part of the
+`standard_charge_signature`), so they need no payer-rate join.
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `silver_charge_modifier_id` | varchar PK | Surrogate on `silver_standard_charge_id + silver_payer_rate_id + modifier_ordinal + clean_modifier_code` |
+| `silver_charge_modifier_id` | varchar PK | Surrogate on `silver_standard_charge_id + modifier_ordinal + clean_modifier_code` |
 | `silver_standard_charge_id` | varchar FK → standard_charges | |
-| `silver_payer_rate_id` | varchar FK → payer_rates (nullable) | Populated for CSV; null for JSON |
 | `silver_charge_item_id` | varchar | |
 | `snapshot_id` | varchar | |
 | `hospital_id` | varchar | |
 | `source_format` | varchar | |
 | `source_standard_charge_id` | varchar | JSON only; null for CSV |
-| `source_row_ordinal` | integer | CSV only; null for JSON |
 | `modifier_ordinal` | integer | Zero-indexed position |
 | `raw_modifier_code` | varchar | |
 | `clean_modifier_code` | varchar | |
@@ -559,7 +559,7 @@ erDiagram
     slv_base__charge_modifiers {
         varchar silver_charge_modifier_id PK
         varchar silver_standard_charge_id FK
-        varchar silver_payer_rate_id FK
+        integer modifier_ordinal
         varchar clean_modifier_code
         varchar modifier_definition_match_status
     }
@@ -573,7 +573,6 @@ erDiagram
     slv_base__charge_items ||--o{ slv_base__charge_item_codes : "silver_charge_item_id"
     slv_base__standard_charges ||--o{ slv_base__payer_rates : "silver_standard_charge_id"
     slv_base__standard_charges ||--o{ slv_base__charge_modifiers : "silver_standard_charge_id"
-    slv_base__payer_rates ||--o{ slv_base__charge_modifiers : "silver_payer_rate_id"
 ```
 
 ---

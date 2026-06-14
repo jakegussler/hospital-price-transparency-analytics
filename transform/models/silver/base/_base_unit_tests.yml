@@ -1,0 +1,36 @@
+version: 2
+
+unit_tests:
+  - name: charge_modifiers_uniform_standard_charge_grain
+    description: >
+      Locks the standard-charge grain of slv_base__charge_modifiers. A CSV
+      standard charge that collapsed several payer rates emits exactly one row
+      per modifier token (two for "26|TC", not two-per-rate), proving the
+      payer-rate fan-out is gone. A CSV standard charge whose only rows carry no
+      payer still contributes its modifier (recovered by sourcing from
+      standard_charges instead of joining payer_rates). A CSV standard charge
+      with no modifier string contributes nothing. JSON modifiers stay at
+      standard-charge grain and resolve / stay unresolved against
+      slv_base__modifiers.
+    model: slv_base__charge_modifiers
+    given:
+      - input: ref('slv_base__standard_charges')
+        rows:
+          - {silver_standard_charge_id: sc-csv, silver_charge_item_id: item-1, snapshot_id: snap-1, hospital_id: hosp-1, source_format: csv_tall, source_standard_charge_id: null, raw_modifiers: "26|TC"}
+          - {silver_standard_charge_id: sc-csv-itemonly, silver_charge_item_id: item-2, snapshot_id: snap-1, hospital_id: hosp-1, source_format: csv_tall, source_standard_charge_id: null, raw_modifiers: "59"}
+          - {silver_standard_charge_id: sc-csv-nomod, silver_charge_item_id: item-3, snapshot_id: snap-1, hospital_id: hosp-1, source_format: csv_tall, source_standard_charge_id: null, raw_modifiers: null}
+          - {silver_standard_charge_id: sc-json, silver_charge_item_id: item-4, snapshot_id: snap-1, hospital_id: hosp-1, source_format: json, source_standard_charge_id: jsc-1, raw_modifiers: null}
+      - input: ref('stg_bronze__standard_charge_modifiers')
+        rows:
+          - {snapshot_id: snap-1, standard_charge_id: jsc-1, raw_modifier_code: "26", clean_modifier_code: "26", modifier_ordinal: 0}
+          - {snapshot_id: snap-1, standard_charge_id: jsc-1, raw_modifier_code: "99", clean_modifier_code: "99", modifier_ordinal: 1}
+      - input: ref('slv_base__modifiers')
+        rows:
+          - {snapshot_id: snap-1, clean_modifier_code: "26", source_modifier_code_id: mod-26}
+    expect:
+      rows:
+        - {silver_standard_charge_id: sc-csv, modifier_ordinal: 0, raw_modifier_code: "26", clean_modifier_code: "26", source_format: csv_tall, source_standard_charge_id: null, source_modifier_code_id: null, modifier_definition_match_status: not_available_for_csv}
+        - {silver_standard_charge_id: sc-csv, modifier_ordinal: 1, raw_modifier_code: "TC", clean_modifier_code: "TC", source_format: csv_tall, source_standard_charge_id: null, source_modifier_code_id: null, modifier_definition_match_status: not_available_for_csv}
+        - {silver_standard_charge_id: sc-csv-itemonly, modifier_ordinal: 0, raw_modifier_code: "59", clean_modifier_code: "59", source_format: csv_tall, source_standard_charge_id: null, source_modifier_code_id: null, modifier_definition_match_status: not_available_for_csv}
+        - {silver_standard_charge_id: sc-json, modifier_ordinal: 0, raw_modifier_code: "26", clean_modifier_code: "26", source_format: json, source_standard_charge_id: jsc-1, source_modifier_code_id: mod-26, modifier_definition_match_status: resolved}
+        - {silver_standard_charge_id: sc-json, modifier_ordinal: 1, raw_modifier_code: "99", clean_modifier_code: "99", source_format: json, source_standard_charge_id: jsc-1, source_modifier_code_id: null, modifier_definition_match_status: unresolved}
