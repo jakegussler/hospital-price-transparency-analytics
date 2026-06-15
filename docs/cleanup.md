@@ -29,13 +29,16 @@ to the relevant docs and delete resolved items from here.
   can remain before dbt reads the partition. This is separate from the warehouse
   `snapshot_replace` strategy and needs backend-neutral partition-overwrite
   semantics in the ingest/storage layer.
-- Lincoln Health System (CSV Wide) contributes zero rows to
-  `slv_base__payer_rates`: every payer rate it encodes is algorithm-based with no
-  `count` of allowed amounts, so all are excluded by
-  `v3_percentage_or_algorithm_requires_count`. This is correct CMS enforcement of
-  CSV Conditional Requirement 7, but the all-or-nothing outcome is worth a look —
-  confirm Lincoln genuinely omits `count` rather than the parser dropping a
-  populated count column.
+- Lincoln Health System (CSV Wide) now contributes its ~2,674 dollar-bearing
+  payer rates to `slv_base__payer_rates`. Those rows encode an algorithm string
+  and a usable negotiated dollar but no `count`; CSV Conditional Requirement 7
+  asks for `count`, but the dollar is the comparable value, so they are retained
+  and flagged by the non-excluding warn rule `v3_algorithm_with_dollar_missing_count`
+  rather than excluded. Algorithm/percentage rows with neither a dollar nor a
+  count remain excluded by `v3_percentage_or_algorithm_requires_count` (correct
+  CR7 enforcement). The pinned snapshot `cd725773-f575-45dd-a796-adf9c9805a14` is
+  backfilled by scoped builds; an unscoped rebuild is still needed to propagate
+  the new retain/flag behavior across the rest of the corpus.
 - dbt Bronze source reads can still fail with an empty-glob `read_parquet` error
   when the entire corpus lacks a format-specific table family, such as
   `csv_charge_rows` in a JSON-only local data set. `BronzeWriter` writes

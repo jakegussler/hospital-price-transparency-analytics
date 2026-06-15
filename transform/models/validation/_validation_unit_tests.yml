@@ -344,6 +344,153 @@ unit_tests:
           row_ordinal: 1
           rule_id: csv_payer_rate_required_with_identity
 
+  - name: v3_dollar_bearing_rate_is_flagged_not_excluded
+    description: >
+      CSV Conditional Requirement 7 asks for count on percentage/algorithm rates,
+      but a usable negotiated dollar is the comparable value. A 3.0 row that omits
+      count yet carries a dollar (e.g. Fee Schedule) must NOT be excluded: it emits
+      the non-excluding warn rule v3_algorithm_with_dollar_missing_count instead.
+      Percentage/algorithm rows with no count AND no dollar are still excluded by
+      v3_percentage_or_algorithm_requires_count.
+    model: val__payer_rate_violations
+    given:
+      - input: source('bronze', 'payers_information')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as standard_charge_id,
+              cast(null as integer) as payer_ordinal,
+              cast(null as varchar) as payer_name,
+              cast(null as varchar) as plan_name,
+              cast(null as varchar) as methodology,
+              cast(null as varchar) as standard_charge_dollar,
+              cast(null as varchar) as standard_charge_percentage,
+              cast(null as varchar) as standard_charge_algorithm,
+              cast(null as varchar) as estimated_amount,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes
+          where false
+      - input: source('bronze', 'standard_charges')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as standard_charge_id,
+              cast(null as varchar) as charge_item_id,
+              cast(null as varchar) as additional_generic_notes
+          where false
+      - input: source('bronze', 'csv_charge_rows')
+        format: sql
+        rows: |
+          select
+              'snapshot-csv' as snapshot_id,
+              'csv' as source_format,
+              0 as row_ordinal,
+              'Acme Health' as payer_name,
+              'PPO' as plan_name,
+              'fee schedule' as methodology,
+              '800' as standard_charge_negotiated_dollar,
+              cast(null as varchar) as standard_charge_negotiated_percentage,
+              'Fee Schedule' as standard_charge_negotiated_algorithm,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes,
+              cast(null as varchar) as additional_generic_notes
+          union all
+          select
+              'snapshot-csv' as snapshot_id,
+              'csv' as source_format,
+              1 as row_ordinal,
+              'Acme Health' as payer_name,
+              'PPO' as plan_name,
+              'fee schedule' as methodology,
+              cast(null as varchar) as standard_charge_negotiated_dollar,
+              cast(null as varchar) as standard_charge_negotiated_percentage,
+              'Fee Schedule' as standard_charge_negotiated_algorithm,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes,
+              cast(null as varchar) as additional_generic_notes
+          union all
+          select
+              'snapshot-csv' as snapshot_id,
+              'csv' as source_format,
+              2 as row_ordinal,
+              'Acme Health' as payer_name,
+              'HMO' as plan_name,
+              'percent of total billed charges' as methodology,
+              cast(null as varchar) as standard_charge_negotiated_dollar,
+              '80' as standard_charge_negotiated_percentage,
+              cast(null as varchar) as standard_charge_negotiated_algorithm,
+              cast(null as varchar) as median_amount,
+              cast(null as varchar) as tenth_percentile,
+              cast(null as varchar) as ninetieth_percentile,
+              cast(null as varchar) as count,
+              cast(null as varchar) as additional_payer_notes,
+              cast(null as varchar) as additional_generic_notes
+      - input: ref('stg_bronze__standard_charge_info')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as snapshot_id,
+              cast(null as varchar) as charge_item_id,
+              cast(null as varchar) as reported_schema_family,
+              cast(null as varchar) as parser_schema_family
+          where false
+      - input: ref('stg_bronze__hospital_mrf_snapshots')
+        format: sql
+        rows: |
+          select
+              'snapshot-csv' as snapshot_id,
+              'hospital-1' as hospital_id,
+              'csv' as source_format
+      - input: ref('cms_validation_rules')
+        format: sql
+        rows: |
+          select
+              'v3_percentage_or_algorithm_requires_count' as rule_id,
+              'v3 count required' as rule_name,
+              'error' as severity,
+              'payer_rate' as grain,
+              'exclude_entity' as disposition,
+              'v3 citation' as cms_citation
+          union all
+          select
+              'v3_algorithm_with_dollar_missing_count' as rule_id,
+              'v3 count missing with dollar' as rule_name,
+              'warn' as severity,
+              'payer_rate' as grain,
+              'report_only' as disposition,
+              'v3 citation' as cms_citation
+    expect:
+      rows:
+        - snapshot_id: snapshot-csv
+          source_format_family: csv
+          row_ordinal: 0
+          rule_id: v3_algorithm_with_dollar_missing_count
+          severity: warn
+          excludes_from_silver: false
+        - snapshot_id: snapshot-csv
+          source_format_family: csv
+          row_ordinal: 1
+          rule_id: v3_percentage_or_algorithm_requires_count
+          severity: error
+          excludes_from_silver: true
+        - snapshot_id: snapshot-csv
+          source_format_family: csv
+          row_ordinal: 2
+          rule_id: v3_percentage_or_algorithm_requires_count
+          severity: error
+          excludes_from_silver: true
+
   - name: charge_item_schema_version_mismatch_warns_once
     description: >
       A JSON charge item whose accepted parser shape disagrees with the header

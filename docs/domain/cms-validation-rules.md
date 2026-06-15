@@ -336,15 +336,35 @@ column for `estimated_amount`; applies to older JSON family records.
 
 ### `v3_percentage_or_algorithm_requires_count`
 
-For schema family 3.0, Pydantic rejects percentage or algorithm payer rates
-without `count`. CMS v3 Conditional Requirement 5 and the v3 JSON schema
-require count in this case.
+For schema family 3.0, percentage or algorithm payer rates that carry **no usable
+dollar** require `count`. CMS v3 Conditional Requirement 5/7 and the v3 JSON
+schema ask for count whenever a percentage or algorithm is encoded, but the
+intent — guarantee a derivable comparable value — is already satisfied when a
+negotiated dollar is present. Rows with a percentage or algorithm but neither a
+count nor a dollar have no comparable value and are excluded; dollar-bearing rows
+are spared here and recorded by `v3_algorithm_with_dollar_missing_count` instead.
 
 Classification: semantic conditional rule. Move to dbt. Severity: `error`.
+Disposition: `exclude_entity` (only when no usable dollar is present).
 
 JSON fields: `standard_charge_percentage`; `standard_charge_algorithm`;
-`count`. CSV columns: negotiated percentage/algorithm columns and `count` or
-`count|[payer_name]|[plan_name]`.
+`standard_charge_dollar`; `count`. CSV columns: negotiated percentage/algorithm
+and dollar columns and `count` or `count|[payer_name]|[plan_name]`.
+
+### `v3_algorithm_with_dollar_missing_count`
+
+Companion to the rule above. For schema family 3.0, a percentage or algorithm
+payer rate that omits `count` but carries a usable negotiated dollar is retained
+in Silver and flagged rather than excluded — the dollar is the comparable value
+(Fee Schedule rows legitimately carry both an algorithm string and a dollar). The
+rule preserves the CR7 compliance signal for audit without gating the row.
+
+Classification: semantic conditional rule (non-excluding). Severity: `warn`.
+Disposition: `report_only`.
+
+JSON fields: `standard_charge_percentage`; `standard_charge_algorithm`;
+`standard_charge_dollar`; `count`. CSV columns: negotiated percentage/algorithm
+and dollar columns and `count` or `count|[payer_name]|[plan_name]`.
 
 ### `v3_count_nonzero_requires_allowed_amounts`
 

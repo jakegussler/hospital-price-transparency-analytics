@@ -425,6 +425,10 @@ violations as (
 
     union all
 
+    -- CR7 exclusion: a 3.0 percentage/algorithm rate with neither a count nor a
+    -- usable dollar has no derivable comparable value, so it is excluded from
+    -- Silver. Rows that carry a usable dollar are spared here (the dollar is the
+    -- comparable value) and recorded by the non-excluding flag rule below.
     select
         snapshot_id, hospital_id, source_format, source_format_family,
         reported_schema_family, source_charge_item_id, source_standard_charge_id,
@@ -432,11 +436,32 @@ violations as (
         cast(null as integer), cast(null as varchar),
         'v3_percentage_or_algorithm_requires_count', 'count', raw_count,
         'conditional_required_field_missing',
-        'Schema family 3.0 percentage or algorithm rates require count.'
+        'Schema family 3.0 percentage or algorithm rates without a usable dollar require count.'
     from rate_flags
     where effective_schema_family = '3.0'
         and (has_percentage or has_algorithm)
         and clean_count is null
+        and not has_dollar
+
+    union all
+
+    -- CR7 flag (non-excluding): a 3.0 percentage/algorithm rate that omits count
+    -- but carries a usable dollar stays in Silver because the dollar is the
+    -- comparable value (e.g. Fee Schedule rows). Record the CR7 miss for audit
+    -- without gating the row out of Silver.
+    select
+        snapshot_id, hospital_id, source_format, source_format_family,
+        reported_schema_family, source_charge_item_id, source_standard_charge_id,
+        payer_ordinal, row_ordinal, source_rate_ordinal,
+        cast(null as integer), cast(null as varchar),
+        'v3_algorithm_with_dollar_missing_count', 'count', raw_count,
+        'conditional_required_field_missing',
+        'Schema family 3.0 percentage or algorithm rate carries a usable dollar but omits count (CR7); retained and flagged.'
+    from rate_flags
+    where effective_schema_family = '3.0'
+        and (has_percentage or has_algorithm)
+        and clean_count is null
+        and has_dollar
 
     union all
 
