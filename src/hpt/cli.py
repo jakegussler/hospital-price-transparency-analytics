@@ -405,7 +405,10 @@ def run_dbt_logic(
         return 2
     try:
         exit_code = DbtOrchestrator(
-            config, log=log, audit_recorder=audit.record_attempt
+            config,
+            log=log,
+            audit_recorder=audit.record_attempt,
+            bronze_root=storage_cfg.bronze_root,
         ).run()
     except Exception as exc:  # noqa: BLE001
         log.exception("dbt_run_unexpected_failure", extra={"error": str(exc)})

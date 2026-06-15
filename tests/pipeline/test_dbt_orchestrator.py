@@ -75,13 +75,24 @@ def test_resolve_raises_when_empty() -> None:
 def patched_storage(monkeypatch: pytest.MonkeyPatch) -> FakeSnapshotManager:
     manager = FakeSnapshotManager({"h1": "snap-h1"})
     monkeypatch.delenv(RETENTION_MODE_ENV, raising=False)
-    fake_cfg = SimpleNamespace(raw_base_uri="file:///tmp/raw")
+    fake_cfg = SimpleNamespace(raw_base_uri="file:///tmp/raw", bronze_root="/tmp/bronze")
     monkeypatch.setattr(
         dbt_orchestrator.StorageConfig, "from_env", classmethod(lambda cls: fake_cfg)
     )
     monkeypatch.setattr(dbt_orchestrator, "BronzeStorage", lambda *a, **k: object())
     monkeypatch.setattr(dbt_orchestrator, "SnapshotManager", lambda *a, **k: manager)
     return manager
+
+
+@pytest.fixture(autouse=True)
+def patched_bootstrap(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        dbt_orchestrator,
+        "ensure_bronze_source_bootstrap",
+        lambda *_args, **_kwargs: calls.append("bootstrap"),
+    )
+    return calls
 
 
 def _patch_two_hospitals(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -121,6 +132,42 @@ def test_run_passes_resolved_snapshot_ids_as_vars(
     assert args[args.index("--exclude-resource-type") + 1] == "unit_test"
     assert runner.calls[1][:2] == ["run-operation", "hpt_prune_stale_snapshots"]
     assert "--vars" not in runner.calls[1]
+
+
+def test_run_bootstraps_once_before_dbt(
+    monkeypatch: pytest.MonkeyPatch,
+    patched_storage: FakeSnapshotManager,
+    patched_bootstrap: list[str],
+) -> None:
+    events = patched_bootstrap
+
+    class OrderedRunner(RecordingRunner):
+        def invoke(self, args: list[str]):
+            events.append(args[0])
+            return super().invoke(args)
+
+    runner = OrderedRunner()
+    config = DbtRunConfig(hospital_ids="h1", command="build", include_seeds=True)
+
+    assert _run(config, monkeypatch, runner) == 0
+    assert events == ["bootstrap", "seed", "build", "run-operation"]
+
+
+def test_bootstrap_failure_prevents_dbt_invocation(
+    monkeypatch: pytest.MonkeyPatch,
+    patched_storage: FakeSnapshotManager,
+) -> None:
+    runner = RecordingRunner()
+    patch_dbt_runner(monkeypatch, runner)
+
+    def fail_bootstrap(*_args, **_kwargs):
+        raise OSError("bootstrap unavailable")
+
+    monkeypatch.setattr(dbt_orchestrator, "ensure_bronze_source_bootstrap", fail_bootstrap)
+
+    with pytest.raises(OSError, match="bootstrap unavailable"):
+        DbtOrchestrator(DbtRunConfig(hospital_ids="h1")).run()
+    assert runner.calls == []
 
 
 def test_run_does_not_exclude_unit_tests_for_run_command(

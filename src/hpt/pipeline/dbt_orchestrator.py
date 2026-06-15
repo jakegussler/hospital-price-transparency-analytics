@@ -14,11 +14,13 @@ run completes.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Callable
 
 from hpt.ingest.config import StorageConfig
 from hpt.ingest.snapshot import SnapshotManager
 from hpt.ingest.storage import BronzeStorage
+from hpt.pipeline.bronze_bootstrap import ensure_bronze_source_bootstrap
 from hpt.pipeline.dbt_config import DbtRunConfig, DbtRunMode
 from hpt.pipeline.dbt_manager import DbtManager
 from hpt.registry.loader import load_registry
@@ -72,14 +74,24 @@ class DbtOrchestrator:
         log: logging.Logger | None = None,
         snapshots: SnapshotManager | None = None,
         audit_recorder: Callable[[dict[str, Any]], None] | None = None,
+        bronze_root: Path | None = None,
     ) -> None:
         self._config = config
         self._log = log or logger
         self._snapshots = snapshots
+        self._bronze_root = bronze_root
         self._manager = DbtManager(config.transform_dir, self._log, audit_recorder)
 
     def run(self) -> int:
         """Dispatch on the run mode and return a process-style exit code."""
+        bronze_root = self._bronze_root
+        if bronze_root is None:
+            bronze_root = StorageConfig.from_env().bronze_root
+        ensure_bronze_source_bootstrap(
+            bronze_root,
+            self._config.transform_dir / "models" / "staging" / "_bronze_sources.yml",
+            log=self._log,
+        )
         mode = self._config.mode
         if mode is DbtRunMode.FULL_REBUILD:
             return self._run_full_rebuild()

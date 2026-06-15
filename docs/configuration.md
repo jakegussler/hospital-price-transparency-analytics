@@ -54,6 +54,15 @@ Bronze Parquet sources, and `HPT_AUDIT_ROOT` for external operational audit
 sources. Python uses the same root names, so one override points writers and dbt
 reads at the same directories for local development.
 
+Before invoking dbt, `hpt run-dbt` ensures every declared Bronze source table
+has a zero-row schema sentinel under
+`{HPT_BRONZE_ROOT}/{table}/snapshot_id=__bootstrap__/_schema.parquet`. This
+prevents DuckDB `read_parquet` globs from failing when the local corpus contains
+only JSON or only CSV snapshots. The Bronze root must be writable for dbt runs,
+and `snapshot_id=__bootstrap__` is reserved for these operational files. The
+bootstrap refuses to run until at least one real `hospital_mrf_snapshots`
+Parquet file exists.
+
 Staging models are canonical, unscoped views over Bronze source relations.
 Snapshot-scoped runs pass the `snapshot_ids` dbt var so `hpt_scoped_ref()` and
 `hpt_scoped_source()` can push a `snapshot_id in (...)` predicate into

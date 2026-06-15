@@ -216,8 +216,17 @@ BRONZE_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
     **CSV_SCHEMAS,
 }
 
+# Schema-only files created before dbt runs must include one dynamic CSV code
+# pair because DuckDB's columns('^code_...$') projection fails when no matching
+# columns exist.
+BRONZE_BOOTSTRAP_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
+    **BRONZE_SCHEMAS,
+    "csv_charge_rows": build_csv_charge_rows_schema(1),
+}
+
 
 __all__ = [
+    "BRONZE_BOOTSTRAP_SCHEMAS",
     "BRONZE_SCHEMAS",
     "CSV_CHARGE_ROWS_BASE",
     "CSV_SCHEMAS",

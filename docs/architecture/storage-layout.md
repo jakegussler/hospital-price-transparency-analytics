@@ -72,6 +72,18 @@ Path pattern:
 {bronze_root}/{table}/snapshot_id={snapshot_id}/part-NNN.parquet
 ```
 
+Before dbt runs, `hpt run-dbt` also maintains one operational, zero-row schema
+sentinel for every declared Bronze source:
+
+```text
+{bronze_root}/{table}/snapshot_id=__bootstrap__/_schema.parquet
+```
+
+The reserved bootstrap partition guarantees that every DuckDB source glob
+matches at least one schema-compatible file even when the local corpus contains
+only one source format. Because each sentinel has zero rows, it does not create
+a snapshot or contribute Bronze facts.
+
 The dbt project reads the same files through `HPT_BRONZE_ROOT`, defaulting to
 `../data/bronze` from inside `transform/`.
 

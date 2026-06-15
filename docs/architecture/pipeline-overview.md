@@ -105,6 +105,9 @@ dbt reads Bronze Parquet through `dbt-duckdb` external source definitions in
 
 Implemented behavior:
 
+- `hpt run-dbt` validates the declared Bronze source registry and creates or
+  repairs zero-row schema sentinels before invoking dbt, so format-homogeneous
+  corpora remain readable by DuckDB.
 - Staging views read Bronze sources without changing grain or persisting a run
   scope; they remain canonical views over all available snapshots.
 - Snapshot-grained consumers apply `hpt_scoped_ref()` or

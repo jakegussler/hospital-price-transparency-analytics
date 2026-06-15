@@ -39,14 +39,6 @@ to the relevant docs and delete resolved items from here.
   CR7 enforcement). The pinned snapshot `cd725773-f575-45dd-a796-adf9c9805a14` is
   backfilled by scoped builds; an unscoped rebuild is still needed to propagate
   the new retain/flag behavior across the rest of the corpus.
-- dbt Bronze source reads can still fail with an empty-glob `read_parquet` error
-  when the entire corpus lacks a format-specific table family, such as
-  `csv_charge_rows` in a JSON-only local data set. `BronzeWriter` writes
-  zero-row Parquet only for tables a parser emits for a snapshot; it does not
-  bootstrap every declared Bronze source table. Consider guarding source macros,
-  adding a source bootstrap step, or documenting a required mixed-format fixture
-  for local dbt runs.
-
 ## Parser Validation Hardening
 
 - The JSON streaming parser validates individual
