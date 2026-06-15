@@ -118,6 +118,11 @@ and two tiny snapshot partitions to verify:
 - a scoped incremental replacement leaves the unrelated snapshot untouched;
 - an empty scope reads all available snapshots.
 
+`tests/transform/test_snapshot_replace_runtime.py` builds a temporary dbt project
+with the real `snapshot_replace` macros and verifies nonzero replacement,
+zero-row replacement, multi-snapshot deletion, output-scope validation and
+rollback, rejection of unscoped incremental runs, and unscoped full refresh.
+
 For model-level integration validation, use one pinned local snapshot and the
 smallest relevant selector. Full-refresh or full-rebuild parity must be verified
 outside the agent workflow when required; record that limitation rather than

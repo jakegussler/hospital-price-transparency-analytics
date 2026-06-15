@@ -110,8 +110,10 @@ Implemented behavior:
 - Snapshot-grained consumers apply `hpt_scoped_ref()` or
   `hpt_scoped_source()` at each processing boundary.
 - Snapshot-grained Silver and validation tables use dbt incremental
-  `delete+insert` keyed by `snapshot_id`, so scoped dbt runs replace the current
-  batch without dropping unrelated snapshots.
+  `snapshot_replace` keyed by `snapshot_id`. The strategy deletes the explicitly
+  requested `snapshot_ids` before inserting the model result, so scoped runs
+  replace the current batch even when a model produces zero rows, without
+  dropping unrelated snapshots.
 - `HPT_SILVER_RETENTION_MODE=current_only` is the default product mode. After a
   successful `hpt run-dbt` materializing run, dbt prunes rows whose
   `snapshot_id` is no longer current according to Bronze

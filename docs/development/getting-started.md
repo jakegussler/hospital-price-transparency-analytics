@@ -115,10 +115,11 @@ From the repository root:
 ```bash
 make export-hospitals-seed
 make dbt-seed
-make dbt-run
+make dbt-run HOSPITAL_IDS=ballad-jcmc
 make dbt-test
-make dbt-build-selector DBT_SELECTOR=silver
-make dbt-build-selector DBT_SELECTOR=pipeline_charge_data
+make dbt-unit-test
+make dbt-build-selector HOSPITAL_IDS=ballad-jcmc DBT_SELECTOR=silver
+make dbt-build-selector HOSPITAL_IDS=ballad-jcmc DBT_SELECTOR=pipeline_charge_data
 make dbt-incremental HOSPITAL_IDS=ballad-jcmc
 make dbt-rebuild
 ```
@@ -136,8 +137,11 @@ install, seed, run, test, build, list, compile, and clean. Selector targets take
 `pipeline_snapshot_metadata` and `pipeline_charge_data`, and operational selectors
 for `audit`, `audit_staging`, and `audit_marts` in `transform/selectors.yml`.
 
-`make dbt-incremental` delegates to `hpt run-dbt`, resolves
-`HOSPITAL_IDS`/`SNAPSHOT_IDS`, and runs a snapshot-scoped incremental build.
+Materializing Make targets require `HOSPITAL_IDS` or `SNAPSHOT_IDS` and delegate
+to `hpt run-dbt`. Snapshot-grained models use `snapshot_replace`, so repeat
+incremental materialization without an explicit snapshot scope is rejected.
+`make dbt-unit-test` remains intentionally unscoped because it does not
+materialize incremental tables.
 `make dbt-rebuild` is the canonical full rebuild from all Bronze: it runs
 without `snapshot_ids` and passes dbt `--full-refresh`.
 

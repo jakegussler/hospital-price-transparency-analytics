@@ -42,8 +42,10 @@ Validation is the queryable data-quality boundary between Bronze/staging and
 Silver. It turns the CMS rule registry into row-level violation tables,
 rejection keysets, and monitoring statistics.
 
-Snapshot-grained validation models are materialized incrementally with
-`delete+insert` on `snapshot_id`. Cross-snapshot aggregate statistics such as
+Snapshot-grained validation models are materialized incrementally with the
+custom `snapshot_replace` strategy on `snapshot_id`. It deletes rows for the
+explicitly requested snapshot scope before inserting the model result, including
+when that result is empty. Cross-snapshot aggregate statistics such as
 `val_stats__rule_summary` remain full-refresh tables because their distinct
 counts span the loaded corpus.
 
@@ -103,10 +105,10 @@ Silver should remain close enough to source data that issues can be traced back
 to a specific `snapshot_id`, source file, and row or ordinal.
 
 Snapshot-grained Silver Base and Silver Core tables are materialized
-incrementally with `delete+insert` on `snapshot_id`. Staging remains canonical
-unscoped views; snapshot-grained consumers scope their inputs for each run. The
-registry-backed `slv_base__hospitals` dimension remains a full-refresh table,
-and review queue models remain full-refresh tables because they aggregate
+incrementally with `snapshot_replace` on `snapshot_id`. Staging remains
+canonical unscoped views; snapshot-grained consumers scope their inputs for each
+run. The registry-backed `slv_base__hospitals` dimension remains a full-refresh
+table, and review queue models remain full-refresh tables because they aggregate
 across snapshots. The cross-snapshot `slv_core__service_items` dimension is
 likewise a full-refresh table that reads its inputs unscoped and is excluded
 from the snapshot prune: it spans snapshots by design, and a snapshot-scoped

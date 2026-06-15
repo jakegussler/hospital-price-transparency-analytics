@@ -75,7 +75,9 @@ Check:
 
 Snapshot-grained Silver and validation tables are incremental. A scoped
 `hpt run-dbt` call replaces rows for the selected `snapshot_id`s and then, by
-default, prunes non-current snapshots.
+default, prunes non-current snapshots. The `snapshot_replace` strategy deletes
+using the requested scope, so a model that produces zero rows still removes the
+snapshot's prior rows.
 
 Check:
 
@@ -84,6 +86,9 @@ Check:
   rows retained.
 - Whether the run used `hpt run-dbt --full-rebuild` or `make dbt-rebuild` for a
   true full-refresh. Scoped runs intentionally reject `--full-refresh`.
+- Whether a repeat incremental materializing command omitted `snapshot_ids`.
+  `snapshot_replace` rejects unscoped incremental execution; use `hpt run-dbt`
+  with a scope or the explicit full-rebuild path.
 - Whether `HPT_BRONZE_ROOT` points to Bronze metadata with current
   `hospital_mrf_snapshots`; the prune reads current status from Bronze, not from
   incremental Silver.

@@ -58,7 +58,9 @@ Staging models are canonical, unscoped views over Bronze source relations.
 Snapshot-scoped runs pass the `snapshot_ids` dbt var so `hpt_scoped_ref()` and
 `hpt_scoped_source()` can push a `snapshot_id in (...)` predicate into
 snapshot-grained consumer queries and let DuckDB prune Bronze hive partitions.
-Unscoped direct dbt runs scan all available Bronze partitions.
+Repeat incremental materializing runs require a non-empty `snapshot_ids` scope;
+the custom `snapshot_replace` strategy rejects unscoped execution rather than
+risk leaving stale rows when a model produces zero rows.
 
 Snapshot-grained Silver and validation models are incremental. A true rebuild
 from all Bronze requires both of the following:

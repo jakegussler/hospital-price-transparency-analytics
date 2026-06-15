@@ -23,16 +23,12 @@ to the relevant docs and delete resolved items from here.
   — rebuilt from whatever `slv_core__charge_items` holds — covers only those
   snapshots until an unscoped rebuild. The three pinned AGENTS.md snapshots
   are backfilled by scoped builds.
-- Re-ingesting a CSV Wide snapshot now yields far fewer `csv_charge_rows` (the
-  parser no longer materializes empty payer blocks; Lincoln dropped from 167,592
-  to 13,966). The incremental Silver/validation models merge by surrogate key and
-  do not delete a snapshot's prior rows, so a plain re-ingest + scoped re-run
-  leaves orphaned payer-rate rows (old `source_rate_ordinal` 1..N) alongside the
-  new ones. Run `hpt clear-snapshot --snapshot-ids <id>` (or a full refresh)
-  before re-running dbt for any re-ingested Wide snapshot. After clearing,
-  rebuild in dependency order: validation models, then Silver, then validation
-  (so Silver sees fresh rejections and the reconcile/exclude tests see fresh
-  Silver).
+- Bronze re-ingest is not yet an atomic snapshot-partition replacement.
+  `BronzeWriter` overwrites the part files it writes but does not remove obsolete
+  trailing part files when the new result has fewer parts, so stale Bronze rows
+  can remain before dbt reads the partition. This is separate from the warehouse
+  `snapshot_replace` strategy and needs backend-neutral partition-overwrite
+  semantics in the ingest/storage layer.
 - Lincoln Health System (CSV Wide) contributes zero rows to
   `slv_base__payer_rates`: every payer rate it encodes is algorithm-based with no
   `count` of allowed amounts, so all are excluded by

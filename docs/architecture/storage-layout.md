@@ -153,8 +153,10 @@ models remain views so newly completed command records are immediately visible.
 
 Snapshot-grained Silver and validation tables inside DuckDB are incremental
 dbt tables. Normal scoped runs replace rows for the requested `snapshot_id`s
-using `delete+insert`; they do not recreate the table from only that scoped
-batch.
+using the custom `snapshot_replace` strategy; they do not recreate the table
+from only that scoped batch. Replacement uses the requested scope rather than
+the model output, so a zero-row model result removes prior rows for that
+snapshot.
 
 Retention is a dbt/runtime choice:
 

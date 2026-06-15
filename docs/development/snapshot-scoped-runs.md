@@ -22,6 +22,11 @@ the wrappers read all snapshots.
 
 Scoped runs read the *full* data for the selected snapshots, with no row cap.
 Staging remains stable for exploration before and after scoped runs.
+Snapshot-grained incremental models use `snapshot_replace`, which deletes the
+explicitly requested snapshot rows before inserting the new model result. This
+also replaces a snapshot with zero rows. Repeat incremental materializing runs
+without `snapshot_ids` fail; use the explicit full-rebuild path for unscoped
+replacement.
 
 ## Running it
 
@@ -99,6 +104,19 @@ materializing runs:
 
 Bronze Parquet is never pruned by this setting.
 
+## Re-ingesting a snapshot
+
+A successful scoped rebuild replaces the requested snapshot in every selected
+snapshot-grained model, including models whose new result contains zero rows.
+Normal re-ingests therefore do not require `hpt clear-snapshot` before dbt.
+Rows left stale by older `delete+insert` runs self-heal the next time their
+snapshot is rebuilt; known affected snapshots should receive a scoped rebuild
+after deploying `snapshot_replace`.
+
+This warehouse replacement guarantee is separate from Bronze file replacement.
+Bronze snapshot partitions are not yet atomically replaced when re-ingested; see
+`docs/cleanup.md` for that remaining storage risk.
+
 ## Clearing a snapshot
 
 A `build` that fails partway can leave a snapshot partially materialized: some
@@ -114,10 +132,10 @@ It runs the `hpt_clear_snapshots` operation, which is the mirror of
 `hpt_snapshot_grained_incremental_models()` list and delete by `snapshot_id`,
 but clear deletes the rows that *are* the targeted snapshot(s) instead of the
 rows that are *not* current. Table-materialized models (`slv_base__hospitals`,
-`slv_core__*`, `slv_review_queue__*`) are excluded on purpose — they are
-`CREATE OR REPLACE` and self-heal on the next run. Only warehouse rows are
-touched; raw files, snapshot metadata, and Bronze partitions are left intact, so
-re-running dbt for the snapshot rebuilds it.
+`slv_core__service_items`, `slv_review_queue__*`) are excluded on purpose —
+they are `CREATE OR REPLACE` and self-heal on the next run. Only warehouse rows
+are touched; raw files, snapshot metadata, and Bronze partitions are left
+intact, so re-running dbt for the snapshot rebuilds it.
 
 Staging views are also intentionally untouched. They are canonical, unscoped
 views over Bronze, so they continue to expose every available snapshot before
@@ -145,7 +163,7 @@ In `current_only` mode, you should see the retained current snapshot rows. In
 - **Unit tests are excluded.** `hpt run-dbt` adds
   `--exclude-resource-type unit_test` for `build`/`test`. Unit-test fixtures pin
   their own `snapshot_id`s, which the filter would strip. Run the full unit-test
-  suite unscoped via `make dbt-build` / CI.
+  suite unscoped via `make dbt-unit-test` / CI.
 - **Cross-snapshot history requires `all_snapshots`.** Default `current_only`
   mode prunes non-current snapshot rows after materializing runs. To compare
   historical snapshots in Silver, set `HPT_SILVER_RETENTION_MODE=all_snapshots`
