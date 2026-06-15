@@ -146,13 +146,14 @@ hpt show-run --run-id <run-uuid>
 
 # dbt
 make dbt-seed
-make dbt-run
+make dbt-run HOSPITAL_IDS=ballad-jcmc
 make dbt-test
-make dbt-build
+make dbt-unit-test
+make dbt-build HOSPITAL_IDS=ballad-jcmc
 make dbt-rebuild
 make dbt-incremental HOSPITAL_IDS=ballad-jcmc
-make dbt-build-selector DBT_SELECTOR=silver
-make dbt-build-selector DBT_SELECTOR=pipeline_charge_data
+make dbt-build-selector HOSPITAL_IDS=ballad-jcmc DBT_SELECTOR=silver
+make dbt-build-selector HOSPITAL_IDS=ballad-jcmc DBT_SELECTOR=pipeline_charge_data
 ```
 
 The dbt project defines selectors for `staging`, `silver_base`, `silver_core`,
@@ -164,6 +165,13 @@ The dbt project defines selectors for `staging`, `silver_base`, `silver_core`,
 consumers, Silver tables, and cross-model tests stay coherent. Pass `--selector`
 only for an intentionally partial run. Per-snapshot runs, including
 `--full-refresh`, accept partial selectors.
+
+Snapshot-grained incremental models use the custom `snapshot_replace` strategy.
+It deletes rows for the explicitly requested `snapshot_ids` before inserting
+the new model result, so a successful rebuild that produces zero rows still
+removes the snapshot's prior rows. Repeat incremental runs require a non-empty
+snapshot scope; use `hpt run-dbt` or the scoped Make targets above. Use
+`make dbt-rebuild` for an unscoped full refresh.
 
 When a build fails partway it can leave a snapshot partially materialized across
 the Silver and validation tables. `hpt clear-snapshot --snapshot-ids <id>`

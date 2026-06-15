@@ -2,7 +2,7 @@
 	dbt-run-hospitals dbt-run-all-hospitals dbt-incremental dbt-rebuild \
 	require-hospital-ids require-dbt-incremental-scope \
 	dbt-deps dbt-run dbt-run-selector dbt-test dbt-test-selector \
-	dbt-seed dbt-seed-selector dbt-build dbt-build-selector \
+	dbt-unit-test dbt-seed dbt-seed-selector dbt-build dbt-build-selector \
 	dbt-build-validation \
 	dbt-ls dbt-ls-selector dbt-compile dbt-compile-selector dbt-clean \
 	require-dbt-selector clean
@@ -65,11 +65,17 @@ DBT_SELECTOR ?=
 dbt-deps:
 	cd transform && dbt deps --profiles-dir .
 
-dbt-run:
-	cd transform && dbt run --profiles-dir .
+dbt-run: require-dbt-incremental-scope
+	hpt run-dbt \
+		$(if $(HOSPITAL_IDS),--hospital-ids "$(HOSPITAL_IDS)") \
+		$(if $(SNAPSHOT_IDS),--snapshot-ids "$(SNAPSHOT_IDS)") \
+		--command run
 
-dbt-run-selector: require-dbt-selector
-	cd transform && dbt run --selector "$(DBT_SELECTOR)" --profiles-dir .
+dbt-run-selector: require-dbt-incremental-scope require-dbt-selector
+	hpt run-dbt \
+		$(if $(HOSPITAL_IDS),--hospital-ids "$(HOSPITAL_IDS)") \
+		$(if $(SNAPSHOT_IDS),--snapshot-ids "$(SNAPSHOT_IDS)") \
+		--command run --selector "$(DBT_SELECTOR)"
 
 dbt-test:
 	cd transform && dbt test --profiles-dir .
@@ -77,20 +83,32 @@ dbt-test:
 dbt-test-selector: require-dbt-selector
 	cd transform && dbt test --selector "$(DBT_SELECTOR)" --profiles-dir .
 
+dbt-unit-test:
+	cd transform && dbt test --resource-type unit_test --profiles-dir .
+
 dbt-seed:
 	cd transform && dbt seed --profiles-dir .
 
 dbt-seed-selector: require-dbt-selector
 	cd transform && dbt seed --selector "$(DBT_SELECTOR)" --profiles-dir .
 
-dbt-build:
-	cd transform && dbt build --profiles-dir .
+dbt-build: require-dbt-incremental-scope
+	hpt run-dbt \
+		$(if $(HOSPITAL_IDS),--hospital-ids "$(HOSPITAL_IDS)") \
+		$(if $(SNAPSHOT_IDS),--snapshot-ids "$(SNAPSHOT_IDS)") \
+		--command build
 
-dbt-build-selector: require-dbt-selector
-	cd transform && dbt build --selector "$(DBT_SELECTOR)" --profiles-dir .
+dbt-build-selector: require-dbt-incremental-scope require-dbt-selector
+	hpt run-dbt \
+		$(if $(HOSPITAL_IDS),--hospital-ids "$(HOSPITAL_IDS)") \
+		$(if $(SNAPSHOT_IDS),--snapshot-ids "$(SNAPSHOT_IDS)") \
+		--command build --selector "$(DBT_SELECTOR)"
 
-dbt-build-validation:
-	cd transform && dbt build --selector validation --profiles-dir .
+dbt-build-validation: require-dbt-incremental-scope
+	hpt run-dbt \
+		$(if $(HOSPITAL_IDS),--hospital-ids "$(HOSPITAL_IDS)") \
+		$(if $(SNAPSHOT_IDS),--snapshot-ids "$(SNAPSHOT_IDS)") \
+		--command build --selector validation
 
 dbt-ls:
 	cd transform && dbt ls --profiles-dir .

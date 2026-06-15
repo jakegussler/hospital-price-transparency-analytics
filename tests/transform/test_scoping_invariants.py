@@ -71,14 +71,23 @@ def _has_scoped_source(raw_code: str, source_name: str, table_name: str) -> bool
 
 
 def test_snapshot_model_registry_matches_incremental_manifest(manifest: dict[str, object]) -> None:
+    model_nodes = _model_nodes(manifest)
+    snapshot_names = _snapshot_model_names_from_macro()
     manifest_snapshot_models = {
         node["name"]
-        for node in _model_nodes(manifest).values()
+        for node in model_nodes.values()
         if node["config"]["materialized"] == "incremental"
         and node["config"].get("unique_key") == "snapshot_id"
     }
 
-    assert _snapshot_model_names_from_macro() == manifest_snapshot_models
+    assert snapshot_names == manifest_snapshot_models
+    for node in model_nodes.values():
+        if node["name"] in snapshot_names:
+            assert node["config"]["materialized"] == "incremental", node["name"]
+            assert node["config"].get("incremental_strategy") == "snapshot_replace", node["name"]
+            assert node["config"].get("unique_key") == "snapshot_id", node["name"]
+        else:
+            assert node["config"].get("incremental_strategy") != "snapshot_replace", node["name"]
 
 
 def test_staging_models_are_canonical_unscoped_views(manifest: dict[str, object]) -> None:

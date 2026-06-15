@@ -253,23 +253,6 @@
 {%- endmacro %}
 
 
-{% macro hpt_normalize_snapshot_id_list(snapshot_ids) -%}
-    {#- Coerce a comma-separated string or list into a clean list of snapshot ids. -#}
-    {%- if snapshot_ids is none -%}
-        {{ return([]) }}
-    {%- endif -%}
-    {%- set raw = snapshot_ids.split(',') if snapshot_ids is string else snapshot_ids -%}
-    {%- set normalized = [] -%}
-    {%- for snapshot_id in raw -%}
-        {%- set cleaned = snapshot_id | trim -%}
-        {%- if cleaned -%}
-            {%- do normalized.append(cleaned) -%}
-        {%- endif -%}
-    {%- endfor -%}
-    {{ return(normalized) }}
-{%- endmacro %}
-
-
 {% macro hpt_clear_snapshots(snapshot_ids=None, models=None) -%}
     {#-
         Imperative maintenance op: delete every snapshot-grained incremental row
@@ -281,9 +264,10 @@
 
         Reuses hpt_snapshot_grained_incremental_models() as the single source of
         truth for which relations store per-snapshot rows, so it stays in lockstep
-        with the prune. Table-materialized models (slv_base__hospitals, slv_core__*,
-        slv_review_queue__*) are intentionally excluded: they are CREATE OR REPLACE
-        and self-heal on the next run, exactly as in the prune.
+        with the prune. Full-refresh tables such as slv_base__hospitals,
+        slv_core__service_items, and slv_review_queue__* are intentionally excluded:
+        they are CREATE OR REPLACE and self-heal on the next run, exactly as in the
+        prune.
     -#}
     {%- set ids = hpt_normalize_snapshot_id_list(snapshot_ids) -%}
     {%- if ids | length == 0 -%}
@@ -295,11 +279,12 @@
 
     {%- set model_names = hpt_normalize_model_list(models) -%}
 
-    {%- set quoted = [] -%}
-    {%- for snapshot_id in ids -%}
-        {%- do quoted.append("'" ~ snapshot_id ~ "'") -%}
-    {%- endfor -%}
-    {%- set predicate = 'snapshot_id in (' ~ quoted | join(', ') ~ ')' -%}
+    {%- set predicate = hpt_snapshot_id_predicate(
+        ids,
+        'snapshot_id',
+        require_ids=true,
+        operation='hpt_clear_snapshots'
+    ) -%}
 
     {{ log("Clearing snapshot rows for snapshot_ids " ~ ids | join(', ') ~ ".", info=true) }}
     {%- set result = hpt_delete_snapshot_rows(model_names, predicate, label='snapshot clear') -%}
