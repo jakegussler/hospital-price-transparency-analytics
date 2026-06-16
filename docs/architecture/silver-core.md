@@ -274,6 +274,9 @@ The model carries:
 
 - Base payer-rate fields: payer name, plan name, negotiated dollar,
   percentage, algorithm, methodology, allowed amount fields, and lineage.
+- Methodology and amount semantics: canonical CMS methodology, methodology
+  provenance, count bounds, amount kind, comparability tier, and
+  `is_price_comparable`.
 - Denormalized standard-charge context: `clean_setting` and
   `clean_billing_class`.
 - Modifier context: `modifier_signature` and `modifier_count`.
@@ -293,8 +296,20 @@ Industry interpretation depends heavily on `methodology`:
 | `other` | Catch-all, often compound contract text | Algorithm text can encode carve-outs, caps, thresholds, fee schedules, or percent-of-charges components. |
 
 Core does not try to convert every methodology into one universal dollar value.
-It preserves methodology, negotiated fields, and algorithm text so Gold can
-filter or classify the rates according to the analytic question.
+It preserves methodology, negotiated fields, and algorithm text, then exposes
+typed comparability fields so Gold can filter according to the analytic
+question:
+
+| Core field | Values | Meaning |
+| --- | --- | --- |
+| `amount_kind` | `dollar`, `percentage`, `algorithm`, `estimated`, `none` | The authoritative amount representation on the row, resolved by priority. |
+| `amount_comparability_tier` | `comparable_dollar`, `derived_dollar`, `percentage`, `algorithm`, `none` | Whether the authoritative value can be ranked with directly contracted prices. |
+| `is_price_comparable` | boolean | True only for `comparable_dollar`. |
+
+`fee schedule`, `case rate`, and `per diem` dollar rows are
+`comparable_dollar`. Dollar rows from `percent of total billed charges`, `other`,
+or `unmapped` methodology are `derived_dollar`: the pre-computed dollar is
+preserved, but Gold must treat it as derived from a percent or algorithm context.
 
 ## Billing-Code Enrichment
 

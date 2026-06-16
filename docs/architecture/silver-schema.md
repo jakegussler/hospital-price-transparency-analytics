@@ -413,6 +413,8 @@ rates come directly from the charge row with payer/plan columns.
 | `clean_plan_name` | varchar | |
 | `raw_methodology` | varchar | |
 | `clean_methodology` | varchar | |
+| `methodology` | varchar | Canonical CMS methodology display value in Core; one of `case rate`, `fee schedule`, `percent of total billed charges`, `per diem`, `other`, or `unmapped` |
+| `methodology_basis` | varchar | `cms_value`, `mapped`, or `unmapped`; `mapped` is reserved for future alias mapping |
 | `negotiated_dollar` | decimal(18,4) | |
 | `negotiated_percentage` | double | |
 | `negotiated_algorithm` | varchar | |
@@ -421,6 +423,12 @@ rates come directly from the charge row with payer/plan columns.
 | `tenth_percentile` | decimal(18,4) | |
 | `ninetieth_percentile` | decimal(18,4) | |
 | `raw_count` | varchar | Source-preserved string |
+| `count_raw` | varchar | Public alias of `raw_count` for the Core semantics contract |
+| `count_min` | integer | Parsed lower count bound for valid CMS count strings |
+| `count_max` | integer | Parsed upper count bound for valid CMS count strings |
+| `amount_kind` | varchar | Authoritative amount representation: `dollar`, `percentage`, `algorithm`, `estimated`, or `none` |
+| `amount_comparability_tier` | varchar | `comparable_dollar`, `derived_dollar`, `percentage`, `algorithm`, or `none` |
+| `is_price_comparable` | boolean | True only for directly comparable negotiated dollars |
 | `additional_payer_notes` | varchar | |
 
 ---
