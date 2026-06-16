@@ -30,3 +30,28 @@ models:
         description: "Canonical code system when resolved, otherwise the clean label, otherwise '<missing>'."
       - name: code_rows
         description: "Offending code rows for this hospital/system/status combination."
+
+  - name: slv_audit__plan_context_coverage
+    description: >
+      Plan / payer-context coverage metrics by canonical payer over current
+      snapshots (Phase 3 of the plan-normalization design). Reports how much
+      of the payer-rate corpus carries a resolved market_segment and a
+      populated plan_type, and how each plan_type was resolved (curated rule
+      vs. deterministic derivation). A human-readable observability view, not
+      a review queue: slv_review_queue__plan_context_candidates ranks the
+      specific payer/plan combos to curate next.
+    columns:
+      - name: canonical_payer_id
+        description: "Broad canonical payer identity; '<unmatched_payer>' aggregates rows with no resolved payer."
+        tests:
+          - not_null
+      - name: payer_rate_rows
+        description: "Total current payer-rate rows for this canonical payer."
+        tests:
+          - not_null
+      - name: pct_market_segment_resolved
+        description: "Share of rows whose market_segment is not 'unknown'."
+      - name: pct_plan_type_populated
+        description: "Share of rows with a non-null plan_type (rule-supplied or derived)."
+      - name: plan_type_derived_rows
+        description: "Rows whose plan_type came from the deterministic token derivation rather than a curated rule."

@@ -24,7 +24,19 @@ select
     ) as benefit_line,
     context_matches.funding_arrangement,
     context_matches.context_state,
-    context_matches.plan_type,
+    -- plan_type: prefer the payer-context rule, fall back to the deterministic
+    -- structural derivation (ppo/hmo/pos/epo/pffs/hdhp word-boundary tokens).
+    -- Enrichment only; never gates inclusion and never feeds market_segment.
+    coalesce(
+        context_matches.plan_type,
+        {{ hpt_derive_plan_type('pr.clean_plan_name') }}
+    ) as plan_type,
+    -- Provenance of plan_type: a curated rule, the token derivation, or neither.
+    case
+        when context_matches.plan_type is not null then 'payer_context_rule'
+        when {{ hpt_derive_plan_type('pr.clean_plan_name') }} is not null then 'derived_plan_type'
+        else 'none'
+    end as plan_type_basis,
     case
         when alias_matches.canonical_payer_id is not null then 'payer_alias'
         else 'unmatched'

@@ -1,3 +1,5 @@
+{{ config(tags=['silver_core']) }}
+
 with cases as (
     select *
     from (
@@ -300,6 +302,19 @@ with cases as (
                 cast(null as varchar),
                 'unknown',
                 cast(null as varchar)
+            ),
+            (
+                'cigna_exact_ppo',
+                'cigna',
+                'ppo',
+                'NA',
+                'cigna',
+                'commercial',
+                cast(null as varchar),
+                cast(null as varchar),
+                cast(null as varchar),
+                'medical',
+                cast(null as varchar)
             )
     ) as t(
         case_id,
@@ -314,6 +329,42 @@ with cases as (
         expected_benefit_line,
         expected_context_state
     )
+),
+
+-- Expected plan_type and plan_type_basis per case, mirroring the rule-vs-derivation
+-- precedence in slv_core__payer_rates: a rule that supplies plan_type wins
+-- (payer_context_rule); otherwise the deterministic token derivation fills it
+-- (derived_plan_type); otherwise null (none). Kept separate so the original
+-- case tuples stay untouched.
+plan_type_expectations as (
+    select *
+    from (
+        values
+            ('bare_aetna', cast(null as varchar), 'none'),
+            ('aetna_medicare_advantage', cast(null as varchar), 'none'),
+            ('aetna_better_health_va_dsnp', cast(null as varchar), 'none'),
+            ('aetna_whole_health', cast(null as varchar), 'none'),
+            ('aetna_tn_preferred_wrong_state', cast(null as varchar), 'none'),
+            ('uhc_tenncare', cast(null as varchar), 'none'),
+            ('uhc_dsnp_beats_community_plan', cast(null as varchar), 'none'),
+            ('united_dbp', cast(null as varchar), 'none'),
+            ('united_healthcare_west_ca', 'hmo', 'derived_plan_type'),
+            ('umr_stays_distinct', 'hmo', 'derived_plan_type'),
+            ('surest_stays_distinct', cast(null as varchar), 'none'),
+            ('united_behavioral_health_to_optum_context', cast(null as varchar), 'none'),
+            ('humana_choicecare_plan', 'ppo', 'derived_plan_type'),
+            ('humana_mcr_plan', cast(null as varchar), 'none'),
+            ('humana_dental_alias', cast(null as varchar), 'none'),
+            ('blue_cross_ca_covered_ca', cast(null as varchar), 'none'),
+            ('blue_shield_ca_mcrppo', cast(null as varchar), 'none'),
+            ('bcbst_bluecare_plus', cast(null as varchar), 'none'),
+            ('bcbs_michigan_bcn', cast(null as varchar), 'none'),
+            ('wellcare_medicare_alias', cast(null as varchar), 'none'),
+            ('wellpoint_tenncare_plan', cast(null as varchar), 'none'),
+            ('generic_ppo_stays_unknown_context', 'ppo', 'derived_plan_type'),
+            ('third_party_aetna_plan_not_aetna', 'ppo', 'derived_plan_type'),
+            ('cigna_exact_ppo', 'ppo', 'payer_context_rule')
+    ) as t(case_id, expected_plan_type, expected_plan_type_basis)
 ),
 
 alias_candidates as (
@@ -368,6 +419,7 @@ context_candidates as (
         {{ hpt_clean_text('rules.subsidiary_or_brand') }} as subsidiary_or_brand,
         {{ hpt_clean_text('rules.benefit_line') }} as benefit_line,
         {{ hpt_clean_text('rules.context_state', lowercase=false) }} as context_state,
+        {{ hpt_clean_text('rules.plan_type') }} as plan_type,
         row_number() over (
             partition by cases.case_id
             order by
@@ -438,7 +490,8 @@ context_matches as (
         product_or_network_name,
         subsidiary_or_brand,
         benefit_line,
-        context_state
+        context_state,
+        plan_type
     from context_candidates
     where match_rank = 1
 ),
@@ -471,6 +524,18 @@ actual as (
         ) as actual_benefit_line,
         cases.expected_context_state,
         context_matches.context_state as actual_context_state,
+        plan_type_expectations.expected_plan_type,
+        coalesce(
+            context_matches.plan_type,
+            {{ hpt_derive_plan_type('cases.clean_plan_name') }}
+        ) as actual_plan_type,
+        plan_type_expectations.expected_plan_type_basis,
+        case
+            when context_matches.plan_type is not null then 'payer_context_rule'
+            when {{ hpt_derive_plan_type('cases.clean_plan_name') }} is not null
+                then 'derived_plan_type'
+            else 'none'
+        end as actual_plan_type_basis,
         alias_matches.payer_alias_id,
         context_matches.payer_context_rule_id
     from cases
@@ -478,6 +543,8 @@ actual as (
         on cases.case_id = alias_matches.case_id
     left join context_matches
         on cases.case_id = context_matches.case_id
+    left join plan_type_expectations
+        on cases.case_id = plan_type_expectations.case_id
     left join {{ ref('canonical_payers') }} canonical_payers
         on alias_matches.canonical_payer_id = canonical_payers.canonical_payer_id
         and canonical_payers.active = true
@@ -492,3 +559,5 @@ where actual_canonical_payer_id is distinct from expected_canonical_payer_id
     or actual_subsidiary_or_brand is distinct from expected_subsidiary_or_brand
     or actual_benefit_line is distinct from expected_benefit_line
     or actual_context_state is distinct from expected_context_state
+    or actual_plan_type is distinct from expected_plan_type
+    or actual_plan_type_basis is distinct from expected_plan_type_basis

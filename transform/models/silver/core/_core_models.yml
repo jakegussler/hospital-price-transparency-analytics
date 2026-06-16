@@ -401,3 +401,14 @@ models:
         tests:
           - accepted_values:
               values: ["medical", "dental", "vision", "behavioral_health", "transplant", "unknown"]
+      - name: plan_type
+        description: "Structural plan type (ppo/hmo/pos/epo/pffs/hdhp), comparable across payers as a network-structure attribute, not a plan identity. Supplied by a payer-context rule when one classifies it; otherwise derived from a single whole-word plan-type token in clean_plan_name. Null when no rule applies and the plan name carries zero or ambiguous (more than one distinct) tokens. Enrichment only: never gates inclusion and never feeds market_segment."
+        tests:
+          - accepted_values:
+              values: ["ppo", "hmo", "pos", "epo", "pffs", "hdhp"]
+      - name: plan_type_basis
+        description: "Provenance of plan_type: 'payer_context_rule' when a curated rule supplied it, 'derived_plan_type' when the deterministic token derivation supplied it, 'none' when plan_type is null. Names plan_type provenance precisely; market_segment and other context provenance are carried by payer_context_match_basis and payer_context_confidence."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["payer_context_rule", "derived_plan_type", "none"]
