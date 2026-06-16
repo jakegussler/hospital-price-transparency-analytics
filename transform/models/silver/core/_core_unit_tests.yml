@@ -133,3 +133,105 @@ unit_tests:
       rows:
         - {service_item_id: svc-1, hospital_id: hosp-1, service_item_identity_basis: specific_code, code_signature_specific: sig-s1, code_signature_all: sig-a2, representative_clean_description: "CT W CONTRAST ABDOMEN", first_seen_snapshot_id: snap-1, last_seen_snapshot_id: snap-2, snapshot_count: 2, source_item_count: 2, distinct_description_count: 2}
         - {service_item_id: svc-2, hospital_id: hosp-1, service_item_identity_basis: categorical_code, code_signature_specific: null, code_signature_all: sig-a3, representative_clean_description: "MISC SUPPLY", first_seen_snapshot_id: snap-2, last_seen_snapshot_id: snap-2, snapshot_count: 1, source_item_count: 1, distinct_description_count: 1}
+
+  - name: payer_rate_methodology_amount_and_count_semantics
+    description: >
+      Fixture coverage for Silver Core payer-rate semantics: CMS methodology
+      canonicalization, unmapped fallback, count bounds, amount-kind priority,
+      and direct-vs-derived dollar comparability.
+    model: slv_core__payer_rates
+    given:
+      - input: ref('slv_base__payer_rates')
+        format: sql
+        rows: |
+          select *
+          from (
+              values
+                  ('rate-fee-dollar', 'std-1', 'fee schedule', '0', 100.00::decimal(18, 4), null::double, null::varchar, null::decimal(18, 4), 'ppo'),
+                  ('rate-percent-dollar', 'std-2', 'percent of total billed charges', '1 through 10', 75.00::decimal(18, 4), 60.0::double, '60% of gross', null::decimal(18, 4), 'hmo'),
+                  ('rate-percentage-only', 'std-3', 'per diem', '11', null::decimal(18, 4), 80.0::double, null::varchar, null::decimal(18, 4), 'epo'),
+                  ('rate-algorithm-only', 'std-4', 'other', 'bad count', null::decimal(18, 4), null::double, 'lesser of charges or fee schedule', null::decimal(18, 4), null::varchar),
+                  ('rate-estimated-only', 'std-5', 'case rate', null::varchar, null::decimal(18, 4), null::double, null::varchar, 25.00::decimal(18, 4), null::varchar),
+                  ('rate-empty', 'std-6', null::varchar, null::varchar, null::decimal(18, 4), null::double, null::varchar, null::decimal(18, 4), null::varchar),
+                  ('rate-unmapped-dollar', 'std-7', 'custom method', '12', 42.00::decimal(18, 4), null::double, null::varchar, null::decimal(18, 4), null::varchar)
+          ) as fixture(
+              silver_payer_rate_id,
+              silver_standard_charge_id,
+              clean_methodology,
+              raw_count,
+              negotiated_dollar,
+              negotiated_percentage,
+              negotiated_algorithm,
+              estimated_amount,
+              clean_plan_name
+          )
+      - input: ref('slv_base__standard_charges')
+        format: sql
+        rows: |
+          select *
+          from (
+              values
+                  ('std-1', 'outpatient', 'facility'),
+                  ('std-2', 'outpatient', 'facility'),
+                  ('std-3', 'inpatient', 'facility'),
+                  ('std-4', 'both', 'both'),
+                  ('std-5', 'inpatient', 'professional'),
+                  ('std-6', null::varchar, null::varchar),
+                  ('std-7', 'outpatient', 'facility')
+          ) as fixture(silver_standard_charge_id, clean_setting, clean_billing_class)
+      - input: ref('slv_core__rate_modifier_signature')
+        format: sql
+        rows: |
+          select
+              null::varchar as silver_payer_rate_id,
+              null::varchar as modifier_signature,
+              null::integer as modifier_count
+          where false
+      - input: ref('slv_core__payer_alias_matches')
+        format: sql
+        rows: |
+          select
+              null::varchar as silver_payer_rate_id,
+              null::varchar as canonical_payer_id,
+              null::varchar as payer_alias_id,
+              null::varchar as payer_review_status
+          where false
+      - input: ref('slv_core__payer_context_matches')
+        format: sql
+        rows: |
+          select
+              null::varchar as silver_payer_rate_id,
+              null::varchar as market_segment,
+              null::varchar as program_type,
+              null::varchar as product_or_network_name,
+              null::varchar as subsidiary_or_brand,
+              null::varchar as benefit_line,
+              null::varchar as funding_arrangement,
+              null::varchar as context_state,
+              null::varchar as plan_type,
+              null::varchar as payer_context_rule_id,
+              null::varchar as payer_context_review_status,
+              null::integer as payer_context_confidence
+          where false
+      - input: ref('canonical_payers')
+        format: sql
+        rows: |
+          select
+              null::varchar as canonical_payer_id,
+              null::varchar as canonical_payer_name,
+              null::varchar as payer_parent_id,
+              null::varchar as payer_parent_name,
+              null::varchar as payer_type,
+              null::varchar as default_market_segment,
+              null::varchar as default_benefit_line,
+              null::boolean as active
+          where false
+    expect:
+      rows:
+        - {silver_payer_rate_id: rate-fee-dollar, methodology: "fee schedule", methodology_basis: cms_value, count_raw: "0", count_min: 0, count_max: 0, amount_kind: dollar, amount_comparability_tier: comparable_dollar, is_price_comparable: true}
+        - {silver_payer_rate_id: rate-percent-dollar, methodology: "percent of total billed charges", methodology_basis: cms_value, count_raw: "1 through 10", count_min: 1, count_max: 10, amount_kind: dollar, amount_comparability_tier: derived_dollar, is_price_comparable: false}
+        - {silver_payer_rate_id: rate-percentage-only, methodology: "per diem", methodology_basis: cms_value, count_raw: "11", count_min: 11, count_max: 11, amount_kind: percentage, amount_comparability_tier: percentage, is_price_comparable: false}
+        - {silver_payer_rate_id: rate-algorithm-only, methodology: other, methodology_basis: cms_value, count_raw: "bad count", count_min: null, count_max: null, amount_kind: algorithm, amount_comparability_tier: algorithm, is_price_comparable: false}
+        - {silver_payer_rate_id: rate-estimated-only, methodology: "case rate", methodology_basis: cms_value, count_raw: null, count_min: null, count_max: null, amount_kind: estimated, amount_comparability_tier: none, is_price_comparable: false}
+        - {silver_payer_rate_id: rate-empty, methodology: unmapped, methodology_basis: unmapped, count_raw: null, count_min: null, count_max: null, amount_kind: none, amount_comparability_tier: none, is_price_comparable: false}
+        - {silver_payer_rate_id: rate-unmapped-dollar, methodology: unmapped, methodology_basis: unmapped, count_raw: "12", count_min: 12, count_max: 12, amount_kind: dollar, amount_comparability_tier: derived_dollar, is_price_comparable: false}

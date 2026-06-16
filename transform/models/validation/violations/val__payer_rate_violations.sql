@@ -353,13 +353,7 @@ violations as (
         'Methodology is outside the CMS contract methodology value set.'
     from rate_flags
     where clean_methodology is not null
-        and clean_methodology not in (
-            'case rate',
-            'fee schedule',
-            'percent of total billed charges',
-            'per diem',
-            'other'
-        )
+        and clean_methodology not in {{ hpt_methodology_values_sql() }}
 
     union all
 

@@ -366,6 +366,43 @@ models:
         description: "Deterministically cleaned lowercase plan name used for payer-context matching."
       - name: display_plan_name
         description: "Analyst-friendly title-case plan name derived from the source-reported plan name."
+      - name: methodology
+        description: "Canonical CMS contract methodology display value. Rows whose cleaned source methodology does not match the CMS value set are labeled 'unmapped' rather than guessed."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["case rate", "fee schedule", "percent of total billed charges", "per diem", "other", "unmapped"]
+      - name: methodology_basis
+        description: "Provenance for methodology: 'cms_value' for exact CMS values, 'mapped' reserved for a future alias map, and 'unmapped' when no canonical methodology is available."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["cms_value", "mapped", "unmapped"]
+      - name: count_raw
+        description: "Source-preserved v3 count string exposed alongside raw_count for the public payer-rate semantics contract."
+      - name: count_min
+        description: "Parsed lower bound for count_raw: 0 for '0', 1 for '1 through 10', N for allowed whole-number counts 11 or greater, otherwise null."
+      - name: count_max
+        description: "Parsed upper bound for count_raw: 0 for '0', 10 for '1 through 10', N for allowed whole-number counts 11 or greater, otherwise null."
+      - name: amount_kind
+        description: "Authoritative amount representation for the row, resolved by priority: dollar, percentage, algorithm, estimated, then none."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["dollar", "percentage", "algorithm", "estimated", "none"]
+      - name: amount_comparability_tier
+        description: "Analytic comparability class for the authoritative amount. Direct fee schedule, case rate, and per diem dollars are comparable_dollar; percent, other, and unmapped methodology dollars are derived_dollar."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["comparable_dollar", "derived_dollar", "percentage", "algorithm", "none"]
+      - name: is_price_comparable
+        description: "Convenience boolean for price-ranking filters; true only when amount_comparability_tier is comparable_dollar."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+              quote: false
       - name: payer_match_basis
         tests:
           - not_null
