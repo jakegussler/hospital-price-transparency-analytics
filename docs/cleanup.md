@@ -16,6 +16,16 @@ to the relevant docs and delete resolved items from here.
   scoped builds. Run an unscoped rebuild (for example `make dbt-rebuild`) to
   backfill the rest; that run also executes the new `_core_unit_tests.yml`
   unit tests, which snapshot-scoped runs exclude by design.
+- Plan normalization added the new NOT NULL column `plan_type_basis` to
+  `slv_core__payer_rates` (and the `plan_type` token-derivation fallback) via
+  `on_schema_change: append_new_columns`, so payer-rate rows for snapshots not
+  rebuilt since the change hold null `plan_type_basis` and the `not_null` test
+  on it fails until those snapshots are rebuilt (observed: only the rebuilt
+  snapshot has a non-null value; the rest are stale). Scoped builds backfill the
+  rebuilt snapshot; run an unscoped rebuild (for example `make dbt-rebuild`) to
+  backfill the rest and apply the `plan_type` derivation across the corpus. The
+  `core_payer_rates_plan_type_basis_consistency` invariant and the
+  `accepted_values` tests already pass on rebuilt rows.
 - Charge-item normalization has the same backfill caveat: `code_is_specific`
   on `slv_core__charge_item_codes` holds nulls (and its `not_null` test fails)
   for snapshots not rebuilt since the change, the new `slv_core__charge_items`

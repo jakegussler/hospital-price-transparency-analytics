@@ -85,7 +85,14 @@ plus payer/plan context, billing-code enrichment (match keys, format status,
 comparability, NDC canonical-11), modifier and drug-unit reference enrichment,
 and deterministic within-hospital cross-snapshot service-item identity
 (`slv_core__charge_items` signatures and the `slv_core__service_items`
-dimension). Data-quality finding views live under `models/silver/audit/`.
+dimension). Payer/plan context is curated in `payer_context_rules`; where no
+rule supplies a structural `plan_type`, `slv_core__payer_rates` falls back to a
+deterministic word-boundary token derivation (`hpt_derive_plan_type`) and
+records the provenance in `plan_type_basis`
+(`payer_context_rule` / `derived_plan_type` / `none`). Plan classification is
+enrichment and never gates row inclusion. Data-quality finding views live under
+`models/silver/audit/`, including `slv_audit__plan_context_coverage`, which
+measures market_segment and plan_type coverage by canonical payer.
 
 Silver converts source-faithful, validation-filtered Bronze data into
 normalized analytical entities.
