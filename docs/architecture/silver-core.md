@@ -205,10 +205,11 @@ Context columns describe the plan or program attached to the rate:
 ### Alias Matching
 
 `slv_core__payer_alias_matches` joins `slv_base__payer_rates.clean_payer_name`
-to accepted, active `payer_aliases` rows where `match_type = 'exact_clean'`.
-State-scoped aliases are allowed and are preferred over global aliases when the
-hospital snapshot state matches. Among remaining candidates, the ranking favors
-stronger validation status and then deterministic alias ID order.
+to accepted, active `payer_aliases.clean_payer_name` rows using exact cleaned
+payer-name equality. State-scoped aliases are allowed and are preferred over
+global aliases when the hospital snapshot state matches. Among remaining
+candidates, the ranking favors stronger validation status and then deterministic
+alias ID order.
 
 Rows that do not match an alias are not removed. In `slv_core__payer_rates`,
 they keep their source payer fields and receive:

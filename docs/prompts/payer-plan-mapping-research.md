@@ -342,7 +342,7 @@ the notes.
 
 Keep current seed constraints in mind:
 
-- `payer_aliases.match_type` currently accepts `exact_clean`.
+- `payer_aliases` maps exact `clean_payer_name` values to canonical payer IDs.
 - `payer_context_rules.match_type` accepts `payer_name`, `exact_clean`,
   `plan_contains`, `token_contains`, and `regex`.
 - `match_scope` is `global` or `state`; set `match_state` to a two-letter state
