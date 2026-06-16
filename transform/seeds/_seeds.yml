@@ -288,13 +288,6 @@ seeds:
         description: "Deterministically cleaned source payer name used for exact alias matching."
         tests:
           - not_null
-      - name: alias_pattern
-        description: "Pattern value represented by the rule; for exact-clean rules this matches clean_payer_name."
-      - name: match_type
-        description: "Matching method used by the rule."
-        tests:
-          - accepted_values:
-              values: ["exact_clean"]
       - name: match_scope
         description: "Scope where this alias can be applied, such as global or state-specific."
         tests:

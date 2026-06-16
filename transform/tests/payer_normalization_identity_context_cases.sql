@@ -390,7 +390,6 @@ alias_candidates as (
         on cases.clean_payer_name = aliases.clean_payer_name
         and aliases.active = true
         and aliases.review_status = 'accepted'
-        and aliases.match_type = 'exact_clean'
         and (
             aliases.match_scope = 'global'
             or (
