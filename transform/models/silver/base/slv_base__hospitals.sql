@@ -1,3 +1,15 @@
+with registry_hospitals as (
+    select * from {{ ref('hospitals') }}
+
+    {% if var('hpt_include_validation_fixtures', 'false') | lower == 'true' %}
+    -- Fictional multi-snapshot validation hospitals, opt-in only. Production runs
+    -- leave hpt_include_validation_fixtures false, so this dimension is exactly
+    -- the registry seed. See docs/development/multi-snapshot-validation.md.
+    union all
+    select * from {{ ref('hospitals_validation_fixtures') }}
+    {% endif %}
+)
+
 select
     h.hospital_id,
     h.canonical_hospital_name,
@@ -11,6 +23,6 @@ select
     h.health_system,
     h.mrf_url,
     h.expected_format
-from {{ ref('hospitals') }} h
+from registry_hospitals h
 left join {{ ref('states') }} states
     on h.canonical_state = states.state_code

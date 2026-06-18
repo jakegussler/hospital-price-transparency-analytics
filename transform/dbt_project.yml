@@ -18,6 +18,12 @@ clean-targets:
 
 vars:
   hpt_silver_retention_mode: "{{ env_var('HPT_SILVER_RETENTION_MODE', 'current_only') }}"
+  # Off by default: production hospitals dimension is the registry seed only. The
+  # multi-snapshot validation workflow sets HPT_INCLUDE_VALIDATION_FIXTURES=true
+  # to union the fictional fixture hospitals into slv_base__hospitals so the
+  # service-item referential test passes. See
+  # docs/development/multi-snapshot-validation.md.
+  hpt_include_validation_fixtures: "{{ env_var('HPT_INCLUDE_VALIDATION_FIXTURES', 'false') }}"
 
 models:
   hospital_price_transparency:
@@ -190,3 +196,9 @@ seeds:
         canonical_unit: varchar
         unit_group: varchar
         notes: varchar
+    fixtures:
+      # Fictional test hospitals for multi-snapshot validation only. Kept out of
+      # the registry-faithful `hospitals` seed; unioned into slv_base__hospitals
+      # solely when hpt_include_validation_fixtures is true. Exclude from a run
+      # with `--exclude tag:validation_fixtures` if desired.
+      +tags: ["validation_fixtures"]

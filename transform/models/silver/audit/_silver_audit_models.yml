@@ -18,6 +18,35 @@ models:
       - name: max_snapshot_source_items
         description: "Largest number of distinct Silver Base items rolled into the ID inside a single snapshot."
 
+  - name: slv_audit__service_item_continuity
+    description: >
+      Cross-snapshot continuity scorecard for the deterministic service-item
+      identity (decision 0014), one row per hospital. Reports how many items
+      recur across the snapshots retained for that hospital (continuity), how
+      many first appear in the latest snapshot (minted), and how many fall out
+      before it (retired / drift-driven churn). This is the s2.4 deliverable
+      that makes service_item_id continuity measurable rather than asserted.
+      Meaningful only under all_snapshots retention with multi-snapshot
+      ingestion; under current_only every hospital holds one snapshot so the
+      multi-snapshot and minted/retired counts are 0 by construction.
+    columns:
+      - name: hospital_id
+        description: "Within-hospital scope for the identity (ids never span hospitals)."
+        tests:
+          - not_null
+      - name: hospital_snapshot_count
+        description: "Distinct retained snapshots for this hospital. 1 under current_only retention."
+      - name: service_item_count
+        description: "Distinct service_item_ids for this hospital across retained snapshots."
+      - name: multi_snapshot_item_count
+        description: "Service items observed in two or more snapshots: the continuity signal."
+      - name: pct_items_multi_snapshot
+        description: "Share of this hospital's service items that recur across snapshots."
+      - name: minted_in_latest_item_count
+        description: "Items first seen in the latest snapshot (new items + drift-driven re-mints)."
+      - name: retired_before_latest_item_count
+        description: "Items last seen before the latest snapshot (dropped items + old id of a re-mint)."
+
   - name: slv_audit__code_validation_findings
     description: >
       Code-quality findings from the Silver Core code enrichment, aggregated

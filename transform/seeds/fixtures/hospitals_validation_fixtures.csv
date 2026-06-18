@@ -1,0 +1,3 @@
+hospital_id,canonical_hospital_name,canonical_state,hospital_type,health_system,mrf_url,expected_format
+zzz-msval-continuity,ZZZ Multi-Snapshot Continuity Test Hospital,TN,community,ZZZ Validation Fixtures,https://example.com/zzz-msval-continuity.csv,csv_tall
+zzz-msval-overmerge,ZZZ Multi-Snapshot Over-Merge Test Hospital,TN,community,ZZZ Validation Fixtures,https://example.com/zzz-msval-overmerge.csv,csv_tall

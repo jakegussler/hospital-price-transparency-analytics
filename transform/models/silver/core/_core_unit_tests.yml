@@ -110,6 +110,37 @@ unit_tests:
         - {silver_charge_item_id: item-drug-1, description_token_signature: 0141d059c48262b4a76e29286bbacbf2, code_signature_specific: f315472c792d27762937b94dbcabf5e1, code_signature_all: f315472c792d27762937b94dbcabf5e1, drug_signature: 940cde81163ef742db536a54a85dc7d5, service_item_identity_basis: specific_code, service_item_identity_confidence: high, service_item_id: 63ea2d2cb6303d6d11228769f187c325}
         - {silver_charge_item_id: item-drug-2, description_token_signature: 0141d059c48262b4a76e29286bbacbf2, code_signature_specific: f315472c792d27762937b94dbcabf5e1, code_signature_all: f315472c792d27762937b94dbcabf5e1, drug_signature: 940cde81163ef742db536a54a85dc7d5, service_item_identity_basis: specific_code, service_item_identity_confidence: high, service_item_id: 63ea2d2cb6303d6d11228769f187c325}
 
+  - name: service_item_id_hospital_scope_and_mint
+    description: >
+      Negative-case contract for the derived service_item_id, complementing
+      charge_items_cross_format_identity_consistency (which proves drift is
+      tolerated). Two items with an identical specific code and identical
+      description but different hospital_id must get different ids (the
+      within-hospital boundary decision 0014 and Gold rely on), and a
+      token-set-changing description rewrite under the same code must mint a new
+      id rather than carry continuity. h1 and h2 share code_signature_specific
+      and description_token_signature, so only hospital_id separates them.
+    model: slv_core__charge_items
+    given:
+      - input: ref('slv_base__charge_items')
+        rows:
+          - {silver_charge_item_id: ct-h1, snapshot_id: snap-1, hospital_id: hosp-1, source_format: csv_tall, clean_description: "CT HEAD WITHOUT CONTRAST"}
+          - {silver_charge_item_id: ct-h1-rewrite, snapshot_id: snap-2, hospital_id: hosp-1, source_format: csv_tall, clean_description: "CT BRAIN STUDY NONCONTRAST IMAGING"}
+          - {silver_charge_item_id: ct-h2, snapshot_id: snap-1, hospital_id: hosp-2, source_format: csv_tall, clean_description: "CT HEAD WITHOUT CONTRAST"}
+      - input: ref('slv_core__charge_item_codes')
+        rows:
+          - {silver_charge_item_id: ct-h1, match_code: "70450", canonical_code_system: cpt, clean_code_type: cpt, code_is_specific: true}
+          - {silver_charge_item_id: ct-h1-rewrite, match_code: "70450", canonical_code_system: cpt, clean_code_type: cpt, code_is_specific: true}
+          - {silver_charge_item_id: ct-h2, match_code: "70450", canonical_code_system: cpt, clean_code_type: cpt, code_is_specific: true}
+      - input: ref('drug_unit_aliases')
+        rows:
+          - {raw_unit_code: EA, clean_unit_code: ea, canonical_unit: each, unit_group: count}
+    expect:
+      rows:
+        - {silver_charge_item_id: ct-h1, description_token_signature: 4d377965872be5426ea053708e1857cd, code_signature_specific: 2ad6df180192a61e750f00d220586180, service_item_identity_basis: specific_code, service_item_id: abc4147792015f333f8114682b81e10c}
+        - {silver_charge_item_id: ct-h1-rewrite, description_token_signature: c828f33b216a832896b8bf32362a80b5, code_signature_specific: 2ad6df180192a61e750f00d220586180, service_item_identity_basis: specific_code, service_item_id: af0ab7a27636a2542012e630ef9f2045}
+        - {silver_charge_item_id: ct-h2, description_token_signature: 4d377965872be5426ea053708e1857cd, code_signature_specific: 2ad6df180192a61e750f00d220586180, service_item_identity_basis: specific_code, service_item_id: b13402f8a02fa1d1928680258e977c9c}
+
   - name: service_items_cross_snapshot_continuity
     description: >
       Continuity fixture for the cross-snapshot dimension: the same
