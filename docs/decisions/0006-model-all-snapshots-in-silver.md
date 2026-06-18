@@ -16,6 +16,12 @@ preserves all snapshots. Silver and validation are now configurable:
 Snapshot-grained Silver models still use `snapshot_id` as the incremental batch
 key and preserve source lineage for retained rows.
 
+Price history itself is out of v1 scope (decision 0016); `all_snapshots` and the
+`snapshot_id` lineage are retained as the seam an adopter accumulating
+longitudinal data would build on, not because v1 ships a history product. The
+default `current_only` mode reflects that the shipped analytics goal is current
+cross-hospital comparison.
+
 ## Context
 
 The downloader records file-level snapshots, and Bronze Parquet is physically

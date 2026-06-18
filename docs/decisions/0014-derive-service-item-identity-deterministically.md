@@ -4,10 +4,14 @@ Status: accepted
 
 ## Context
 
-Tracking how a hospital's prices change over time requires the same charge
-item to carry the same identifier across snapshots, and no such identifier
-exists in the source data: JSON assigns a per-file ordinal, CSV has only rows,
-and the Silver Base `silver_charge_item_id` is snapshot-scoped by design.
+A stable cross-snapshot charge-item identifier is the seam that any future
+price-over-time analysis would need: the same charge item must carry the same
+identifier across snapshots, and no such identifier exists in the source data
+(JSON assigns a per-file ordinal, CSV has only rows, and the Silver Base
+`silver_charge_item_id` is snapshot-scoped by design). Building this identity
+deterministically keeps that seam open cheaply even though price history itself
+is out of v1 scope (decision 0016) — the mechanics are validated and the
+identifier is also useful within a single snapshot for item-grain rollups.
 
 Profiling showed charge items are not curatable the way payers are: the local
 corpus holds on the order of a million distinct items and hundreds of
@@ -69,8 +73,11 @@ quantity math, and large abbreviation dictionaries.
   the over-merge audit, and line-grain analysis remains available through
   `silver_charge_item_id`.
 - A description change large enough to alter the token set mints a new ID;
-  supersession links are deferred until multi-snapshot data shows material
-  drift-driven churn.
+  supersession links are out of v1 scope. They belong to the price-history
+  extension point (decision 0016) and would only be picked up if real
+  multi-snapshot data showed material drift-driven churn. The identity mechanics
+  themselves are validated (see `docs/development/multi-snapshot-validation.md`);
+  this decision stands as the seam that future history work would build on.
 - Cross-hospital comparison stays a Gold code-cohort join, never item
   identity.
 

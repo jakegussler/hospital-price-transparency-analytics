@@ -49,6 +49,30 @@ to the relevant docs and delete resolved items from here.
   CR7 enforcement). The pinned snapshot `cd725773-f575-45dd-a796-adf9c9805a14` is
   backfilled by scoped builds; an unscoped rebuild is still needed to propagate
   the new retain/flag behavior across the rest of the corpus.
+## Service-Item Continuity And Validation Corpus
+
+- Service-item supersession links are an extension point, not v1 work.
+  `slv_core__service_items` has no `valid_from`/`valid_to`; a token-set-changing
+  description rewrite mints a new `service_item_id` and retires the old one with
+  no link between them (decision 0014). The multi-snapshot validation
+  (`docs/development/multi-snapshot-validation.md`) proves continuity and drift
+  *mechanics*, which is sufficient for v1. Calibrating over-merge thresholds and
+  adding supersession belong to the price-history extension point (decision
+  0016), which is deliberately out of v1 scope and would only be picked up once
+  orchestrated multi-snapshot accumulation produced real drift-driven churn.
+- The two validation hospitals (`zzz-msval-continuity`, `zzz-msval-overmerge`)
+  live in a dedicated fixtures seed
+  (`transform/seeds/fixtures/hospitals_validation_fixtures.csv`, tag
+  `validation_fixtures`), **not** in `transform/seeds/hospitals.csv`. That seed is
+  again a faithful export of the bundled registry, so `make export-hospitals-seed`
+  round-trips without dropping rows. The fixtures are kept out of the registry on
+  purpose — the registry drives downloads and `MrfSource.url` must be a real
+  `HttpUrl`, so fake entries would be attempted on `download --all`. They are
+  unioned into `slv_base__hospitals` only when `HPT_INCLUDE_VALIDATION_FIXTURES=true`
+  (the `hpt_include_validation_fixtures` dbt var), which the multi-snapshot
+  validation workflow sets so the `service_items → hospitals` referential test
+  passes; normal runs leave the var false and never include them.
+
 ## Parser Validation Hardening
 
 - The JSON streaming parser validates individual

@@ -294,6 +294,14 @@ runtime documentation.
 - Publisher MRF URLs can change or disappear; failed downloads should be
   investigated against the registry and source hospital pages.
 - Gold analytics models are planned but not implemented.
+- The shipped analytics goal is comparing *current* prices across hospitals.
+  Price-change-over-time analysis is a deliberate extension point, not a v1
+  deliverable: there is no longitudinal corpus to build or validate it against
+  within this project's scope. The architecture keeps the seam open for it —
+  snapshot lineage, the `all_snapshots` retention mode, and a validated
+  cross-snapshot service identity — so an adopter who runs the pipeline
+  continuously can add history without reworking the model. See
+  `docs/decisions/0016-scope-history-as-extension-point.md`.
 - Airflow, Docker, and Terraform directories are placeholders.
 - This project is not medical, billing, legal, or compliance advice.
 
