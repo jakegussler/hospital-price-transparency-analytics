@@ -1,0 +1,27 @@
+hospitals:
+  - hospital_id: lincoln-health-system
+    canonical_hospital_name: Lincoln Health System
+    canonical_state: TN
+    hospital_type: community
+    health_system: Lincoln Health System
+    mrf_source:
+      url: https://hhlincolnhealth.org/wp-content/uploads/882472117_hh-health-system-lincoln-inc_standardcharges.csv
+      expected_format: csv_wide
+
+  - hospital_id: ballad-sycamore
+    canonical_hospital_name: Sycamore Shoals Hospital
+    canonical_state: TN
+    hospital_type: community
+    health_system: Ballad Health
+    mrf_source:
+      url: https://www.balladhealth.org/sites/default/files/2026-03/620476282_sycamore-shoals-hospital_standardcharges.zip
+      expected_format: csv_tall
+
+  - hospital_id: ngmc-gainesville
+    canonical_hospital_name: Northeast Georgia Medical Center Gainesville
+    canonical_state: GA
+    hospital_type: community
+    health_system: Northeast Georgia Health System
+    mrf_source:
+      url: https://www.nghs.com/wp-content/uploads/581713478_northeast-georgia-medical-center-gainesville_standardcharges.json
+      expected_format: json

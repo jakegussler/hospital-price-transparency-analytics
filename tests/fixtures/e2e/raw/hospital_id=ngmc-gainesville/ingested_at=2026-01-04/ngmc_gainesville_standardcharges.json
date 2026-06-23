@@ -1,0 +1,79 @@
+{
+  "attestation": {
+    "attestation": "To the best of its knowledge and belief, this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file. This hospital has included all payer-specific negotiated charges in dollars that can be expressed as a dollar amount. For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount, including, but not limited to, the specific fee schedule or components referenced in such percentage, algorithm or formula.",
+    "attester_name": "Jane Smith",
+    "confirm_attestation": true
+  },
+  "hospital_address": [
+    "200 Main St"
+  ],
+  "hospital_name": "Northeast Georgia Medical Center Gainesville",
+  "last_updated_on": "2026-01-01",
+  "license_information": {
+    "license_number": "GA24680",
+    "state": "GA"
+  },
+  "location_name": [
+    "Main Campus"
+  ],
+  "standard_charge_information": [
+    {
+      "code_information": [
+        {
+          "code": "72148",
+          "type": "CPT"
+        }
+      ],
+      "description": "MRI lumbar spine",
+      "standard_charges": [
+        {
+          "billing_class": "facility",
+          "discounted_cash": 600.0,
+          "gross_charge": 1200.0,
+          "maximum": 600.0,
+          "minimum": 500.0,
+          "payers_information": [
+            {
+              "methodology": "fee schedule",
+              "payer_name": "Aetna",
+              "plan_name": "PPO",
+              "standard_charge_dollar": 500.0
+            }
+          ],
+          "setting": "outpatient"
+        }
+      ]
+    },
+    {
+      "code_information": [
+        {
+          "code": "97110",
+          "type": "CPT"
+        }
+      ],
+      "description": "Physical therapy visit",
+      "standard_charges": [
+        {
+          "billing_class": "professional",
+          "discounted_cash": 90.0,
+          "gross_charge": 180.0,
+          "maximum": 90.0,
+          "minimum": 75.0,
+          "payers_information": [
+            {
+              "methodology": "fee schedule",
+              "payer_name": "Cigna",
+              "plan_name": "HMO",
+              "standard_charge_dollar": 75.0
+            }
+          ],
+          "setting": "outpatient"
+        }
+      ]
+    }
+  ],
+  "type_2_npi": [
+    "1234567890"
+  ],
+  "version": "3.0.0"
+}

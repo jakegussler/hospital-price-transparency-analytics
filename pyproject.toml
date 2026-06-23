@@ -50,3 +50,6 @@ select = ["E", "F", "I", "W"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "e2e: offline end-to-end fixture tests that exercise ingest, Bronze, and dbt",
+]
