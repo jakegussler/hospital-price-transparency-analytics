@@ -54,10 +54,12 @@ class DbtRunConfig:
     mode: DbtRunMode = DbtRunMode.SCOPED
     command: str = DEFAULT_COMMAND
     selectors: list[str] | str | None = field(default_factory=list)
+    select: list[str] | str | None = field(default_factory=list)
     hospital_ids: list[str] | str | None = field(default_factory=list)
     snapshot_ids: list[str] | str | None = field(default_factory=list)
     include_seeds: bool = False
     full_refresh: bool = False
+    defer_tests: bool = False
     clear_on_failure: bool = False
     extra_args: list[str] | None = field(default_factory=list)
     retention_mode: str = field(default_factory=_retention_mode_from_env)
@@ -66,6 +68,10 @@ class DbtRunConfig:
     def __post_init__(self) -> None:
         # Normalize every "comma-separated string OR list" input to a clean list.
         object.__setattr__(self, "selectors", to_clean_list(self.selectors))
+        # Node selection is passed through to dbt verbatim (case-preserving):
+        # FQNs, tags, paths, and graph operators (model+, +model, @model) can be
+        # case-sensitive, unlike the lowercased id/selector tokens.
+        object.__setattr__(self, "select", to_clean_list(self.select, lower=False))
         object.__setattr__(self, "hospital_ids", to_clean_list(self.hospital_ids))
         object.__setattr__(self, "snapshot_ids", to_clean_list(self.snapshot_ids))
         object.__setattr__(self, "extra_args", list(self.extra_args or []))
@@ -81,8 +87,26 @@ class DbtRunConfig:
 
     @property
     def selector_iter(self) -> list[str | None]:
-        """Selectors to iterate; ``[None]`` means a single run with no ``--selector``."""
+        """Selectors to iterate; ``[None]`` means a single run with no ``--selector``.
+
+        ``--select`` node selection (when set) rides on the single ``[None]`` pass
+        as one union invocation; it is never iterated like named selectors.
+        """
         return list(self.selectors) or [None]
+
+    @property
+    def runs_deferred_tests(self) -> bool:
+        """Whether this run splits ``build`` into a materialize pass plus one test pass."""
+        return self.defer_tests and self.command == "build"
+
+    @property
+    def materialize_command(self) -> str:
+        """The command the orchestrator flows run to materialize models.
+
+        With ``--defer-tests``, ``build`` becomes ``run`` so tests are skipped
+        during materialization and run once afterward against the whole table.
+        """
+        return "run" if self.runs_deferred_tests else self.command
 
     # -- validation ------------------------------------------------------------
 
@@ -92,6 +116,16 @@ class DbtRunConfig:
             raise ValueError(
                 f"{RETENTION_MODE_ENV} must be '{CURRENT_ONLY_RETENTION_MODE}' or "
                 f"'{ALL_SNAPSHOTS_RETENTION_MODE}', got '{self.retention_mode}'."
+            )
+        if self.selectors and self.select:
+            raise ValueError(
+                "Use --select (model node selection) or --selector (named selector), "
+                "not both: dbt would intersect them."
+            )
+        if self.defer_tests and self.command != "build":
+            raise ValueError(
+                "--defer-tests only applies to build; it splits build into a run "
+                "(materialize) pass plus a single test pass."
             )
         if "--full-refresh" in self.extra_args:
             raise ValueError(
@@ -126,11 +160,13 @@ class DbtRunConfig:
         snapshot_ids: str | None = None,
         command: str = DEFAULT_COMMAND,
         selector: str | None = None,
+        select: str | None = None,
         seeds: bool = False,
         all_hospitals: bool = False,
         per_snapshot: bool = False,
         full_refresh: bool = False,
         full_rebuild: bool = False,
+        defer_tests: bool = False,
         clear_on_failure: bool = False,
     ) -> DbtRunConfig:
         """Map mutually-exclusive CLI flags to a run mode and build the config.
@@ -171,9 +207,11 @@ class DbtRunConfig:
             mode=mode,
             command=command,
             selectors=selector,
+            select=select,
             hospital_ids=hospital_ids,
             snapshot_ids=snapshot_ids,
             include_seeds=seeds,
             full_refresh=full_refresh,
+            defer_tests=defer_tests,
             clear_on_failure=clear_on_failure,
         )

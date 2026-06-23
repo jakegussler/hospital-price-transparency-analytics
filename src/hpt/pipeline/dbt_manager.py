@@ -90,20 +90,26 @@ class DbtManager:
         *,
         snapshot_ids: list[str] | None = None,
         selector: str | None = None,
+        select: list[str] | None = None,
         full_refresh: bool = False,
         extra_args: list[str] | None = None,
     ) -> bool:
         """Invoke a single (optionally snapshot-scoped) dbt command.
 
         Passing ``snapshot_ids`` adds the ``snapshot_ids`` dbt var that prunes
-        Bronze partitions. ``selector`` scopes models; ``full_refresh`` adds
-        ``--full-refresh``. Logs and returns False on failure.
+        Bronze partitions. ``selector`` scopes models by named selector;
+        ``select`` scopes models by node selection (FQNs/tags/paths and graph
+        operators such as ``model+``) in a single union invocation. The caller is
+        responsible for not passing both. ``full_refresh`` adds ``--full-refresh``.
+        Logs and returns False on failure.
         """
         args = [command, *self._base_args]
         if snapshot_ids:
             args += ["--vars", json.dumps({"snapshot_ids": list(snapshot_ids)})]
         if selector:
             args += ["--selector", selector]
+        if select:
+            args += ["--select", *select]
         if command in UNIT_TEST_EXCLUDED_COMMANDS:
             args += ["--indirect-selection", "buildable"]
             args += ["--exclude-resource-type", "unit_test"]
@@ -119,6 +125,7 @@ class DbtManager:
                 "dbt_action": "command",
                 "dbt_command": command,
                 "dbt_selector": selector,
+                "dbt_select": list(select or []),
                 "snapshot_ids": list(snapshot_ids or []),
                 "dbt_full_refresh": full_refresh,
             },

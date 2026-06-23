@@ -274,6 +274,16 @@ def run_dbt(
             "Omit to build the coherent full graph."
         ),
     ),
+    select: str | None = typer.Option(
+        None,
+        "--select",
+        help=(
+            "dbt model node selection with graph operators (for example "
+            "'slv_core__payer_rates', 'slv_core__payer_rates+', or "
+            "'+slv_core__payer_rates'). Comma-separated nodes are passed as a single "
+            "union --select. Mutually exclusive with --selector."
+        ),
+    ),
     seeds: bool = typer.Option(
         False,
         "--seeds/--no-seeds",
@@ -304,6 +314,16 @@ def run_dbt(
         False,
         "--full-rebuild",
         help=("Run a true full-refresh rebuild: no snapshot scope and dbt --full-refresh enabled."),
+    ),
+    defer_tests: bool = typer.Option(
+        False,
+        "--defer-tests",
+        help=(
+            "Split build into a run (materialize) pass plus one unscoped test pass at "
+            "the end, instead of testing the whole table after every snapshot. Use for "
+            "multi-snapshot rebuilds to avoid re-testing already-built snapshots. "
+            "Structural failures still abort mid-run; only data-quality tests defer."
+        ),
     ),
     clear_on_failure: bool = typer.Option(
         False,
@@ -337,11 +357,13 @@ def run_dbt(
         snapshot_ids=snapshot_ids,
         command=command,
         selector=selector,
+        select=select,
         seeds=seeds,
         all_hospitals=all_hospitals,
         per_snapshot=per_snapshot,
         full_refresh=full_refresh,
         full_rebuild=full_rebuild,
+        defer_tests=defer_tests,
         clear_on_failure=clear_on_failure,
         log_level=log_level,
         audit_root=audit_root,
@@ -355,11 +377,13 @@ def run_dbt_logic(
     snapshot_ids: str | None = None,
     command: str = DEFAULT_COMMAND,
     selector: str | None = DEFAULT_SELECTOR,
+    select: str | None = None,
     seeds: bool = False,
     all_hospitals: bool = False,
     per_snapshot: bool = False,
     full_refresh: bool = False,
     full_rebuild: bool = False,
+    defer_tests: bool = False,
     clear_on_failure: bool = False,
     log_level: str = "INFO",
     audit_root: Path | None = None,
@@ -370,11 +394,13 @@ def run_dbt_logic(
             snapshot_ids=snapshot_ids,
             command=command,
             selector=selector,
+            select=select,
             seeds=seeds,
             all_hospitals=all_hospitals,
             per_snapshot=per_snapshot,
             full_refresh=full_refresh,
             full_rebuild=full_rebuild,
+            defer_tests=defer_tests,
             clear_on_failure=clear_on_failure,
         )
     except ValueError as exc:
@@ -394,6 +420,8 @@ def run_dbt_logic(
                 "mode": config.mode.value,
                 "command": config.command,
                 "selectors": ",".join(config.selectors),
+                "select": ",".join(config.select),
+                "defer_tests": config.runs_deferred_tests,
             },
         )
     except Exception as exc:  # noqa: BLE001

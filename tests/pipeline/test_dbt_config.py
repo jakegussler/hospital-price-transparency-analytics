@@ -156,3 +156,70 @@ def test_full_rebuild_requires_materializing_command() -> None:
 def test_full_rebuild_rejects_scope() -> None:
     with pytest.raises(ValueError, match="Full rebuild runs unscoped"):
         DbtRunConfig(mode=DbtRunMode.FULL_REBUILD, hospital_ids="h1")
+
+
+# ---------------------------------------------------------------------------
+# --select node selection
+# ---------------------------------------------------------------------------
+
+
+def test_select_comma_string_becomes_list() -> None:
+    cfg = DbtRunConfig(select="slv_core__payer_rates, slv_core__charge_items+")
+    assert cfg.select == ["slv_core__payer_rates", "slv_core__charge_items+"]
+
+
+def test_select_preserves_case_unlike_ids() -> None:
+    # Node selection is passed to dbt verbatim; tags/paths can be case-sensitive.
+    cfg = DbtRunConfig(select=["@SLV_Core__Payer_Rates"], snapshot_ids="Snap-A")
+    assert cfg.select == ["@SLV_Core__Payer_Rates"]
+    assert cfg.snapshot_ids == ["snap-a"]
+
+
+def test_select_and_selector_are_mutually_exclusive() -> None:
+    with pytest.raises(ValueError, match="not both"):
+        DbtRunConfig(selectors="silver_core", select="slv_core__payer_rates")
+
+
+def test_from_cli_threads_select_with_scoped_snapshot() -> None:
+    cfg = DbtRunConfig.from_cli(
+        snapshot_ids="snap-a",
+        select="slv_core__payer_rates+",
+        command="build",
+    )
+    assert cfg.mode is DbtRunMode.SCOPED
+    assert cfg.select == ["slv_core__payer_rates+"]
+    assert cfg.snapshot_ids == ["snap-a"]
+
+
+def test_from_cli_allows_select_with_full_rebuild() -> None:
+    cfg = DbtRunConfig.from_cli(full_rebuild=True, select="slv_core__payer_rates+")
+    assert cfg.mode is DbtRunMode.FULL_REBUILD
+    assert cfg.select == ["slv_core__payer_rates+"]
+
+
+# ---------------------------------------------------------------------------
+# --defer-tests two-phase build
+# ---------------------------------------------------------------------------
+
+
+def test_defer_tests_build_splits_into_run_then_test() -> None:
+    cfg = DbtRunConfig(command="build", defer_tests=True)
+    assert cfg.runs_deferred_tests is True
+    assert cfg.materialize_command == "run"
+
+
+def test_defer_tests_requires_build_command() -> None:
+    with pytest.raises(ValueError, match="--defer-tests only applies to build"):
+        DbtRunConfig(command="run", defer_tests=True)
+
+
+def test_defer_tests_off_keeps_command() -> None:
+    cfg = DbtRunConfig(command="build")
+    assert cfg.runs_deferred_tests is False
+    assert cfg.materialize_command == "build"
+
+
+def test_from_cli_threads_defer_tests() -> None:
+    cfg = DbtRunConfig.from_cli(per_snapshot=True, command="build", defer_tests=True)
+    assert cfg.runs_deferred_tests is True
+    assert cfg.materialize_command == "run"

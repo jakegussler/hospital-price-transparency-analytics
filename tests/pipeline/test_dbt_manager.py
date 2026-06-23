@@ -109,6 +109,47 @@ def test_execute_appends_full_refresh_and_extra_args(
     assert args[-2:] == ["--threads", "2"]
 
 
+def test_execute_emits_select_as_single_union(
+    manager: tuple[DbtManager, RecordingRunner],
+) -> None:
+    mgr, runner = manager
+    mgr.execute("build", select=["slv_core__payer_rates+", "slv_core__charge_items"])
+    args = runner.calls[0]
+    idx = args.index("--select")
+    # All nodes follow a single --select flag (one union invocation).
+    assert args[idx + 1 : idx + 3] == ["slv_core__payer_rates+", "slv_core__charge_items"]
+    assert args.count("--select") == 1
+    assert "--selector" not in args
+
+
+def test_execute_omits_select_when_absent(
+    manager: tuple[DbtManager, RecordingRunner],
+) -> None:
+    mgr, runner = manager
+    mgr.execute("build")
+    assert "--select" not in runner.calls[0]
+
+
+def test_execute_select_scopes_with_snapshot_vars(
+    manager: tuple[DbtManager, RecordingRunner],
+) -> None:
+    mgr, runner = manager
+    mgr.execute("build", snapshot_ids=["s1"], select=["slv_core__payer_rates+"])
+    args = runner.calls[0]
+    assert json.loads(args[args.index("--vars") + 1]) == {"snapshot_ids": ["s1"]}
+    assert args[args.index("--select") + 1] == "slv_core__payer_rates+"
+
+
+def test_execute_records_select_in_audit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("hpt.pipeline.dbt_manager.contextlib.chdir", _noop_chdir)
+    runner = RecordingRunner()
+    patch_dbt_runner(monkeypatch, runner)
+    attempts: list[dict[str, object]] = []
+    mgr = DbtManager(TRANSFORM, audit_recorder=attempts.append)
+    mgr.execute("build", select=["slv_core__payer_rates+"])
+    assert attempts[0]["dbt_select"] == ["slv_core__payer_rates+"]
+
+
 def test_failed_invocation_returns_false(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("hpt.pipeline.dbt_manager.contextlib.chdir", _noop_chdir)
     runner = RecordingRunner(success=False)

@@ -94,10 +94,16 @@ class DbtOrchestrator:
         )
         mode = self._config.mode
         if mode is DbtRunMode.FULL_REBUILD:
-            return self._run_full_rebuild()
-        if mode is DbtRunMode.PER_SNAPSHOT:
-            return self._run_per_snapshot()
-        return self._run_single_pass()
+            exit_code = self._run_full_rebuild()
+        elif mode is DbtRunMode.PER_SNAPSHOT:
+            exit_code = self._run_per_snapshot()
+        else:
+            exit_code = self._run_single_pass()
+        if exit_code != 0:
+            return exit_code
+        if self._config.runs_deferred_tests:
+            return self._run_deferred_tests()
+        return 0
 
     # -- flows -----------------------------------------------------------------
 
@@ -109,8 +115,10 @@ class DbtOrchestrator:
             "dbt_run_start",
             extra={
                 "mode": cfg.mode.value,
-                "command": cfg.command,
+                "command": cfg.materialize_command,
                 "selectors": cfg.selectors,
+                "select": cfg.select,
+                "defer_tests": cfg.runs_deferred_tests,
                 "snapshot_count": len(ids),
                 "snapshot_ids": ids,
                 "include_seeds": cfg.include_seeds,
@@ -121,9 +129,10 @@ class DbtOrchestrator:
             return 1
         for selector in cfg.selector_iter:
             if not self._manager.execute(
-                cfg.command,
+                cfg.materialize_command,
                 snapshot_ids=ids,
                 selector=selector,
+                select=cfg.select,
                 extra_args=cfg.extra_args,
             ):
                 self._clear_on_failure(ids)
@@ -145,8 +154,10 @@ class DbtOrchestrator:
         self._log.info(
             "dbt_per_snapshot_start",
             extra={
-                "command": cfg.command,
+                "command": cfg.materialize_command,
                 "selectors": cfg.selectors,
+                "select": cfg.select,
+                "defer_tests": cfg.runs_deferred_tests,
                 "snapshot_count": len(ids),
                 "snapshot_ids": ids,
                 "include_seeds": cfg.include_seeds,
@@ -159,9 +170,10 @@ class DbtOrchestrator:
         for selector in cfg.selector_iter:
             for index, snapshot_id in enumerate(ids):
                 if not self._manager.execute(
-                    cfg.command,
+                    cfg.materialize_command,
                     snapshot_ids=[snapshot_id],
                     selector=selector,
+                    select=cfg.select,
                     full_refresh=cfg.full_refresh and index == 0,
                     extra_args=cfg.extra_args,
                 ):
@@ -178,8 +190,10 @@ class DbtOrchestrator:
         self._log.info(
             "dbt_full_rebuild_start",
             extra={
-                "command": cfg.command,
+                "command": cfg.materialize_command,
                 "selectors": cfg.selectors,
+                "select": cfg.select,
+                "defer_tests": cfg.runs_deferred_tests,
                 "include_seeds": cfg.include_seeds,
                 "transform_dir": str(cfg.transform_dir),
                 "retention_mode": cfg.retention_mode,
@@ -189,8 +203,9 @@ class DbtOrchestrator:
             return 1
         for selector in cfg.selector_iter:
             if not self._manager.execute(
-                cfg.command,
+                cfg.materialize_command,
                 selector=selector,
+                select=cfg.select,
                 full_refresh=True,
                 extra_args=cfg.extra_args,
             ):
@@ -198,6 +213,37 @@ class DbtOrchestrator:
         if cfg.is_materializing and not self._manager.prune_stale_snapshots():
             return 1
         self._log.info("dbt_full_rebuild_complete", extra={"command": cfg.command})
+        return 0
+
+    def _run_deferred_tests(self) -> int:
+        """Run a single unscoped ``test`` pass after a deferred-test materialization.
+
+        Reached only when ``--defer-tests`` split a ``build`` into a ``run``
+        materialization (already complete and pruned) plus this trailing test
+        pass. The pass is intentionally unscoped (no ``snapshot_ids`` var): generic
+        tests then cover the whole table and ``hpt_scoped_ref`` singular tests see
+        every snapshot, so it is the comprehensive final gate. ``--select`` (when
+        set) still narrows the pass to the tests attached to the rebuilt models.
+        """
+        cfg = self._config
+        self._log.info(
+            "dbt_deferred_tests_start",
+            extra={
+                "command": "test",
+                "selectors": cfg.selectors,
+                "select": cfg.select,
+                "transform_dir": str(cfg.transform_dir),
+            },
+        )
+        for selector in cfg.selector_iter:
+            if not self._manager.execute(
+                "test",
+                selector=selector,
+                select=cfg.select,
+                extra_args=cfg.extra_args,
+            ):
+                return 1
+        self._log.info("dbt_deferred_tests_complete", extra={"command": cfg.command})
         return 0
 
     # -- internals -------------------------------------------------------------

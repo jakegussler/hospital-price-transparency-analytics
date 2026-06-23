@@ -26,6 +26,18 @@ def _selector(call: list[str]) -> str | None:
     return call[call.index("--selector") + 1] if "--selector" in call else None
 
 
+def _select(call: list[str]) -> list[str]:
+    if "--select" not in call:
+        return []
+    rest = call[call.index("--select") + 1 :]
+    nodes: list[str] = []
+    for token in rest:
+        if token.startswith("--"):
+            break
+        nodes.append(token)
+    return nodes
+
+
 def _operation(call: list[str]) -> str | None:
     return call[1] if call[0] == "run-operation" else None
 
@@ -479,3 +491,93 @@ def test_no_clear_when_only_prune_fails(
     assert _run(config, monkeypatch, runner) == 1
     assert _commands(runner) == ["build", "run-operation"]
     assert _operation(runner.calls[1]) == "hpt_prune_stale_snapshots"
+
+
+# ---------------------------------------------------------------------------
+# --select node selection
+# ---------------------------------------------------------------------------
+
+
+def test_single_pass_threads_select_as_single_run(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    config = DbtRunConfig(
+        hospital_ids="h1", command="build", select="slv_core__payer_rates+,slv_core__charge_items"
+    )
+    assert _run(config, monkeypatch, runner) == 0
+    # One build invocation carrying both nodes, then the prune.
+    assert _commands(runner) == ["build", "run-operation"]
+    assert _select(runner.calls[0]) == ["slv_core__payer_rates+", "slv_core__charge_items"]
+    assert "--selector" not in runner.calls[0]
+    assert _vars(runner.calls[0]) == {"snapshot_ids": ["snap-h1"]}
+
+
+def test_per_snapshot_threads_select_each_snapshot(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    _patch_two_hospitals(monkeypatch)
+    runner = RecordingRunner()
+    config = DbtRunConfig(
+        mode=DbtRunMode.PER_SNAPSHOT, command="build", select="slv_core__payer_rates+"
+    )
+    assert _run(config, monkeypatch, runner) == 0
+    builds = [c for c in runner.calls if c[0] == "build"]
+    assert len(builds) == 2
+    for call in builds:
+        assert _select(call) == ["slv_core__payer_rates+"]
+
+
+# ---------------------------------------------------------------------------
+# --defer-tests two-phase build
+# ---------------------------------------------------------------------------
+
+
+def test_defer_tests_materializes_with_run_then_tests_once(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    runner = RecordingRunner()
+    config = DbtRunConfig(hospital_ids="h1", command="build", defer_tests=True)
+    assert _run(config, monkeypatch, runner) == 0
+    # Materialize with run, prune, then a single trailing test pass.
+    assert _commands(runner) == ["run", "run-operation", "test"]
+    # The deferred test pass is unscoped so it covers the whole table.
+    assert "--vars" not in runner.calls[2]
+
+
+def test_per_snapshot_defer_tests_runs_each_then_tests_once(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    _patch_two_hospitals(monkeypatch)
+    runner = RecordingRunner()
+    config = DbtRunConfig(
+        mode=DbtRunMode.PER_SNAPSHOT,
+        command="build",
+        select="slv_core__payer_rates+",
+        defer_tests=True,
+    )
+    assert _run(config, monkeypatch, runner) == 0
+    # Two scoped run passes, prune, then exactly one unscoped test pass.
+    assert _commands(runner) == ["run", "run", "run-operation", "test"]
+    assert _select(runner.calls[-1]) == ["slv_core__payer_rates+"]
+    assert "--vars" not in runner.calls[-1]
+
+
+def test_defer_tests_skips_test_pass_when_materialize_fails(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    # The run (materialize) pass fails: no prune, no deferred test pass.
+    runner = RecordingRunner(success=False)
+    config = DbtRunConfig(hospital_ids="h1", command="build", defer_tests=True)
+    assert _run(config, monkeypatch, runner) == 1
+    assert _commands(runner) == ["run"]
+
+
+def test_defer_tests_returns_one_when_test_pass_fails(
+    monkeypatch: pytest.MonkeyPatch, patched_storage: FakeSnapshotManager
+) -> None:
+    # run + prune succeed, deferred test pass fails.
+    runner = RecordingRunner(successes=[True, True, False])
+    config = DbtRunConfig(hospital_ids="h1", command="build", defer_tests=True)
+    assert _run(config, monkeypatch, runner) == 1
+    assert _commands(runner) == ["run", "run-operation", "test"]
