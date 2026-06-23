@@ -133,7 +133,11 @@ hpt run-dbt \
 
 - Add or update pytest coverage for parser behavior, snapshot/storage changes,
   registry validation, and CLI/pipeline changes.
-- For dbt work, add dbt tests alongside models where practical.
+- For dbt work, add dbt tests alongside models where practical. Assert each
+  Silver model's natural row grain (not just its positional surrogate key) with
+  `dbt_utils.unique_combination_of_columns`, error where the grain is structurally
+  guaranteed and warn where source faithfulness allows repeats. `dbt_utils` is a
+  project dependency; run `make dbt-deps` once before building.
 - For docs-only changes, verify links and commands against the actual source
   tree.
 

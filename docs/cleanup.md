@@ -49,6 +49,25 @@ to the relevant docs and delete resolved items from here.
   CR7 enforcement). The pinned snapshot `cd725773-f575-45dd-a796-adf9c9805a14` is
   backfilled by scoped builds; an unscoped rebuild is still needed to propagate
   the new retain/flag behavior across the rest of the corpus.
+- Silver grain/enum contracts (productionize item 4) added several **deliberately
+  warn-severity** dbt tests; do not promote them to error. The
+  `slv_base__charge_item_codes` `(silver_charge_item_id, canonical_code_system,
+  clean_code)` combination warns because the same code listed twice on one item is
+  source-faithful (observed ~17.5k on the corpus). The `slv_base__standard_charges`
+  `(snapshot_id, silver_charge_item_id, standard_charge_signature)` combination is
+  warn because byte-identical JSON contexts carry distinct signatures. The
+  `clean_billing_class` `accepted_values` test is warn because CMS documents those
+  values as recommended, matching the report-only `billing_class_allowed_values`
+  validation rule. Genuine payer/plan duplicate contexts surface in
+  `slv_audit__payer_rate_duplicate_context` and the warn-only
+  `core_payer_rate_duplicate_context` test rather than being deduped away.
+- The same `append_new_columns` backfill caveat above applies to the `not_null`
+  tests on `slv_core__payer_rates` `amount_kind`, `amount_comparability_tier`,
+  `methodology`, `methodology_basis`, and `is_price_comparable`: snapshots not
+  rebuilt since those columns landed hold nulls and fail on the stale slice. They
+  pass on a fresh build (confirmed by the offline e2e fixture run) and on rebuilt
+  snapshots; an unscoped rebuild backfills the rest.
+
 ## Service-Item Continuity And Validation Corpus
 
 - Service-item supersession links are an extension point, not v1 work.

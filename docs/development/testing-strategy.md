@@ -89,9 +89,31 @@ dbt changes:
 
 - Add dbt tests beside models where practical.
 - Validate expected model grain with `unique` and `not_null` tests.
+- Assert each Silver model's **natural row grain**, not just its surrogate key.
+  Surrogate keys are positional (built from source ordinals), so a `unique`
+  surrogate-key test does not prove the business grain. Document the grain in the
+  model description and lock it with `dbt_utils.unique_combination_of_columns`.
+  Use **error** severity only where the grain is structurally guaranteed; use
+  **warn** where source faithfulness allows legitimate repeats (e.g. duplicate
+  CMS codes on one item, byte-identical JSON contexts), routing those repeats to
+  an audit/observability model rather than dropping rows.
+- Match enum and disposition severity to the validation framework: an enum the
+  validation layer rejects (e.g. `setting`) can carry an **error** `accepted_values`
+  guard; an enum it only reports (e.g. `billing_class`, which CMS documents as
+  recommended) must be **warn** so source-faithful out-of-enum values are not
+  failed.
+- `dbt_utils` is a project dependency (`transform/packages.yml`). Run
+  `make dbt-deps` (or `dbt deps`) once after cloning or changing packages so the
+  package is installed before any `hpt run-dbt` build; CI runs `dbt deps` in both
+  jobs.
 - Keep source definitions aligned with actual Bronze table output.
 - Validate changes with the smallest relevant snapshot-scoped
   `hpt run-dbt --snapshot-ids <id> --command build --selector <selector>` run.
+  When the local warehouse holds stale rows from snapshots that predate a model
+  column, scoped runs leave those rows in place and their `not_null`/enum tests
+  can fail on the stale slice; verify on a fresh isolated warehouse (the offline
+  e2e fixture run does this) and treat the stale failures as a warehouse-state
+  issue, not a regression.
 - Never invoke dbt directly or run an unscoped/full-corpus dbt target during
   agent validation.
 
