@@ -18,7 +18,7 @@ models:
         description: "U.S. Census division for geographic rollups when available."
 
   - name: slv_base__hospital_snapshots
-    description: "One row per ingested MRF snapshot with typed dates and registry metadata."
+    description: "One row per ingested MRF snapshot with typed dates and registry metadata. Grain: one row per snapshot_id."
     columns:
       - name: snapshot_id
         tests:
@@ -27,6 +27,9 @@ models:
       - name: hospital_id
         tests:
           - not_null
+          - relationships:
+              to: ref('slv_base__hospitals')
+              field: hospital_id
       - name: source_format
         tests:
           - accepted_values:
@@ -36,7 +39,12 @@ models:
           - not_null
 
   - name: slv_base__hospital_locations
-    description: "Source-reported hospital locations attached to Silver snapshots."
+    description: "Source-reported hospital locations attached to Silver snapshots. Grain: one row per (snapshot_id, location_ordinal)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - snapshot_id
+            - location_ordinal
     columns:
       - name: silver_hospital_location_id
         tests:
@@ -44,12 +52,18 @@ models:
           - unique
       - name: snapshot_id
         tests:
+          - not_null
           - relationships:
               to: ref('slv_base__hospital_snapshots')
               field: snapshot_id
 
   - name: slv_base__type2_npis
-    description: "Source-reported type-2 NPIs attached to Silver snapshots."
+    description: "Source-reported type-2 NPIs attached to Silver snapshots. Grain: one row per (snapshot_id, npi_ordinal)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - snapshot_id
+            - npi_ordinal
     columns:
       - name: silver_type2_npi_id
         tests:
@@ -57,18 +71,57 @@ models:
           - unique
       - name: snapshot_id
         tests:
+          - not_null
           - relationships:
               to: ref('slv_base__hospital_snapshots')
               field: snapshot_id
 
   - name: slv_base__general_contract_provisions
-    description: "Accepted source-reported general contract provision rows."
+    description: "Accepted source-reported general contract provision rows. Grain: one row per (snapshot_id, provision_ordinal)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - snapshot_id
+            - provision_ordinal
+    columns:
+      - name: silver_general_contract_provision_id
+        tests:
+          - not_null
+          - unique
+      - name: snapshot_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__hospital_snapshots')
+              field: snapshot_id
 
   - name: slv_base__drug_information
-    description: "Accepted JSON and CSV drug information attached to Silver charge items."
+    description: "Accepted JSON and CSV drug information attached to Silver charge items. Grain: one row per Silver charge item (JSON) or per (charge item, source CSV row)."
+    columns:
+      - name: silver_drug_information_id
+        tests:
+          - not_null
+          - unique
+      - name: silver_charge_item_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__charge_items')
+              field: silver_charge_item_id
+      - name: snapshot_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__hospital_snapshots')
+              field: snapshot_id
 
   - name: slv_base__csv_charge_row_items
-    description: "Helper bridge from each CSV source row to its synthesized snapshot-scoped charge item."
+    description: "Helper bridge from each CSV source row to its synthesized snapshot-scoped charge item. Grain: one row per (snapshot_id, row_ordinal)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - snapshot_id
+            - row_ordinal
     columns:
       - name: snapshot_id
         tests:
@@ -79,9 +132,12 @@ models:
       - name: silver_charge_item_id
         tests:
           - not_null
+          - relationships:
+              to: ref('slv_base__charge_items')
+              field: silver_charge_item_id
 
   - name: slv_base__charge_items
-    description: "Format-neutral item/service parent table for JSON and CSV sources."
+    description: "Format-neutral item/service parent table for JSON and CSV sources. Grain: one row per silver_charge_item_id (one synthesized item per source item/service within a snapshot)."
     columns:
       - name: silver_charge_item_id
         tests:
@@ -102,7 +158,21 @@ models:
               values: ["2.1", "2.2", "3.0"]
 
   - name: slv_base__standard_charges
-    description: "Format-neutral charge context table with setting, billing class, generic amounts, grouped CSV context lineage, and source lineage."
+    description: >
+      Format-neutral charge context table with setting, billing class, generic
+      amounts, grouped CSV context lineage, and source lineage. Grain: one row
+      per (snapshot_id, silver_charge_item_id, standard_charge_signature). CSV
+      is content-grouped on the signature; JSON is positional (one row per source
+      standard charge), so two byte-identical JSON contexts carry distinct
+      signatures and the grain test is warn-only rather than a hard contract.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - snapshot_id
+            - silver_charge_item_id
+            - standard_charge_signature
+          config:
+            severity: warn
     columns:
       - name: silver_standard_charge_id
         tests:
@@ -127,6 +197,26 @@ models:
       - name: standard_charge_signature
         tests:
           - not_null
+      - name: clean_setting
+        description: >
+          CMS setting enum. Out-of-enum settings are already rejected upstream by
+          the setting_allowed_values validation rule (error -> exclude_entity);
+          this accepted_values test is a defense-in-depth guard that the
+          rejection fired. Nulls pass (accepted_values does not flag nulls).
+        tests:
+          - accepted_values:
+              values: ["inpatient", "outpatient", "both"]
+      - name: clean_billing_class
+        description: >
+          CMS billing class enum. Warn-only because CMS documents professional,
+          facility, and both as recommended rather than required values, so the
+          billing_class_allowed_values rule is report_only and out-of-enum values
+          are retained source-faithfully in Silver. Nulls pass.
+        tests:
+          - accepted_values:
+              values: ["professional", "facility", "both"]
+              config:
+                severity: warn
       - name: raw_modifiers
         description: >
           For CSV, the source row-level pipe-delimited modifier string, constant
@@ -135,7 +225,20 @@ models:
           own array. slv_base__charge_modifiers unnests this for CSV.
 
   - name: slv_base__charge_item_codes
-    description: "Exploded billing codes attached to Silver charge items."
+    description: >
+      Exploded billing codes attached to Silver charge items. Grain: one row per
+      (silver_charge_item_id, code_ordinal, raw_code, raw_code_type). The
+      (silver_charge_item_id, canonical_code_system, clean_code) business-dedup
+      combination is warn-only: the same code listed twice on one item is a
+      source-faithful duplicate, not a defect.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - silver_charge_item_id
+            - canonical_code_system
+            - clean_code
+          config:
+            severity: warn
     columns:
       - name: silver_charge_item_code_id
         tests:
@@ -143,6 +246,7 @@ models:
           - unique
       - name: silver_charge_item_id
         tests:
+          - not_null
           - relationships:
               to: ref('slv_base__charge_items')
               field: silver_charge_item_id
@@ -153,7 +257,15 @@ models:
               field: code_type
 
   - name: slv_base__payer_rates
-    description: "Format-neutral payer and plan negotiated rate rows linked to grouped Silver standard charges."
+    description: >
+      Format-neutral payer and plan negotiated rate rows linked to grouped Silver
+      standard charges. Grain: one row per source payer-rate position (JSON:
+      snapshot + standard charge + payer_ordinal; CSV: snapshot + row_ordinal +
+      source_rate_ordinal), which silver_payer_rate_id enforces. The analytic
+      business grain (the comparable rate unit: item + setting + billing class +
+      canonical payer + plan + methodology + modifier signature + amount) is a
+      monitored duplicate-context signal, not a hard contract, surfaced in
+      slv_audit__payer_rate_duplicate_context.
     columns:
       - name: silver_payer_rate_id
         tests:
@@ -182,7 +294,7 @@ models:
         description: "Analyst-friendly title-case plan name derived from the source-reported plan name."
 
   - name: slv_base__modifiers
-    description: "Accepted JSON modifier definitions at one row per modifier."
+    description: "Accepted JSON modifier definitions at one row per modifier. Grain: one row per (snapshot_id, modifier_code_id), enforced by silver_modifier_id."
     columns:
       - name: silver_modifier_id
         tests:
@@ -190,12 +302,29 @@ models:
           - unique
       - name: snapshot_id
         tests:
+          - not_null
           - relationships:
               to: ref('slv_base__hospital_snapshots')
               field: snapshot_id
 
   - name: slv_base__modifier_payer_info
-    description: "Accepted modifier payer-information children attached to Silver modifiers."
+    description: "Accepted modifier payer-information children attached to Silver modifiers. Grain: one row per (silver_modifier_id, modifier_payer_ordinal)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - silver_modifier_id
+            - modifier_payer_ordinal
+    columns:
+      - name: silver_modifier_payer_info_id
+        tests:
+          - not_null
+          - unique
+      - name: silver_modifier_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('slv_base__modifiers')
+              field: silver_modifier_id
 
   - name: slv_base__charge_modifiers
     description: >
@@ -204,6 +333,12 @@ models:
       clean_modifier_code). Modifiers belong to the standard charge and apply to
       every payer rate beneath it; the standard-charge -> payer-rate fan-out is
       done once in slv_core__rate_modifier_signature, not duplicated here.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - silver_standard_charge_id
+            - modifier_ordinal
+            - clean_modifier_code
     columns:
       - name: silver_charge_modifier_id
         tests:

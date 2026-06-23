@@ -344,9 +344,17 @@ models:
               to: ref('slv_base__payer_rates')
               field: silver_payer_rate_id
       - name: clean_setting
-        description: "Care setting denormalized from the parent Silver Base standard charge."
+        description: "Care setting denormalized from the parent Silver Base standard charge. CMS setting enum; out-of-enum values are rejected upstream, so this is a defense-in-depth guard. Nulls pass."
+        tests:
+          - accepted_values:
+              values: ["inpatient", "outpatient", "both"]
       - name: clean_billing_class
-        description: "Billing class denormalized from the parent Silver Base standard charge."
+        description: "Billing class denormalized from the parent Silver Base standard charge. Warn-only: CMS documents these as recommended, so out-of-enum values are retained source-faithfully. Nulls pass."
+        tests:
+          - accepted_values:
+              values: ["professional", "facility", "both"]
+              config:
+                severity: warn
       - name: modifier_signature
         description: "Sorted-set hash of the rate's modifier codes; rates without modifiers share the md5('<no_modifiers>') sentinel so no-modifier is a joinable cohort value."
         tests:

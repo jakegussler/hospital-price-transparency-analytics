@@ -60,6 +60,30 @@ models:
       - name: code_rows
         description: "Offending code rows for this hospital/system/status combination."
 
+  - name: slv_audit__payer_rate_duplicate_context
+    description: >
+      Duplicate payer/plan context findings over current snapshots: one row per
+      comparable rate unit (item + setting + billing class + canonical payer +
+      plan + methodology + modifier signature + amount_kind) that repeats inside
+      a snapshot. The positional silver_payer_rate_id stays unique, so genuine
+      business-grain repeats only surface here. has_conflicting_amounts splits
+      redundant duplicate rows (same context and amount) from conflicting rates
+      (same context, different negotiated value). Observability, not a review
+      queue; paired with the warn-severity core_payer_rate_duplicate_context test.
+    columns:
+      - name: snapshot_id
+        description: "Snapshot the duplicate context belongs to."
+        tests:
+          - not_null
+      - name: duplicate_row_count
+        description: "Number of payer-rate rows sharing this comparable rate unit; always greater than 1."
+        tests:
+          - not_null
+      - name: has_conflicting_amounts
+        description: "True when the duplicated context carries more than one distinct negotiated value (dollar, percentage, or algorithm)."
+        tests:
+          - not_null
+
   - name: slv_audit__plan_context_coverage
     description: >
       Plan / payer-context coverage metrics by canonical payer over current

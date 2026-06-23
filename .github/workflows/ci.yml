@@ -69,5 +69,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev --extra warehouse
 
+      - name: dbt deps
+        working-directory: transform
+        run: uv run dbt deps --profiles-dir .
+
       - name: Offline e2e fixture
         run: uv run pytest -m e2e
