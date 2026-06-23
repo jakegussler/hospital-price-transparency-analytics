@@ -137,9 +137,7 @@ def log_bronze_part_roll(
     )
 
 
-def log_registry_loaded(
-    logger: logging.Logger, path: Path, n_hospitals: int
-) -> None:
+def log_registry_loaded(logger: logging.Logger, path: Path, n_hospitals: int) -> None:
     logger.info(
         "registry_loaded",
         extra={"path": str(path), "hospital_count": n_hospitals},

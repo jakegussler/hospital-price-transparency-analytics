@@ -91,17 +91,12 @@ def parse_csv_header(
 
     keys = [k.strip() for k in row1]
     values = [v.strip() for v in row2]
-    header = {
-        key: (values[i] if i < len(values) else "")
-        for i, key in enumerate(keys)
-    }
+    header = {key: (values[i] if i < len(values) else "") for i, key in enumerate(keys)}
 
     snapshot_record = build_snapshot_record(header, snapshot_meta)
     location_rows = _build_location_rows(header, snapshot_meta["snapshot_id"])
     npi_rows = _build_npi_rows(header, snapshot_meta["snapshot_id"])
-    provision_rows = _build_general_contract_provision_rows(
-        header, snapshot_meta["snapshot_id"]
-    )
+    provision_rows = _build_general_contract_provision_rows(header, snapshot_meta["snapshot_id"])
     return snapshot_record, location_rows, npi_rows, provision_rows
 
 
@@ -190,12 +185,8 @@ def build_header_batch(
 ) -> dict[str, pl.DataFrame]:
     """Build the first parser batch containing shared Bronze tables."""
     return {
-        "hospital_mrf_snapshots": _df(
-            [snapshot_record], BRONZE_SCHEMAS["hospital_mrf_snapshots"]
-        ),
-        "hospital_locations": _df(
-            location_rows, BRONZE_SCHEMAS["hospital_locations"]
-        ),
+        "hospital_mrf_snapshots": _df([snapshot_record], BRONZE_SCHEMAS["hospital_mrf_snapshots"]),
+        "hospital_locations": _df(location_rows, BRONZE_SCHEMAS["hospital_locations"]),
         "type2_npi": _df(npi_rows, BRONZE_SCHEMAS["type2_npi"]),
         "general_contract_provisions": _df(
             provision_rows or [],
@@ -217,12 +208,7 @@ def discover_code_columns(headers: list[str]) -> tuple[int, dict[str, int]]:
                 code_map[f"code_{ordinal}"] = idx
                 max_code = max(max_code, ordinal)
             continue
-        if (
-            len(parts) == 3
-            and parts[0] == "code"
-            and parts[1].isdigit()
-            and parts[2] == "type"
-        ):
+        if len(parts) == 3 and parts[0] == "code" and parts[1].isdigit() and parts[2] == "type":
             ordinal = int(parts[1])
             if ordinal > 0:
                 code_map[f"code_{ordinal}_type"] = idx
@@ -312,9 +298,7 @@ def _extract_license_fields(header: dict[str, str]) -> dict[str, str | None]:
     return {"reported_state": None, "license_number": None}
 
 
-def _build_location_rows(
-    header: dict[str, str], snapshot_id: str
-) -> list[dict[str, Any]]:
+def _build_location_rows(header: dict[str, str], snapshot_id: str) -> list[dict[str, Any]]:
     location_names = _split_pipe_values(header.get("location_name"))
     addresses = _split_pipe_values(header.get("hospital_address"))
     count = max(len(location_names), len(addresses))
@@ -357,13 +341,10 @@ def _build_general_contract_provision_rows(
     ]
 
 
-def _build_npi_rows(
-    header: dict[str, str], snapshot_id: str
-) -> list[dict[str, Any]]:
+def _build_npi_rows(header: dict[str, str], snapshot_id: str) -> list[dict[str, Any]]:
     npis = [v for v in _split_pipe_values(header.get("type_2_npi")) if v]
     return [
-        {"snapshot_id": snapshot_id, "npi_ordinal": i, "npi": npi}
-        for i, npi in enumerate(npis)
+        {"snapshot_id": snapshot_id, "npi_ordinal": i, "npi": npi} for i, npi in enumerate(npis)
     ]
 
 
@@ -378,4 +359,3 @@ def _none_if_blank(value: str | None) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
-

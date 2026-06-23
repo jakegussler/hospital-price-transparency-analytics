@@ -96,9 +96,7 @@ class HospitalLicensure(CMSModel):
     license_number: str | None = None
     state: str | None
 
-    _scalar_fields = field_validator("license_number", "state", mode="before")(
-        _scalar_to_text
-    )
+    _scalar_fields = field_validator("license_number", "state", mode="before")(_scalar_to_text)
 
 
 class DrugInformation(CMSModel):
@@ -258,4 +256,3 @@ class CMSMRFJson(CMSModel):
     @classmethod
     def preserve_scalar_arrays(cls, value: Any) -> list[str | None] | None:
         return _scalar_list_to_text(value)
-

@@ -32,9 +32,7 @@ class CsvWideParser(BaseParser):
         snapshot_record, location_rows, npi_rows, provision_rows = parse_csv_header(
             file_path, self.snapshot_meta
         )
-        yield build_header_batch(
-            snapshot_record, location_rows, npi_rows, provision_rows
-        )
+        yield build_header_batch(snapshot_record, location_rows, npi_rows, provision_rows)
 
         reader, charge_headers, handle = get_charge_reader(file_path)
         try:
@@ -53,9 +51,7 @@ class CsvWideParser(BaseParser):
                     notes_idx = catalog.additional_payer_notes_cols.get(
                         (payer_group.payer_name, payer_group.plan_name)
                     )
-                    note_value = (
-                        _safe_cell(row, notes_idx) if notes_idx is not None else None
-                    )
+                    note_value = _safe_cell(row, notes_idx) if notes_idx is not None else None
 
                     # In wide format the payer/plan identity lives in the column
                     # headers and is shared by every item, so an empty payer block
@@ -85,9 +81,7 @@ class CsvWideParser(BaseParser):
                 # item-only row takes.
                 if not emitted_payer_row:
                     rows_buffer.append(
-                        _new_row(
-                            schema, snapshot_id, row_ordinal, source_format, fixed_values
-                        )
+                        _new_row(schema, snapshot_id, row_ordinal, source_format, fixed_values)
                     )
 
                 if len(rows_buffer) >= _BATCH_SIZE:

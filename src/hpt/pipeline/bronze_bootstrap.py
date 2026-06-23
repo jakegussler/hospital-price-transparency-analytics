@@ -50,10 +50,7 @@ def ensure_bronze_source_bootstrap(
     for table_name in declared_tables:
         expected_schema = _arrow_schema(BRONZE_BOOTSTRAP_SCHEMAS[table_name])
         sentinel = (
-            bronze_root
-            / table_name
-            / f"snapshot_id={BOOTSTRAP_SNAPSHOT_ID}"
-            / BOOTSTRAP_FILE_NAME
+            bronze_root / table_name / f"snapshot_id={BOOTSTRAP_SNAPSHOT_ID}" / BOOTSTRAP_FILE_NAME
         )
         if _has_expected_schema(sentinel, expected_schema):
             unchanged.append(table_name)
@@ -91,17 +88,11 @@ def _load_declared_bronze_tables(source_definition_path: Path) -> list[str]:
         ) from exc
 
     if not isinstance(definition, dict) or not isinstance(definition.get("sources"), list):
-        raise ValueError(
-            f"Malformed Bronze source definitions in {source_definition_path}."
-        )
+        raise ValueError(f"Malformed Bronze source definitions in {source_definition_path}.")
     if not all(isinstance(source, dict) for source in definition["sources"]):
-        raise ValueError(
-            f"Malformed Bronze source definitions in {source_definition_path}."
-        )
+        raise ValueError(f"Malformed Bronze source definitions in {source_definition_path}.")
 
-    bronze_sources = [
-        source for source in definition["sources"] if source.get("name") == "bronze"
-    ]
+    bronze_sources = [source for source in definition["sources"] if source.get("name") == "bronze"]
     if len(bronze_sources) != 1:
         raise ValueError(
             f"Expected exactly one 'bronze' source in {source_definition_path}, "
@@ -110,14 +101,10 @@ def _load_declared_bronze_tables(source_definition_path: Path) -> list[str]:
 
     tables = bronze_sources[0].get("tables")
     if not isinstance(tables, list) or not all(
-        isinstance(table, dict)
-        and isinstance(table.get("name"), str)
-        and table["name"].strip()
+        isinstance(table, dict) and isinstance(table.get("name"), str) and table["name"].strip()
         for table in tables
     ):
-        raise ValueError(
-            f"Malformed Bronze table declarations in {source_definition_path}."
-        )
+        raise ValueError(f"Malformed Bronze table declarations in {source_definition_path}.")
 
     table_names = [table["name"].strip() for table in tables]
     duplicates = sorted({name for name in table_names if table_names.count(name) > 1})

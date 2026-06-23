@@ -98,9 +98,7 @@ def _minimal_mrf(
         "type_2_npi": [] if type_2_npi is None else type_2_npi,
         "modifier_information": [] if modifier_information is None else modifier_information,
         "standard_charge_information": (
-            [_VALID_SCI]
-            if standard_charge_information is None
-            else standard_charge_information
+            [_VALID_SCI] if standard_charge_information is None else standard_charge_information
         ),
     }
     # Mirror CMS physical layout: this root array appears after the charge array.
@@ -497,10 +495,7 @@ class TestGeneralContractProvisionsParsing:
         assert df["payer_name"][0] == "Platform Health"
         # No quarantine file is written for the optional provisions pass.
         q_file = (
-            tmp_path
-            / "quarantine"
-            / "snapshot_id=snap-001"
-            / "general_contract_provisions.jsonl"
+            tmp_path / "quarantine" / "snapshot_id=snap-001" / "general_contract_provisions.jsonl"
         )
         assert not q_file.exists()
 
@@ -560,9 +555,7 @@ class TestChargeParsing:
             "drug_information": {"unit": 10.0, "type": "ML"},
             "standard_charges": [_VALID_CHARGE],
         }
-        _write_mrf(
-            mrf_path, _minimal_mrf(standard_charge_information=[sci_with_drug])
-        )
+        _write_mrf(mrf_path, _minimal_mrf(standard_charge_information=[sci_with_drug]))
         parser = _make_parser(tmp_path / "quarantine")
 
         batches = list(parser.parse(mrf_path))
@@ -693,9 +686,7 @@ class TestChargeParsing:
         assert diagnostic_df.is_empty()
         assert not (quarantine_root / "snapshot_id=snap-001").exists()
 
-    def test_v3_reported_v2_2_shape_infers_record_family_and_flags_mismatch(
-        self, tmp_path
-    ):
+    def test_v3_reported_v2_2_shape_infers_record_family_and_flags_mismatch(self, tmp_path):
         quarantine_root = tmp_path / "quarantine"
         mrf_path = tmp_path / "mrf.json"
         payer = {
@@ -784,17 +775,10 @@ class TestChargeParsing:
 
         batches = list(parser.parse(mrf_path))
         # Valid charge item must appear somewhere in the charge batches
-        charge_rows = sum(
-            len(b.get("standard_charge_info", pl.DataFrame()))
-            for b in batches[2:]
-        )
+        charge_rows = sum(len(b.get("standard_charge_info", pl.DataFrame())) for b in batches[2:])
         assert charge_rows >= 1
 
-        q_file = (
-            quarantine_root
-            / "snapshot_id=snap-001"
-            / "standard_charge_information.jsonl"
-        )
+        q_file = quarantine_root / "snapshot_id=snap-001" / "standard_charge_information.jsonl"
         assert q_file.exists()
 
     def test_quarantine_jsonl_structure(self, tmp_path):
@@ -809,11 +793,7 @@ class TestChargeParsing:
         parser = _make_parser(quarantine_root)
         list(parser.parse(mrf_path))
 
-        q_file = (
-            quarantine_root
-            / "snapshot_id=snap-001"
-            / "standard_charge_information.jsonl"
-        )
+        q_file = quarantine_root / "snapshot_id=snap-001" / "standard_charge_information.jsonl"
         record = json.loads(q_file.read_text().splitlines()[0])
         assert "section" in record
         assert "ordinal" in record

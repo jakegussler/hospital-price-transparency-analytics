@@ -63,6 +63,7 @@ class DownloadResult:
     resolved_snapshot_id: str | None = None
     resolved_source_file_name: str | None = None
 
+
 _CONTENT_TYPE_TO_EXT: dict[str, str] = {
     "text/csv": ".csv",
     "application/json": ".json",
@@ -244,9 +245,7 @@ def download_hospital(
             )
 
         ingested_at = datetime.now(UTC)
-        dest = storage.raw_path(
-            hid, filename, ingested_at=ingested_at, file_hash=file_hash
-        )
+        dest = storage.raw_path(hid, filename, ingested_at=ingested_at, file_hash=file_hash)
         commit_started = time.monotonic()
         storage.mv(tmp, dest)
         stage_statuses["raw_commit"] = "success"

@@ -105,9 +105,7 @@ class TestFirstFetch:
         files = storage.ls(storage.raw_path("test-hosp", "charges.csv").rsplit("/", 1)[0])
         assert len(files) >= 1
 
-    def test_zip_download_remains_zipped_in_raw(
-        self, httpx_mock, storage, snapshots, client_cfg
-    ):
+    def test_zip_download_remains_zipped_in_raw(self, httpx_mock, storage, snapshots, client_cfg):
         archive = _zip_bytes({"charges.csv": MRF_BYTES_V1})
         httpx_mock.add_response(
             url="https://example.com/charges.zip",

@@ -119,8 +119,7 @@ class BronzeWriter:
     def row_counts(self) -> dict[str, int]:
         """Return final row counts for every table emitted by the parser."""
         return {
-            table_name: self._total_rows.get(table_name, 0)
-            for table_name in self._seen_schemas
+            table_name: self._total_rows.get(table_name, 0) for table_name in self._seen_schemas
         }
 
     def __enter__(self) -> "BronzeWriter":
@@ -138,15 +137,9 @@ class BronzeWriter:
     # Internals
     # ------------------------------------------------------------------
 
-    def _get_writer(
-        self, table_name: str, schema: pa.Schema
-    ) -> pq.ParquetWriter:
+    def _get_writer(self, table_name: str, schema: pa.Schema) -> pq.ParquetWriter:
         if table_name not in self._writers:
-            part_dir = (
-                self.bronze_root
-                / table_name
-                / f"snapshot_id={self.snapshot_id}"
-            )
+            part_dir = self.bronze_root / table_name / f"snapshot_id={self.snapshot_id}"
             part_dir.mkdir(parents=True, exist_ok=True)
             part_num = self._part_index[table_name]
             path = part_dir / f"part-{part_num:03d}.parquet"
@@ -165,9 +158,7 @@ class BronzeWriter:
 
     def _write_empty_table(self, table_name: str, schema: pa.Schema) -> None:
         """Materialize a zero-row Parquet file so the partition dir exists."""
-        part_dir = (
-            self.bronze_root / table_name / f"snapshot_id={self.snapshot_id}"
-        )
+        part_dir = self.bronze_root / table_name / f"snapshot_id={self.snapshot_id}"
         part_dir.mkdir(parents=True, exist_ok=True)
         path = part_dir / "part-000.parquet"
         writer = pq.ParquetWriter(str(path), schema)

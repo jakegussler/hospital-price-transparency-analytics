@@ -85,8 +85,7 @@ class StorageConfig:
             or Path(os.environ.get("HPT_BRONZE_ROOT", data_root / "bronze")),
             quarantine_root=quarantine_root
             or Path(os.environ.get("HPT_QUARANTINE_ROOT", data_root / "quarantine")),
-            audit_root=audit_root
-            or Path(os.environ.get("HPT_AUDIT_ROOT", data_root / "audit")),
+            audit_root=audit_root or Path(os.environ.get("HPT_AUDIT_ROOT", data_root / "audit")),
         )
 
 

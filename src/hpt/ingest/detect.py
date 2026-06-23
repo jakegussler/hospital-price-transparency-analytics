@@ -63,9 +63,7 @@ def detect_format(path: str, fs: fsspec.AbstractFileSystem) -> FormatInfo:
     return info
 
 
-def _sniff_content_format(
-    header: bytes, path: str, compression: Compression
-) -> ContentFormat:
+def _sniff_content_format(header: bytes, path: str, compression: Compression) -> ContentFormat:
     """Infer content format from raw header bytes, falling back to extension."""
     if compression == Compression.NONE:
         stripped = header.lstrip()

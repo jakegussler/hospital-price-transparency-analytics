@@ -54,9 +54,7 @@ def test_parse_csv_header_extracts_snapshot_fields(tmp_path):
         ],
     )
 
-    snapshot_record, locations, npis, provisions = parse_csv_header(
-        path, _SNAPSHOT_META
-    )
+    snapshot_record, locations, npis, provisions = parse_csv_header(path, _SNAPSHOT_META)
     assert snapshot_record["reported_hospital_name"] == "General Hospital"
     assert snapshot_record["reported_state"] == "TN"
     assert snapshot_record["license_number"] == "12345"
@@ -199,4 +197,3 @@ def test_build_wide_column_catalog_groups_payer_columns():
     assert groups[("Aetna", "PPO")].columns["methodology"] == 5
     assert groups[("Cigna", "HMO")].columns["standard_charge_negotiated_dollar"] == 6
     assert catalog.additional_payer_notes_cols[("Cigna", "HMO")] == 7
-

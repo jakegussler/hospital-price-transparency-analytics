@@ -32,12 +32,7 @@ def _write_real_snapshot_metadata(bronze_root: Path) -> None:
 
 
 def _sentinel(bronze_root: Path, table_name: str) -> Path:
-    return (
-        bronze_root
-        / table_name
-        / f"snapshot_id={BOOTSTRAP_SNAPSHOT_ID}"
-        / BOOTSTRAP_FILE_NAME
-    )
+    return bronze_root / table_name / f"snapshot_id={BOOTSTRAP_SNAPSHOT_ID}" / BOOTSTRAP_FILE_NAME
 
 
 def _write_source_definitions(path: Path, table_names: list[str]) -> None:
@@ -80,21 +75,25 @@ def test_bootstrap_creates_every_declared_zero_row_source_and_binds_csv(
     connection = duckdb.connect()
     for table_name in BRONZE_BOOTSTRAP_SCHEMAS:
         pattern = bronze_root / table_name / "**" / "*.parquet"
-        relation = (
-            f"read_parquet('{pattern}', hive_partitioning=true, union_by_name=true)"
-        )
+        relation = f"read_parquet('{pattern}', hive_partitioning=true, union_by_name=true)"
         assert connection.sql(
             f"select count(*) from {relation} where snapshot_id = '{BOOTSTRAP_SNAPSHOT_ID}'"
         ).fetchone() == (0,)
     csv_pattern = bronze_root / "csv_charge_rows" / "**" / "*.parquet"
-    assert connection.sql(
-        f"select columns('^code_[0-9]+(_type)?$') "
-        f"from read_parquet('{csv_pattern}', hive_partitioning=true, union_by_name=true)"
-    ).fetchall() == []
-    assert connection.sql(
-        f"select distinct snapshot_id from read_parquet('{csv_pattern}', "
-        "hive_partitioning=true, union_by_name=true)"
-    ).fetchall() == []
+    assert (
+        connection.sql(
+            f"select columns('^code_[0-9]+(_type)?$') "
+            f"from read_parquet('{csv_pattern}', hive_partitioning=true, union_by_name=true)"
+        ).fetchall()
+        == []
+    )
+    assert (
+        connection.sql(
+            f"select distinct snapshot_id from read_parquet('{csv_pattern}', "
+            "hive_partitioning=true, union_by_name=true)"
+        ).fetchall()
+        == []
+    )
 
 
 def test_bootstrap_is_idempotent_and_repairs_stale_or_corrupt_sentinels(

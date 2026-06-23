@@ -79,9 +79,7 @@ def _complete_audit(
         return 2
 
 
-def _record_audit_attempt(
-    audit: AuditRun, attempt: dict[str, Any], log: logging.Logger
-) -> bool:
+def _record_audit_attempt(audit: AuditRun, attempt: dict[str, Any], log: logging.Logger) -> bool:
     try:
         audit.record_attempt(attempt)
         return True
@@ -154,8 +152,7 @@ def ingest(
         file_okay=False,
         dir_okay=True,
         help=(
-            "Directory for append-only run audit Parquet. "
-            "Defaults to HPT_AUDIT_ROOT or data/audit."
+            "Directory for append-only run audit Parquet. Defaults to HPT_AUDIT_ROOT or data/audit."
         ),
         show_default=False,
     ),
@@ -329,8 +326,7 @@ def run_dbt(
         file_okay=False,
         dir_okay=True,
         help=(
-            "Directory for append-only run audit Parquet. "
-            "Defaults to HPT_AUDIT_ROOT or data/audit."
+            "Directory for append-only run audit Parquet. Defaults to HPT_AUDIT_ROOT or data/audit."
         ),
         show_default=False,
     ),
@@ -879,8 +875,7 @@ def download(
         file_okay=False,
         dir_okay=True,
         help=(
-            "Directory for append-only run audit Parquet. "
-            "Defaults to HPT_AUDIT_ROOT or data/audit."
+            "Directory for append-only run audit Parquet. Defaults to HPT_AUDIT_ROOT or data/audit."
         ),
         show_default=False,
     ),
@@ -1008,9 +1003,7 @@ def download_logic(
                     ),
                     "source_url": str(hospital.mrf_source.url),
                     "source_file_name": (
-                        snapshot.source_file_name
-                        if snapshot
-                        else result.resolved_source_file_name
+                        snapshot.source_file_name if snapshot else result.resolved_source_file_name
                     ),
                     "file_hash": result.file_hash,
                     "started_at": result.started_at,

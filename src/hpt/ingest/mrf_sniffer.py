@@ -115,14 +115,10 @@ def sniff_schema(
 # Prefixes that indicate ijson has moved past the top-level header block into
 # the bulk standard-charge payload. If we reach one of these without finding a
 # ``version`` key, further scanning won't help.
-_JSON_BULK_PREFIXES = frozenset(
-    {"standard_charge_information", "standard_charge_information.item"}
-)
+_JSON_BULK_PREFIXES = frozenset({"standard_charge_information", "standard_charge_information.item"})
 
 
-def _sniff_json(
-    path: str, fs: fsspec.AbstractFileSystem, compression: Compression
-) -> SchemaInfo:
+def _sniff_json(path: str, fs: fsspec.AbstractFileSystem, compression: Compression) -> SchemaInfo:
     """Stream the JSON MRF with ijson to locate the top-level ``version``."""
     try:
         with _open_stream(path, fs, compression) as stream:
@@ -151,9 +147,7 @@ def _sniff_json(
 # ---------------------------------------------------------------------------
 
 
-def _sniff_csv(
-    path: str, fs: fsspec.AbstractFileSystem, compression: Compression
-) -> SchemaInfo:
+def _sniff_csv(path: str, fs: fsspec.AbstractFileSystem, compression: Compression) -> SchemaInfo:
     """Parse the first three rows of the CSV MRF to infer layout and version."""
     for encoding in ("utf-8-sig", "cp1252"):
         try:
@@ -240,8 +234,7 @@ def _open_stream(
     """Yield a binary stream for *path*, transparently decompressing gzip."""
     if compression == Compression.ZIP:
         raise ValueError(
-            "Zip archives must be extracted before sniffing; received a .zip path: "
-            f"{path!r}"
+            f"Zip archives must be extracted before sniffing; received a .zip path: {path!r}"
         )
 
     raw = fs.open(path, "rb")

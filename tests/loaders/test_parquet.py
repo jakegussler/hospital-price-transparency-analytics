@@ -26,9 +26,7 @@ def _make_df(rows: int = 3) -> pl.DataFrame:
 
 
 def _part_path(bronze_root: Path, table: str, snapshot_id: str, part: int = 0) -> Path:
-    return (
-        bronze_root / table / f"snapshot_id={snapshot_id}" / f"part-{part:03d}.parquet"
-    )
+    return bronze_root / table / f"snapshot_id={snapshot_id}" / f"part-{part:03d}.parquet"
 
 
 # ---------------------------------------------------------------------------

@@ -263,9 +263,7 @@ class TestIngestSnapshotE2E:
         assert result["stage_statuses"]["schema_sniff"] == "success"
 
         # Bronze output should contain at minimum hospital_mrf_snapshots
-        snap_parts = list(
-            (bronze_root / "hospital_mrf_snapshots").rglob("*.parquet")
-        )
+        snap_parts = list((bronze_root / "hospital_mrf_snapshots").rglob("*.parquet"))
         assert len(snap_parts) >= 1
 
     def test_ingests_zip_without_expanding_raw(self, tmp_path):

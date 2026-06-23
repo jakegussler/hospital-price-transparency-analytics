@@ -159,9 +159,7 @@ class SnapshotManager:
             return None
         known = {f.name for f in fields(SnapshotRecord)}
         data = {
-            name: table.column(name).to_pylist()[0]
-            for name in table.column_names
-            if name in known
+            name: table.column(name).to_pylist()[0] for name in table.column_names if name in known
         }
         return SnapshotRecord(**data)
 

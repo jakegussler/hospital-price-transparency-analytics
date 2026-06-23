@@ -26,4 +26,3 @@ def _iso(value: Any) -> str | None:
     if hasattr(value, "isoformat"):
         return value.isoformat()
     return str(value)
-

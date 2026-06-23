@@ -219,9 +219,7 @@ class AuditRun:
             "options": self.options,
             "started_at": self.started_at,
             "ended_at": ended_at,
-            "elapsed_s": (
-                time.monotonic() - self._started_monotonic if ended_at else None
-            ),
+            "elapsed_s": (time.monotonic() - self._started_monotonic if ended_at else None),
             "exit_code": exit_code,
             "terminal_status": terminal_status.value if terminal_status else None,
             "target_count": target_count,
@@ -229,8 +227,6 @@ class AuditRun:
             "failure_count": self._failure_count,
             "failure_category": failure_category,
             "failure_message": failure_message,
-            "stdout_log_path": (
-                str(self._log_paths.std_out_path) if self._log_paths else None
-            ),
+            "stdout_log_path": (str(self._log_paths.std_out_path) if self._log_paths else None),
             "json_log_path": str(self._log_paths.json_path) if self._log_paths else None,
         }

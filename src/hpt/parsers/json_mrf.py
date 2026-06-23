@@ -146,9 +146,7 @@ class JsonMrfParser(BaseParser):
             "hospital_mrf_snapshots": _df(
                 [snapshot_record], BRONZE_SCHEMAS["hospital_mrf_snapshots"]
             ),
-            "hospital_locations": _df(
-                location_rows, BRONZE_SCHEMAS["hospital_locations"]
-            ),
+            "hospital_locations": _df(location_rows, BRONZE_SCHEMAS["hospital_locations"]),
             "type2_npi": _df(npi_rows, BRONZE_SCHEMAS["type2_npi"]),
         }
 
@@ -188,10 +186,7 @@ class JsonMrfParser(BaseParser):
                     h.setdefault("hospital_addresses", []).append(value)
                 elif prefix == "type_2_npi.item":
                     h.setdefault("type_2_npis", []).append(value)
-                elif (
-                    prefix == "standard_charge_information"
-                    and event == "start_array"
-                ):
+                elif prefix == "standard_charge_information" and event == "start_array":
                     break
 
         snapshot_id = self.snapshot_meta["snapshot_id"]
@@ -205,12 +200,8 @@ class JsonMrfParser(BaseParser):
             {
                 "snapshot_id": snapshot_id,
                 "location_ordinal": i,
-                "location_name": (
-                    location_names[i] if i < len(location_names) else None
-                ),
-                "hospital_address": (
-                    hospital_addrs[i] if i < len(hospital_addrs) else None
-                ),
+                "location_name": (location_names[i] if i < len(location_names) else None),
+                "hospital_address": (hospital_addrs[i] if i < len(hospital_addrs) else None),
             }
             for i in range(n_locations)
         ]
@@ -250,9 +241,7 @@ class JsonMrfParser(BaseParser):
     # Pass 2 — modifier_information
     # ------------------------------------------------------------------
 
-    def _parse_modifiers(
-        self, file_path: Path
-    ) -> Iterator[dict[str, pl.DataFrame]]:
+    def _parse_modifiers(self, file_path: Path) -> Iterator[dict[str, pl.DataFrame]]:
         snapshot_id = self.snapshot_meta["snapshot_id"]
         section = "modifier_information"
         modifiers_rows: list[dict[str, Any]] = []
@@ -261,9 +250,7 @@ class JsonMrfParser(BaseParser):
         parsed_count = 0
 
         with _open_maybe_gz(file_path) as f:
-            for ordinal, raw_item in enumerate(
-                ijson.items(f, "modifier_information.item")
-            ):
+            for ordinal, raw_item in enumerate(ijson.items(f, "modifier_information.item")):
                 try:
                     mi = ModifierInformation.model_validate(raw_item)
                 except ValidationError as exc:
@@ -272,9 +259,7 @@ class JsonMrfParser(BaseParser):
                             "snapshot_id": snapshot_id,
                             "section": section,
                             "record_ordinal": ordinal,
-                            "reported_schema_version": self.snapshot_meta.get(
-                                "schema_version"
-                            ),
+                            "reported_schema_version": self.snapshot_meta.get("schema_version"),
                             "reported_schema_family": normalize_json_schema_family(
                                 self.snapshot_meta.get("schema_version")
                             ),
@@ -317,9 +302,7 @@ class JsonMrfParser(BaseParser):
 
         batch = {
             "modifiers": _df(modifiers_rows, BRONZE_SCHEMAS["modifiers"]),
-            "modifier_payer_info": _df(
-                modifier_payer_rows, BRONZE_SCHEMAS["modifier_payer_info"]
-            ),
+            "modifier_payer_info": _df(modifier_payer_rows, BRONZE_SCHEMAS["modifier_payer_info"]),
             "json_record_parse_diagnostics": _df(
                 diagnostic_rows, BRONZE_SCHEMAS["json_record_parse_diagnostics"]
             ),
@@ -358,9 +341,7 @@ class JsonMrfParser(BaseParser):
         provision_rows: list[dict[str, Any]] = []
 
         with _open_maybe_gz(file_path) as f:
-            for ordinal, raw_item in enumerate(
-                ijson.items(f, "general_contract_provisions.item")
-            ):
+            for ordinal, raw_item in enumerate(ijson.items(f, "general_contract_provisions.item")):
                 item = raw_item if isinstance(raw_item, dict) else {}
                 provision_rows.append(
                     {
@@ -391,9 +372,7 @@ class JsonMrfParser(BaseParser):
     # Pass 3 — standard_charge_information
     # ------------------------------------------------------------------
 
-    def _parse_charges(
-        self, file_path: Path
-    ) -> Iterator[dict[str, pl.DataFrame]]:
+    def _parse_charges(self, file_path: Path) -> Iterator[dict[str, pl.DataFrame]]:
         accumulator: dict[str, list[dict[str, Any]]] = defaultdict(list)
         processed = 0
         batches_emitted = 0
@@ -451,9 +430,7 @@ class JsonMrfParser(BaseParser):
                     "snapshot_id": snapshot_id,
                     "batch_index": batches_emitted,
                     "processed_items": processed,
-                    "table_row_counts": {
-                        table: len(rows) for table, rows in accumulator.items()
-                    },
+                    "table_row_counts": {table: len(rows) for table, rows in accumulator.items()},
                 },
             )
             yield batch
@@ -538,9 +515,7 @@ class JsonMrfParser(BaseParser):
         snapshot_id = self.snapshot_meta["snapshot_id"]
         charge_item_id = f"{snapshot_id}_{item_ordinal}"
 
-        out: dict[str, list[dict[str, Any]]] = {
-            table: [] for table in _CHARGE_TABLES
-        }
+        out: dict[str, list[dict[str, Any]]] = {table: [] for table in _CHARGE_TABLES}
 
         out["standard_charge_info"].append(
             {
@@ -615,19 +590,13 @@ class JsonMrfParser(BaseParser):
                         "payer_name": payer.payer_name,
                         "plan_name": payer.plan_name,
                         "methodology": payer.methodology,
-                        "standard_charge_dollar": _to_text(
-                            payer.standard_charge_dollar
-                        ),
-                        "standard_charge_percentage": _to_text(
-                            payer.standard_charge_percentage
-                        ),
+                        "standard_charge_dollar": _to_text(payer.standard_charge_dollar),
+                        "standard_charge_percentage": _to_text(payer.standard_charge_percentage),
                         "standard_charge_algorithm": payer.standard_charge_algorithm,
                         "estimated_amount": _to_text(payer.estimated_amount),
                         "median_amount": _to_text(payer.median_amount),
                         "tenth_percentile": _to_text(payer.tenth_percentile),
-                        "ninetieth_percentile": _to_text(
-                            payer.ninetieth_percentile
-                        ),
+                        "ninetieth_percentile": _to_text(payer.ninetieth_percentile),
                         "count": payer.count,
                         "additional_payer_notes": payer.additional_payer_notes,
                     }
@@ -668,10 +637,7 @@ class JsonMrfParser(BaseParser):
         self._quarantine_counts[section] += 1
         if isinstance(exc, ValidationError):
             err_locs = sorted(
-                {
-                    ".".join(str(part) for part in err.get("loc", ()))
-                    for err in exc.errors()
-                }
+                {".".join(str(part) for part in err.get("loc", ())) for err in exc.errors()}
             )
             logger.debug(
                 "validation_error_detail",
@@ -712,12 +678,7 @@ def _accumulator_to_batch(
 
 def _validation_error_summary(exc: ValidationError) -> dict[str, Any]:
     """Build a compact, JSON-serializable summary of a Pydantic failure."""
-    err_locs = sorted(
-        {
-            ".".join(str(part) for part in err.get("loc", ()))
-            for err in exc.errors()
-        }
-    )
+    err_locs = sorted({".".join(str(part) for part in err.get("loc", ())) for err in exc.errors()})
     return {
         "message": str(exc),
         "error_count": len(exc.errors()),

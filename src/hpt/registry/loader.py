@@ -40,9 +40,7 @@ def load_registry(path: Path = _DEFAULT_REGISTRY) -> list[HospitalSource]:
         try:
             hospital = HospitalSource.model_validate(entry)
         except ValidationError as exc:
-            raise RegistryError(
-                f"Validation failed for hospital {hid!r}:\n{exc}"
-            ) from exc
+            raise RegistryError(f"Validation failed for hospital {hid!r}:\n{exc}") from exc
 
         if hospital.hospital_id in seen_ids:
             raise RegistryError(f"Duplicate hospital_id: {hospital.hospital_id!r}")
@@ -53,14 +51,13 @@ def load_registry(path: Path = _DEFAULT_REGISTRY) -> list[HospitalSource]:
     return hospitals
 
 
-def get_hospital(
-    hospital_id: str, path: Path = _DEFAULT_REGISTRY
-) -> HospitalSource:
+def get_hospital(hospital_id: str, path: Path = _DEFAULT_REGISTRY) -> HospitalSource:
     """Return a single HospitalSource by *hospital_id*, or raise KeyError."""
     for h in load_registry(path):
         if h.hospital_id == hospital_id:
             return h
     raise KeyError(f"Hospital not found in registry: {hospital_id!r}")
+
 
 def get_hospitals(hospital_ids: list[str], path: Path = _DEFAULT_REGISTRY) -> list[HospitalSource]:
     """Return a list of HospitalSource by *hospital_ids*, or raise KeyError."""
@@ -77,4 +74,3 @@ def get_hospitals(hospital_ids: list[str], path: Path = _DEFAULT_REGISTRY) -> li
         raise KeyError(f"Hospitals not found in registry: {missing!r}")
 
     return [hospitals_by_id[hospital_id] for hospital_id in ordered_ids]
-

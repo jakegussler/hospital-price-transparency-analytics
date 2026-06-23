@@ -55,9 +55,7 @@ def _snapshot_model_names_from_macro() -> set[str]:
 
 
 def _has_scoped_ref(raw_code: str, model_name: str) -> bool:
-    return bool(
-        re.search(rf"hpt_scoped_ref\(\s*['\"]{re.escape(model_name)}['\"]\s*\)", raw_code)
-    )
+    return bool(re.search(rf"hpt_scoped_ref\(\s*['\"]{re.escape(model_name)}['\"]\s*\)", raw_code))
 
 
 def _has_scoped_source(raw_code: str, source_name: str, table_name: str) -> bool:
@@ -92,9 +90,7 @@ def test_snapshot_model_registry_matches_incremental_manifest(manifest: dict[str
 
 def test_staging_models_are_canonical_unscoped_views(manifest: dict[str, object]) -> None:
     staging_nodes = [
-        node
-        for node in _model_nodes(manifest).values()
-        if node["name"].startswith("stg_bronze__")
+        node for node in _model_nodes(manifest).values() if node["name"].startswith("stg_bronze__")
     ]
 
     assert len(staging_nodes) == 15
@@ -187,9 +183,7 @@ def test_audit_models_are_unscoped_views_outside_snapshot_registry(
 ) -> None:
     snapshot_names = _snapshot_model_names_from_macro()
     audit_nodes = [
-        node
-        for node in _model_nodes(manifest).values()
-        if "audit" in node["config"]["tags"]
+        node for node in _model_nodes(manifest).values() if "audit" in node["config"]["tags"]
     ]
 
     assert {node["name"] for node in audit_nodes} == {

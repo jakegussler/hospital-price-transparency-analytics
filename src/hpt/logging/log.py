@@ -85,15 +85,14 @@ class LoggingRunPaths:
     json_path: Path
     failures_dir: Path
 
+
 _BASE_RECORD_KEYS = set(logging.makeLogRecord({}).__dict__.keys()) | {
     "message",
     "asctime",
 }
 
 
-def _build_payload(
-    formatter: logging.Formatter, record: logging.LogRecord
-) -> dict[str, object]:
+def _build_payload(formatter: logging.Formatter, record: logging.LogRecord) -> dict[str, object]:
     payload: dict[str, object] = {
         "ts": formatter.formatTime(record),
         "level": record.levelname,
@@ -156,10 +155,7 @@ class StandardOutputFormatter(logging.Formatter):
             for key, val in payload.items()
             if key not in {"ts", "level", "logger", "msg", "exc_info"}
         }
-        base = (
-            f"{payload['ts']} | {payload['level']:<8} | "
-            f"{payload['logger']} | {payload['msg']}"
-        )
+        base = f"{payload['ts']} | {payload['level']:<8} | {payload['logger']} | {payload['msg']}"
         if structured_fields:
             fields = " ".join(
                 f"{key}={_render_stdout_value(structured_fields[key])}"
@@ -190,6 +186,7 @@ class ContextFilter(logging.Filter):
             if not hasattr(record, key):
                 setattr(record, key, val)
         return True
+
 
 def get_log_level(log_level: str) -> int:
     """Get the log level from the string."""

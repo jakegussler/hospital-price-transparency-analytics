@@ -77,9 +77,7 @@ class BronzeStorage:
 
     def temp_path(self, hospital_id: str) -> str:
         """Return a unique temp path under ``{root}/.tmp/``."""
-        return posixpath.join(
-            self._root, ".tmp", f"{hospital_id}_{uuid.uuid4().hex[:12]}"
-        )
+        return posixpath.join(self._root, ".tmp", f"{hospital_id}_{uuid.uuid4().hex[:12]}")
 
     def open(self, path: str, mode: str = "rb"):  # noqa: A003
         """Open *path* via fsspec (pass-through)."""
@@ -106,9 +104,7 @@ class BronzeStorage:
 
     # -- internals -------------------------------------------------------------
 
-    def _collision_safe_name(
-        self, partition_dir: str, filename: str, file_hash: str | None
-    ) -> str:
+    def _collision_safe_name(self, partition_dir: str, filename: str, file_hash: str | None) -> str:
         """Append short hash to *filename* if a different file already exists
         in *partition_dir* for the same day."""
         if file_hash is None:

@@ -64,9 +64,7 @@ def _make_snapshot(hospital_id: str) -> SnapshotRecord:
 
 
 def test_configure_logging_writes_stdout_and_json_files(tmp_path):
-    log_paths = configure_logging(
-        log_level="INFO", logs_root=tmp_path / "logs", run_id="run-123"
-    )
+    log_paths = configure_logging(log_level="INFO", logs_root=tmp_path / "logs", run_id="run-123")
     log = get_logger("tests.ingest_logging")
 
     log.info("test_event", extra={"hospital_id": "h1"})
@@ -86,16 +84,11 @@ def test_configure_logging_writes_stdout_and_json_files(tmp_path):
 
 
 def _json_records(json_path) -> list[dict[str, Any]]:
-    return [
-        json.loads(line)
-        for line in json_path.read_text(encoding="utf-8").splitlines()
-    ]
+    return [json.loads(line) for line in json_path.read_text(encoding="utf-8").splitlines()]
 
 
 def test_log_context_binds_fields_and_restores_on_exit(tmp_path):
-    log_paths = configure_logging(
-        log_level="INFO", logs_root=tmp_path / "logs", run_id="run-ctx"
-    )
+    log_paths = configure_logging(log_level="INFO", logs_root=tmp_path / "logs", run_id="run-ctx")
     log = get_logger("tests.ingest_logging")
 
     with log_context(snapshot_id="snap-1", hospital_id="h1"):
@@ -111,9 +104,7 @@ def test_log_context_binds_fields_and_restores_on_exit(tmp_path):
 
 
 def test_explicit_extra_wins_over_ambient_context(tmp_path):
-    log_paths = configure_logging(
-        log_level="INFO", logs_root=tmp_path / "logs", run_id="run-ctx2"
-    )
+    log_paths = configure_logging(log_level="INFO", logs_root=tmp_path / "logs", run_id="run-ctx2")
     log = get_logger("tests.ingest_logging")
 
     with log_context(hospital_id="ambient"):
@@ -124,9 +115,7 @@ def test_explicit_extra_wins_over_ambient_context(tmp_path):
 
 
 def test_set_and_clear_context_are_incremental(tmp_path):
-    log_paths = configure_logging(
-        log_level="INFO", logs_root=tmp_path / "logs", run_id="run-ctx3"
-    )
+    log_paths = configure_logging(log_level="INFO", logs_root=tmp_path / "logs", run_id="run-ctx3")
     log = get_logger("tests.ingest_logging")
 
     set_context(snapshot_id="snap-1")
@@ -197,8 +186,7 @@ def test_ingest_logic_writes_descriptive_failure_logs(monkeypatch, tmp_path):
     assert "broken-snapshot" in failure_text
 
     failure_records = [
-        json.loads(line)
-        for line in failure_json_logs[0].read_text(encoding="utf-8").splitlines()
+        json.loads(line) for line in failure_json_logs[0].read_text(encoding="utf-8").splitlines()
     ]
     assert [record["failure_type"] for record in failure_records] == [
         "no_snapshot",
@@ -214,8 +202,7 @@ def test_ingest_logic_writes_descriptive_failure_logs(monkeypatch, tmp_path):
     assert "parser exploded while reading charges.json" in std_out_text
 
     json_events = [
-        json.loads(line)
-        for line in json_logs[0].read_text(encoding="utf-8").splitlines()
+        json.loads(line) for line in json_logs[0].read_text(encoding="utf-8").splitlines()
     ]
     complete_event = next(event for event in json_events if event["msg"] == "ingest_run_complete")
     assert complete_event["failure_count"] == 2

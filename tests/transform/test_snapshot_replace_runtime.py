@@ -99,8 +99,7 @@ def _run_dbt(project_dir: Path, *, variables: dict[str, object], full_refresh: b
 def _rows(database_path: Path) -> list[tuple[str, int, str]]:
     with duckdb.connect(str(database_path)) as connection:
         return connection.execute(
-            "select snapshot_id, row_id, value from main.snapshot_rows "
-            "order by snapshot_id, row_id"
+            "select snapshot_id, row_id, value from main.snapshot_rows order by snapshot_id, row_id"
         ).fetchall()
 
 
@@ -182,9 +181,7 @@ def test_snapshot_replace_runtime_contract(tmp_path: Path) -> None:
         },
     )
     assert not invalid_unique_key.success
-    assert "snapshot_replace requires unique_key='snapshot_id'" in _result_text(
-        invalid_unique_key
-    )
+    assert "snapshot_replace requires unique_key='snapshot_id'" in _result_text(invalid_unique_key)
     assert _rows(database_path) == [("snapshot-a", 4, "newer-a")]
 
     invalid_predicates = _run_dbt(
@@ -192,9 +189,7 @@ def test_snapshot_replace_runtime_contract(tmp_path: Path) -> None:
         variables={
             "snapshot_ids": ["snapshot-a"],
             "strategy_incremental_predicates": ["snapshot_id = 'snapshot-a'"],
-            "rows": [
-                {"snapshot_id": "snapshot-a", "row_id": 6, "value": "invalid-predicate"}
-            ],
+            "rows": [{"snapshot_id": "snapshot-a", "row_id": 6, "value": "invalid-predicate"}],
         },
     )
     assert not invalid_predicates.success
@@ -205,9 +200,7 @@ def test_snapshot_replace_runtime_contract(tmp_path: Path) -> None:
 
     unscoped_incremental = _run_dbt(
         project_dir,
-        variables={
-            "rows": [{"snapshot_id": "snapshot-b", "row_id": 6, "value": "unscoped"}]
-        },
+        variables={"rows": [{"snapshot_id": "snapshot-b", "row_id": 6, "value": "unscoped"}]},
     )
     assert not unscoped_incremental.success
     assert "snapshot_replace requires at least one snapshot_id" in _result_text(
@@ -217,9 +210,7 @@ def test_snapshot_replace_runtime_contract(tmp_path: Path) -> None:
 
     unscoped_full_refresh = _run_dbt(
         project_dir,
-        variables={
-            "rows": [{"snapshot_id": "snapshot-b", "row_id": 7, "value": "full-refresh"}]
-        },
+        variables={"rows": [{"snapshot_id": "snapshot-b", "row_id": 7, "value": "full-refresh"}]},
         full_refresh=True,
     )
     assert unscoped_full_refresh.success

@@ -25,20 +25,26 @@ JSON_V3 = CMS_REF / "examples" / "JSON" / "v3_json_format_example.json"
 JSON_V2 = CMS_REF / "archive" / "examples" / "JSON" / "V2.0.0_JSON_Format_Example.json"
 
 CSV_TALL_V2 = (
-    CMS_REF / "archive" / "documentation" / "CSV" / "templates"
+    CMS_REF
+    / "archive"
+    / "documentation"
+    / "CSV"
+    / "templates"
     / "V2.0.0_Tall_CSV_Format_Template.csv"
 )
 CSV_WIDE_V2 = (
-    CMS_REF / "archive" / "documentation" / "CSV" / "templates"
+    CMS_REF
+    / "archive"
+    / "documentation"
+    / "CSV"
+    / "templates"
     / "V2.0.0_Wide_CSV_Format_Template.csv"
 )
 CSV_TALL_V3 = (
-    CMS_REF / "examples" / "CSV" / "Tall Format Examples"
-    / "V3.0.0_Tall_CSV_Format_Example.csv"
+    CMS_REF / "examples" / "CSV" / "Tall Format Examples" / "V3.0.0_Tall_CSV_Format_Example.csv"
 )
 CSV_WIDE_V3 = (
-    CMS_REF / "documentation" / "CSV" / "templates"
-    / "V3.0.0_Wide_CSV_Format_Template.csv"
+    CMS_REF / "documentation" / "CSV" / "templates" / "V3.0.0_Wide_CSV_Format_Template.csv"
 )
 
 
@@ -71,20 +77,14 @@ def test_sniff_gzipped_json(tmp_path: Path, local_fs: fsspec.AbstractFileSystem)
     with gzip.open(dest, "wb") as fh:
         fh.write(JSON_V3.read_bytes())
 
-    assert sniff_schema(str(dest), local_fs) == SchemaInfo(
-        layout=Layout.JSON, version="3.0.0"
-    )
+    assert sniff_schema(str(dest), local_fs) == SchemaInfo(layout=Layout.JSON, version="3.0.0")
 
 
-def test_sniff_json_with_utf8_bom(
-    tmp_path: Path, local_fs: fsspec.AbstractFileSystem
-) -> None:
+def test_sniff_json_with_utf8_bom(tmp_path: Path, local_fs: fsspec.AbstractFileSystem) -> None:
     dest = tmp_path / "mrf.json"
     dest.write_bytes(b"\xef\xbb\xbf" + JSON_V3.read_bytes())
 
-    assert sniff_schema(str(dest), local_fs) == SchemaInfo(
-        layout=Layout.JSON, version="3.0.0"
-    )
+    assert sniff_schema(str(dest), local_fs) == SchemaInfo(layout=Layout.JSON, version="3.0.0")
 
 
 def test_sniff_gzipped_csv(tmp_path: Path, local_fs: fsspec.AbstractFileSystem) -> None:
@@ -92,9 +92,7 @@ def test_sniff_gzipped_csv(tmp_path: Path, local_fs: fsspec.AbstractFileSystem) 
     with gzip.open(dest, "wb") as fh:
         fh.write(CSV_TALL_V3.read_bytes())
 
-    assert sniff_schema(str(dest), local_fs) == SchemaInfo(
-        layout=Layout.CSV_TALL, version="3.0.0"
-    )
+    assert sniff_schema(str(dest), local_fs) == SchemaInfo(layout=Layout.CSV_TALL, version="3.0.0")
 
 
 def test_sniff_csv_falls_back_to_cp1252(
@@ -112,19 +110,13 @@ def test_sniff_csv_falls_back_to_cp1252(
         )
     )
 
-    assert sniff_schema(str(dest), local_fs) == SchemaInfo(
-        layout=Layout.CSV_TALL, version="3.0.0"
-    )
+    assert sniff_schema(str(dest), local_fs) == SchemaInfo(layout=Layout.CSV_TALL, version="3.0.0")
 
 
-def test_short_csv_returns_unknown(
-    tmp_path: Path, local_fs: fsspec.AbstractFileSystem
-) -> None:
+def test_short_csv_returns_unknown(tmp_path: Path, local_fs: fsspec.AbstractFileSystem) -> None:
     dest = tmp_path / "short.csv"
     dest.write_text("hospital_name,version\nFoo,3.0.0\n")
-    assert sniff_schema(str(dest), local_fs) == SchemaInfo(
-        layout=Layout.UNKNOWN, version=None
-    )
+    assert sniff_schema(str(dest), local_fs) == SchemaInfo(layout=Layout.UNKNOWN, version=None)
 
 
 # ---------------------------------------------------------------------------
@@ -132,9 +124,7 @@ def test_short_csv_returns_unknown(
 # ---------------------------------------------------------------------------
 
 
-def test_sniff_schema_unknown_content(
-    tmp_path: Path, local_fs: fsspec.AbstractFileSystem
-) -> None:
+def test_sniff_schema_unknown_content(tmp_path: Path, local_fs: fsspec.AbstractFileSystem) -> None:
     """Binary file with no JSON/CSV markers and no recognized extension → UNKNOWN."""
     dest = tmp_path / "data.bin"
     dest.write_bytes(b"\x00\x01\x02\x03\x04\x05\x06\x07")

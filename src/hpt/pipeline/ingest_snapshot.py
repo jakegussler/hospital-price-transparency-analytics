@@ -58,9 +58,7 @@ def ingest_snapshot(
     started_monotonic = time.monotonic()
     stages = StageRecorder()
 
-    with log_context(
-        snapshot_id=snapshot.snapshot_id, hospital_id=snapshot.hospital_id
-    ):
+    with log_context(snapshot_id=snapshot.snapshot_id, hospital_id=snapshot.hospital_id):
         with stages.stage("snapshot_raw_resolution"):
             raw_path = resolve_local_path(snapshot, storage)
         log_ingest_phase(
@@ -72,9 +70,7 @@ def ingest_snapshot(
         )
 
         with stages.stage("parser_input_preparation"):
-            parser_path, cleanup_paths = _prepare_parser_path(
-                raw_path, snapshot, storage
-            )
+            parser_path, cleanup_paths = _prepare_parser_path(raw_path, snapshot, storage)
         try:
             with stages.stage("schema_sniff"):
                 schema_info = sniff_schema(str(parser_path), storage.fs)
@@ -177,9 +173,7 @@ class StageRecorder:
             self.elapsed_s[name] = time.monotonic() - started
 
 
-def resolve_local_path(
-    snapshot: SnapshotRecord, storage: BronzeStorage
-) -> Path:
+def resolve_local_path(snapshot: SnapshotRecord, storage: BronzeStorage) -> Path:
     """Locate the downloaded MRF file for *snapshot* under the raw partition.
 
     :class:`~hpt.ingest.snapshot.SnapshotRecord` does not persist the raw
@@ -210,8 +204,7 @@ def resolve_local_path(
 
     if not files:
         raise FileNotFoundError(
-            f"No files found for snapshot {snapshot.snapshot_id} in "
-            f"{partition_dir}"
+            f"No files found for snapshot {snapshot.snapshot_id} in {partition_dir}"
         )
 
     # Prefer the exact filename match, then the hash-suffixed variant,
@@ -226,16 +219,13 @@ def resolve_local_path(
         # Decompression may have stripped an extension; match by stem.
         strategy = "stem_prefix"
         stem = snapshot.source_file_name.split(".")[0]
-        candidates = [
-            p for p in files if posixpath.basename(p).startswith(stem)
-        ]
+        candidates = [p for p in files if posixpath.basename(p).startswith(stem)]
     if not candidates and len(files) == 1:
         strategy = "single_file_partition"
         candidates = files
     if not candidates:
         raise FileNotFoundError(
-            f"Could not identify the raw file for snapshot "
-            f"{snapshot.snapshot_id} among {files}"
+            f"Could not identify the raw file for snapshot {snapshot.snapshot_id} among {files}"
         )
     chosen = Path(candidates[0])
     logger.info(
