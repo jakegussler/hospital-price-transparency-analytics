@@ -60,8 +60,11 @@ selectors:
   - name: validation
     description: "Validation models, rejection keysets, and validation statistics."
     definition:
-      method: tag
-      value: validation
+      union:
+        - method: tag
+          value: staging
+        - method: tag
+          value: validation
 
   - name: audit
     description: "All operational audit staging and mart models."

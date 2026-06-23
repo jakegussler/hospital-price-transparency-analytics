@@ -105,6 +105,7 @@ class DbtManager:
         if selector:
             args += ["--selector", selector]
         if command in UNIT_TEST_EXCLUDED_COMMANDS:
+            args += ["--indirect-selection", "buildable"]
             args += ["--exclude-resource-type", "unit_test"]
         if full_refresh:
             args.append("--full-refresh")
@@ -167,7 +168,9 @@ class DbtManager:
                     "failure_message": (
                         None
                         if success
-                        else str(error) if error else f"{failure_event}: dbt returned failure"
+                        else str(error)
+                        if error
+                        else f"{failure_event}: dbt returned failure"
                     ),
                     "started_at": started_at,
                     "ended_at": datetime.now(UTC),
