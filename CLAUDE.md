@@ -47,19 +47,25 @@ make ingest                      # hpt ingest   (NOT `hpt parse` — see gotchas
 # Registry seed export (does not invoke dbt)
 make export-hospitals-seed
 
-# dbt validation: always one pinned snapshot and the smallest relevant selector
+# dbt validation: one pinned snapshot, scoped to exactly the changed models
+hpt run-dbt --snapshot-ids 97e28644-a4fc-4b3c-9c5c-8e9cf650500e --command build --select slv_core__payer_rates+
+# ...or a named selector when a tag group is the right unit:
 hpt run-dbt --snapshot-ids 97e28644-a4fc-4b3c-9c5c-8e9cf650500e --command build --selector validation
 ```
 
 For agent-run dbt validation, never invoke `dbt` directly or use the full-corpus
 `make dbt-*` targets. Always call `hpt run-dbt` with exactly one explicit
-`--snapshot-ids` value and one non-empty, smallest relevant `--selector`. Never
-omit the selector to build the whole dbt graph. Never use
-`--hospital-ids`, `--all-hospitals`, `--per-snapshot`, `--full-refresh`, or
-`--full-rebuild`; do not pass `--seeds` unless the change specifically requires
-seed validation. The canonical rules and pinned CSV Wide, CSV Tall, and JSON
-snapshot IDs are in `AGENTS.md`, including larger CSV Tall and JSON options for
-cases that need more representative row volume.
+`--snapshot-ids` value and one node-scoping flag: prefer `--select <changed
+models>` (or `<model>+` for the downstream you touched) over `--selector`, since
+it rebuilds exactly what changed; `--select` and `--selector` are mutually
+exclusive. Never omit both and build the whole dbt graph. Never use
+`--hospital-ids`, `--all-hospitals`, `--per-snapshot`, `--full-refresh`,
+`--full-rebuild`, or `--defer-tests`; do not pass `--seeds` unless the change
+specifically requires seed validation. Memory is bounded by the single pinned
+snapshot, not by model count, so keep the snapshot pinned to a small one. The
+canonical rules and pinned CSV Wide, CSV Tall, and JSON snapshot IDs are in
+`AGENTS.md`, including larger CSV Tall and JSON options for cases that need more
+representative row volume.
 
 If verification truly needs a full refresh or full rebuild, do not run dbt.
 Report that full-refresh verification is still needed, why the scoped snapshot
@@ -73,9 +79,11 @@ targeted run cannot validate the change. See
 `docs/development/snapshot-scoped-runs.md` for implementation details, not for
 permission to use its unscoped/full-refresh examples.
 
-dbt selectors available: `staging`, `silver_base`, `silver_core`,
+dbt selectors available (`--selector`): `staging`, `silver_base`, `silver_core`,
 `silver_review_queue`, `silver_audit`, `silver`, `validation`,
-`pipeline_snapshot_metadata`, `pipeline_charge_data`.
+`pipeline_snapshot_metadata`, `pipeline_charge_data`. Or pass `--select` with
+model node selection and graph operators (`model`, `model+`, `+model`, `@model`)
+to target arbitrary models — mutually exclusive with `--selector`.
 
 ## Code map
 
@@ -99,8 +107,12 @@ dbt selectors available: `staging`, `silver_base`, `silver_core`,
 - **CLI is `hpt ingest`, never `hpt parse`.** Stale docs/prompts may reference
   `hpt parse`; it does not exist. Do not introduce it.
 - **Agents invoke dbt only through `hpt run-dbt`.** Pin exactly one approved
-  snapshot UUID and use the smallest relevant selector; never run direct,
-  unscoped, per-snapshot-all, or full-refresh dbt commands.
+  snapshot UUID and scope the node graph with the smallest `--select <model>[+]`
+  (preferred) or a named `--selector`; never run direct, unscoped,
+  per-snapshot-all, full-refresh, or `--defer-tests` dbt commands.
+- **`--select` leaves out-of-graph models stale.** A bare `--select model`
+  rebuilds only that node; use `model+` to also rebuild the downstream you
+  changed, or the validation/test against stale children will mislead you.
 - **Bronze stays source-faithful.** No business normalization, payer matching,
   code rollups, or hospital identity resolution in Bronze parsers — that belongs
   in dbt Silver/Gold.

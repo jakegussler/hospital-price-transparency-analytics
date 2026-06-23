@@ -48,12 +48,39 @@ hpt run-dbt --hospital-ids a,b --snapshot-ids 7ca24003-... --command run --no-se
 `hpt run-dbt` flags: `--hospital-ids` (resolved to each hospital's current
 snapshot), `--snapshot-ids` (pinned explicitly), `--command` (default `build`),
 `--selector` (optional; use only for an intentionally partial run; a
-comma-separated list runs each selector in turn),
-`--all-hospitals` (scope every registry hospital's current snapshot into one
-run), `--per-snapshot` (iterate every current snapshot one run at a time),
-`--full-refresh` (per-snapshot only; see below), `--full-rebuild`,
-`--seeds/--no-seeds`, `--log-level`. It exits non-zero if no snapshot IDs
+comma-separated list runs each selector in turn), `--select` (model node
+selection with dbt graph operators; see below; mutually exclusive with
+`--selector`), `--all-hospitals` (scope every registry hospital's current
+snapshot into one run), `--per-snapshot` (iterate every current snapshot one run
+at a time), `--full-refresh` (per-snapshot only; see below), `--full-rebuild`,
+`--defer-tests` (split `build` into a materialize pass plus one test pass; see
+below), `--seeds/--no-seeds`, `--log-level`. It exits non-zero if no snapshot IDs
 resolve, if dbt fails, or if the post-run retention operation fails.
+
+### Node selection with `--select`
+
+`--select` scopes the run to specific model nodes instead of a named selector,
+passing dbt's graph-operator syntax through verbatim:
+
+```bash
+# Just one model, scoped to one snapshot (fast inner-loop check).
+hpt run-dbt --snapshot-ids 97e28644-... --command build --select slv_core__payer_rates
+
+# The model and everything downstream of it.
+hpt run-dbt --snapshot-ids 97e28644-... --command build --select slv_core__payer_rates+
+
+# A union of several nodes in a single invocation.
+hpt run-dbt --snapshot-ids 97e28644-... --command run --select slv_base__payer_rates+ slv_core__charge_items
+```
+
+Comma-separated nodes become a single union `--select` (one invocation), unlike
+comma-separated `--selector` values, which run one at a time. `--select` and
+`--selector` are mutually exclusive — dbt would intersect them. A bare
+`--select model` leaves downstream models computed from the old logic; use
+`model+` when your change affects them. Node selection is the preferred scope for
+validating a small, known set of changed models: it rebuilds exactly what you
+touched and bounds wall-clock time. Peak memory is still governed by the snapshot
+scope, not the number of nodes, so keep the snapshot pin small.
 
 Do not pass `--full-refresh` through a scoped `hpt run-dbt` invocation. The
 runner rejects that combination because dbt would rebuild incremental tables
@@ -89,6 +116,37 @@ hpt run-dbt --per-snapshot --full-refresh --seeds
 # Rebuild only the selected graph one snapshot at a time.
 hpt run-dbt --per-snapshot --full-refresh --selector per_snapshot
 ```
+
+### Deferred testing with `--defer-tests`
+
+dbt `build` interleaves each model with its tests. Generic tests (`not_null`,
+`accepted_values`, `relationships`, `unique_combination_of_columns`) defined in
+the `_*.yml` files run against the **whole** materialized table, not just the
+scoped snapshot. So a multi-snapshot `build` re-tests every already-built
+snapshot after each new one — roughly `N`× the necessary test work on an `N`-
+snapshot rebuild. (Singular tests in `transform/tests/*.sql` already scope
+themselves via `hpt_scoped_ref`, so they are not the cost here.)
+
+`--defer-tests` splits a `build` into two phases: it materializes every snapshot
+with `run` (no interleaved tests), runs the stale-snapshot prune, then runs a
+single **unscoped** `test` pass over the whole, now-consistent table. This turns
+`O(N²)` test scans into `O(N)` and is the recommended default for multi-snapshot
+and full-refresh rebuilds.
+
+```bash
+# Rebuild every current snapshot, then test once at the end.
+hpt run-dbt --per-snapshot --defer-tests
+
+# Same, scoped to one model graph.
+hpt run-dbt --per-snapshot --defer-tests --select slv_core__payer_rates+
+```
+
+Trade-off: you lose `build`'s interleaved fail-fast for **data-quality** tests —
+a constraint violation in snapshot 3's data is reported only after every snapshot
+is materialized. **Structural** failures (SQL/compile/schema errors) still abort
+the materialize loop immediately, so a model that cannot build stops the run at
+once. `--clear-on-failure` still applies to the materialize phase. `--defer-tests`
+only applies to `build`; combining it with another command raises an error.
 
 ## Retention
 

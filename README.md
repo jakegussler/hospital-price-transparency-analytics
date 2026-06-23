@@ -163,8 +163,12 @@ The dbt project defines selectors for `staging`, `silver_base`, `silver_core`,
 
 `hpt run-dbt` defaults to the complete dbt graph so snapshot-grained
 consumers, Silver tables, and cross-model tests stay coherent. Pass `--selector`
-only for an intentionally partial run. Per-snapshot runs, including
-`--full-refresh`, accept partial selectors.
+(named selectors) or `--select` (model node selection with dbt graph operators
+such as `model+`, mutually exclusive with `--selector`) for an intentionally
+partial run. Per-snapshot runs, including `--full-refresh`, accept partial
+selectors. For multi-snapshot rebuilds, `--defer-tests` materializes every
+snapshot first and runs the whole-table tests once at the end instead of after
+each snapshot.
 
 Snapshot-grained incremental models use the custom `snapshot_replace` strategy.
 It deletes rows for the explicitly requested `snapshot_ids` before inserting

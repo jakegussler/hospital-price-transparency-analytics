@@ -107,13 +107,30 @@ dbt changes:
   package is installed before any `hpt run-dbt` build; CI runs `dbt deps` in both
   jobs.
 - Keep source definitions aligned with actual Bronze table output.
-- Validate changes with the smallest relevant snapshot-scoped
-  `hpt run-dbt --snapshot-ids <id> --command build --selector <selector>` run.
-  When the local warehouse holds stale rows from snapshots that predate a model
-  column, scoped runs leave those rows in place and their `not_null`/enum tests
-  can fail on the stale slice; verify on a fresh isolated warehouse (the offline
-  e2e fixture run does this) and treat the stale failures as a warehouse-state
-  issue, not a regression.
+- Validate changes with the smallest relevant snapshot-scoped run, preferring
+  node selection over a named selector:
+  `hpt run-dbt --snapshot-ids <id> --command build --select <model>+`. Use a
+  named `--selector` only when a tag group is the right unit. When the local
+  warehouse holds stale rows from snapshots that predate a model column, scoped
+  runs leave those rows in place and their `not_null`/enum tests can fail on the
+  stale slice; verify on a fresh isolated warehouse (the offline e2e fixture run
+  does this) and treat the stale failures as a warehouse-state issue, not a
+  regression.
+- Know how each test kind responds to snapshot scope. In a **scoped `build`**,
+  **singular** tests in `transform/tests/*.sql` reference models through
+  `hpt_scoped_ref`, so they check only the scoped snapshot's rows, while
+  **generic** tests in the `_*.yml` files (`not_null`, `accepted_values`,
+  `relationships`, `unique_combination_of_columns`) always check the whole
+  materialized table. The generic ones are what makes a repeated multi-snapshot
+  `build` re-test already-built snapshots.
+- `--defer-tests` does **not** skip or per-snapshot the singular tests. It
+  materializes every snapshot with `run` (which executes no tests), prunes, then
+  runs a single **unscoped** `test` pass. Unscoped means no `snapshot_ids` var, so
+  `hpt_scoped_ref` adds no filter and the singular tests check the *whole* table
+  too — every current snapshot at once, after the prune has removed non-current
+  rows. You do not pass the snapshot IDs into that pass; an empty scope already
+  means "all of it." So both singular and generic tests run exactly once, against
+  the full current table (see `snapshot-scoped-runs.md`).
 - Never invoke dbt directly or run an unscoped/full-corpus dbt target during
   agent validation.
 

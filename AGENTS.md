@@ -57,15 +57,28 @@ Agents must validate dbt changes with the smallest possible snapshot-scoped run.
 - Always use the `hpt run-dbt` CLI layer and pass exactly one explicit
   `--snapshot-ids` value. Pin the snapshot UUID rather than using
   `--hospital-ids`, whose current snapshot can change.
-- Never pass `--all-hospitals`, `--per-snapshot`, `--full-refresh`, or
-  `--full-rebuild`.
+- Never pass `--all-hospitals`, `--per-snapshot`, `--full-refresh`,
+  `--full-rebuild`, or `--defer-tests`. These are human-developer, multi-snapshot
+  workflows; they are unbounded in memory and not for agent verification.
 - If correctness requires a full refresh or full rebuild to verify, do not run
   dbt. State that full-refresh verification is still needed, explain why the
   scoped validation is insufficient, and tell the user exactly which verification
   command or scope should be run outside the agent workflow.
-- Always pass one non-empty `--selector`; never omit it to build the whole dbt
-  graph. Use the smallest selector/model and command that exercise the change,
-  broadening scope only when the targeted run cannot validate the behavior.
+- Scope the node graph with **either** `--select` **or** `--selector` (never
+  both; they are mutually exclusive). Prefer `--select <changed models>` (or
+  `<model>+` to include the downstream you affected) over a named selector: it
+  rebuilds exactly what you touched, which is faster and leaves fewer models
+  stale. Fall back to a named `--selector` when a coherent tag group is the right
+  unit. Never omit both and build the whole graph.
+- Peak memory ≈ snapshot breadth × the heaviest selected model's working set. The
+  pinned single (small) snapshot is what bounds memory — **not** the number of
+  models. So pin one of the small snapshots below; do not assume "few models"
+  makes an all-snapshots or large-snapshot run safe. You may run `--select
+  <model>[+]` against more than one *small* pinned snapshot for format coverage,
+  but never the larger snapshots.
+- Single-snapshot `--select` proves the change *runs*; for incremental models it
+  is a smoke test, not proof of cross-snapshot correctness. If the change needs
+  all snapshots to validate, report that rather than running it.
 - Do not pass `--seeds` unless the change affects seed data or seed-dependent
   behavior.
 
@@ -81,13 +94,22 @@ more representative row volume or source complexity.
 | Larger | CSV Tall | Ballad JCMC | `7ca24003-a8af-4e11-8f29-4587ffb22506` | 5.6 MB raw ZIP; 9.7 MB Bronze |
 | Larger | JSON | Vanderbilt University Medical Center | `8fa7c1b7-ea2e-4c1d-b38b-ae23899921bc` | 1.9 GB raw; 30.1 MB Bronze |
 
-Example:
+Example (named selector):
 
 ```bash
 hpt run-dbt \
   --snapshot-ids 97e28644-a4fc-4b3c-9c5c-8e9cf650500e \
   --command build \
   --selector validation
+```
+
+Example (just the changed model and its downstream):
+
+```bash
+hpt run-dbt \
+  --snapshot-ids 97e28644-a4fc-4b3c-9c5c-8e9cf650500e \
+  --command build \
+  --select slv_core__payer_rates+
 ```
 
 ## Data And Storage Rules

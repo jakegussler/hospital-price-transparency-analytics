@@ -80,6 +80,12 @@ hpt run-dbt --snapshot-ids "$SNAPS" --command run \
 hpt run-dbt --snapshot-ids "$SNAPS" --command test --selector "silver_core,silver_audit"
 ```
 
+`--defer-tests` automates this materialize-then-test split for a single
+selector or `--select` graph: `hpt run-dbt --snapshot-ids "$SNAPS" --command
+build --defer-tests --selector silver_core` runs every snapshot with `run`,
+prunes, then runs one unscoped `test` pass — avoiding the whole-table generic-test
+re-scan after each snapshot. See `snapshot-scoped-runs.md` for the trade-offs.
+
 Inspect the scorecard:
 
 ```sql
