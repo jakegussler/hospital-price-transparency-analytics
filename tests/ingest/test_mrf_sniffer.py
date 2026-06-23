@@ -18,34 +18,20 @@ from hpt.ingest.mrf_sniffer import (
     sniff_schema,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-CMS_REF = REPO_ROOT / "docs" / "cms_reference" / "hospital-price-transparency"
+# Representative CMS MRF example/template files vendored from
+# github.com/CMSgov/hospital-price-transparency (commit 7c8bdce). The upstream
+# repo is cloned into docs/cms_reference/ for human/agent reference but is
+# git-ignored, so these fixtures are committed here to keep the sniffer tests
+# self-contained and reproducible in CI.
+CMS_REF = Path(__file__).resolve().parents[1] / "fixtures" / "cms_reference"
 
-JSON_V3 = CMS_REF / "examples" / "JSON" / "v3_json_format_example.json"
-JSON_V2 = CMS_REF / "archive" / "examples" / "JSON" / "V2.0.0_JSON_Format_Example.json"
+JSON_V3 = CMS_REF / "v3_json_format_example.json"
+JSON_V2 = CMS_REF / "V2.0.0_JSON_Format_Example.json"
 
-CSV_TALL_V2 = (
-    CMS_REF
-    / "archive"
-    / "documentation"
-    / "CSV"
-    / "templates"
-    / "V2.0.0_Tall_CSV_Format_Template.csv"
-)
-CSV_WIDE_V2 = (
-    CMS_REF
-    / "archive"
-    / "documentation"
-    / "CSV"
-    / "templates"
-    / "V2.0.0_Wide_CSV_Format_Template.csv"
-)
-CSV_TALL_V3 = (
-    CMS_REF / "examples" / "CSV" / "Tall Format Examples" / "V3.0.0_Tall_CSV_Format_Example.csv"
-)
-CSV_WIDE_V3 = (
-    CMS_REF / "documentation" / "CSV" / "templates" / "V3.0.0_Wide_CSV_Format_Template.csv"
-)
+CSV_TALL_V2 = CMS_REF / "V2.0.0_Tall_CSV_Format_Template.csv"
+CSV_WIDE_V2 = CMS_REF / "V2.0.0_Wide_CSV_Format_Template.csv"
+CSV_TALL_V3 = CMS_REF / "V3.0.0_Tall_CSV_Format_Example.csv"
+CSV_WIDE_V3 = CMS_REF / "V3.0.0_Wide_CSV_Format_Template.csv"
 
 
 @pytest.fixture()

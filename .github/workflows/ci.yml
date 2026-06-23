@@ -36,12 +36,12 @@ jobs:
       - name: Lint
         run: uv run ruff check src/ tests/ scripts/
 
-      - name: Unit tests
-        run: uv run pytest -m "not e2e"
-
       - name: dbt deps
         working-directory: transform
         run: uv run dbt deps --profiles-dir .
+
+      - name: Unit tests
+        run: uv run pytest -m "not e2e"
 
       - name: dbt compile
         working-directory: transform
