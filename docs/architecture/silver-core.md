@@ -544,6 +544,11 @@ For cross-hospital service cohorts:
 - Treat revenue-code-only cohorts as broad categories.
 - Exclude or separately label CDM/LOCAL-only rows for cross-hospital analysis.
 
+The v1 Gold contract for these choices is recorded in
+`docs/decisions/0017-gold-comparability-framework.md`. Gold models should expose
+blocker reasons for rows that fail stricter comparison rules instead of hiding
+those exclusions in mart filters.
+
 For hospital price-over-time analysis:
 
 - Use `service_item_id` within a hospital.
@@ -601,5 +606,7 @@ Supporting decisions and domain references:
 - `docs/decisions/0009-normalize-payers-as-identity-plus-context.md`
 - `docs/decisions/0013-normalize-billing-codes-as-enrichment.md`
 - `docs/decisions/0014-derive-service-item-identity-deterministically.md`
+- `docs/decisions/0015-classify-methodology-and-amount-semantics.md`
+- `docs/decisions/0017-gold-comparability-framework.md`
 - `docs/local/industry_guide.md`
 - `docs/local/methodologies_algorithms.md`

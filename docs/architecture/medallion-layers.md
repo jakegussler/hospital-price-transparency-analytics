@@ -141,18 +141,24 @@ including the full pipeline DAG, column schemas, and a comparison against the
 Status: planned. The dbt project has a `models/gold/` directory, but no
 implemented models yet.
 
-Gold will serve use-case-specific analytics.
+Gold will serve use-case-specific analytics. The v1 comparability contract is
+decision `docs/decisions/0017-gold-comparability-framework.md`: current
+cross-hospital comparison is code-cohort based, context-aligned, dollar-aware,
+and explainable through blocker reasons.
 
 Likely responsibilities:
 
-- Hospital-level price comparison views.
-- Payer and plan comparison tables.
-- Charge-code and service-line summaries.
-- Compliance and data-completeness reporting.
+- A rate-observation spine that preserves lineage and exposes amount semantics.
+- Current hospital-level price comparison views over comparable code cohorts.
+- Payer and market-segment benchmark tables where identity/context gates pass.
+- Charge-code and service-context summaries with denominator thresholds.
+- Coverage and data-readiness scorecards that explain blocked observations.
 - Datasets suitable for dashboards or notebooks.
 
 Gold models can trade some source detail for usability, but they should retain
-lineage back to Silver and Bronze identifiers.
+lineage back to Silver and Bronze identifiers. They should not create a global
+service master, canonical plan dimension, price-history mart, basket index,
+geography enrichment, or semantic layer in v1.
 
 ## Operational Audit
 
