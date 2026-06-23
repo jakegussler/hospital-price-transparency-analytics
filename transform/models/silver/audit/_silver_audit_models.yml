@@ -108,3 +108,38 @@ models:
         description: "Share of rows with a non-null plan_type (rule-supplied or derived)."
       - name: plan_type_derived_rows
         description: "Rows whose plan_type came from the deterministic token derivation rather than a curated rule."
+
+  - name: slv_audit__gold_readiness_gates
+    description: >
+      Gold-readiness scorecard over current Silver Core rows. One row per
+      readiness area reports the measured metric, threshold, pass/fail/info
+      status, raw counts, blocker count, and notes. This is a release/readiness
+      contract, not a row filter and not a hard-failing dbt threshold test.
+    columns:
+      - name: gate_name
+        description: "Stable readiness-area identifier."
+        tests:
+          - not_null
+          - unique
+      - name: metric_name
+        description: "Stable identifier for the measured metric."
+        tests:
+          - not_null
+      - name: metric_value
+        description: "Measured metric value: percent for coverage gates and row/candidate counts for backlog or contract gates."
+      - name: threshold_value
+        description: "Gate threshold where applicable; null for informational gates."
+      - name: gate_status
+        description: "Readiness status for the gate. Info rows are non-blocking."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["pass", "fail", "info"]
+      - name: numerator_count
+        description: "Raw numerator count for the metric."
+      - name: denominator_count
+        description: "Raw denominator count for the metric."
+      - name: blocker_count
+        description: "Rows or candidates blocking the gate, where applicable."
+      - name: notes
+        description: "Human-readable interpretation, including non-blocking audit counts when useful."
