@@ -205,8 +205,9 @@ Context columns describe the plan or program attached to the rate:
 ### Alias Matching
 
 `slv_core__payer_alias_matches` joins `slv_base__payer_rates.clean_payer_name`
-to accepted, active `payer_aliases.clean_payer_name` rows using exact cleaned
-payer-name equality. State-scoped aliases are allowed and are preferred over
+to active `payer_aliases.clean_payer_name` rows using exact cleaned payer-name
+equality. Inactive alias rows are retained as documented decisions but are not
+eligible for matching. State-scoped aliases are allowed and are preferred over
 global aliases when the hospital snapshot state matches. Among remaining
 candidates, the ranking favors stronger validation status and then deterministic
 alias ID order.
@@ -216,7 +217,6 @@ they keep their source payer fields and receive:
 
 ```text
 payer_match_basis = 'unmatched'
-payer_review_status = 'candidate'
 canonical_payer_id = null
 ```
 

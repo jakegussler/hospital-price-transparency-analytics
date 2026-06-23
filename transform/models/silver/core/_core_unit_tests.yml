@@ -224,8 +224,7 @@ unit_tests:
           select
               null::varchar as silver_payer_rate_id,
               null::varchar as canonical_payer_id,
-              null::varchar as payer_alias_id,
-              null::varchar as payer_review_status
+              null::varchar as payer_alias_id
           where false
       - input: ref('slv_core__payer_context_matches')
         format: sql

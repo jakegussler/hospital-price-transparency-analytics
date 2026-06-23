@@ -15,7 +15,6 @@ candidate_matches as (
         base_rates.silver_payer_rate_id,
         aliases.payer_alias_id,
         aliases.canonical_payer_id,
-        aliases.review_status as payer_review_status,
         aliases.validation_status,
         aliases.match_scope,
         aliases.canonical_state,
@@ -36,7 +35,6 @@ candidate_matches as (
     inner join {{ ref('payer_aliases') }} aliases
         on base_rates.clean_payer_name = aliases.clean_payer_name
         and aliases.active = true
-        and aliases.review_status = 'accepted'
         and (
             aliases.match_scope = 'global'
             or (
@@ -50,7 +48,6 @@ select
     silver_payer_rate_id,
     payer_alias_id,
     canonical_payer_id,
-    payer_review_status,
     validation_status,
     match_scope,
     canonical_state

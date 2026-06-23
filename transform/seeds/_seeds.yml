@@ -294,7 +294,7 @@ seeds:
         description: "Reviewer notes explaining the canonical payer identity or any important mapping caveats."
 
   - name: payer_aliases
-    description: "Reviewed payer-name aliases. Accepted active rows map clean source payer names to broad canonical payer identities."
+    description: "Reviewed payer-name aliases. Active rows map clean source payer names to broad canonical payer identities; inactive rows are retained as documented non-matching decisions."
     columns:
       - name: payer_alias_id
         description: "Stable identifier for this reviewed payer alias rule."
@@ -326,17 +326,13 @@ seeds:
         tests:
           - accepted_values:
               values: ["manual_exact", "manual_alias", "source_verified", "inferred_from_pattern"]
-      - name: review_status
-        description: "Review lifecycle status controlling whether the alias is eligible for canonical mapping."
-        tests:
-          - accepted_values:
-              values: ["candidate", "accepted", "rejected", "needs_more_context"]
-      - name: reviewed_by
-        description: "Reviewer or process that last accepted or updated the alias decision."
-      - name: reviewed_at
-        description: "Date when the alias decision was reviewed."
       - name: active
-        description: "Whether the alias rule is active for current Silver Core mapping joins."
+        description: "Whether this alias row is eligible for current Silver Core matching."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+              quote: false
       - name: evidence_source
         description: "Source category used to support the alias decision, such as manual_review or an external reference."
       - name: evidence_url

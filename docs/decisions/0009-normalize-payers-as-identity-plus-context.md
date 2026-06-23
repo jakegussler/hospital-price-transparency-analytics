@@ -51,8 +51,9 @@ cleaned fields such as `clean_payer_name` and `clean_plan_name`.
 
 Silver Core resolves payer identity first:
 
-1. `slv_core__payer_alias_matches` matches `clean_payer_name` to accepted,
-   active `payer_aliases` rows.
+1. `slv_core__payer_alias_matches` matches `clean_payer_name` to active
+   `payer_aliases` rows. Inactive rows are retained as documented non-matching
+   decisions.
 2. The alias match assigns a broad `canonical_payer_id`.
 3. `slv_core__payer_rates` joins `canonical_payers` for payer name, parent, and
    payer type metadata.

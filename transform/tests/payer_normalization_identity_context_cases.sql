@@ -389,7 +389,6 @@ alias_candidates as (
     inner join {{ ref('payer_aliases') }} aliases
         on cases.clean_payer_name = aliases.clean_payer_name
         and aliases.active = true
-        and aliases.review_status = 'accepted'
         and (
             aliases.match_scope = 'global'
             or (

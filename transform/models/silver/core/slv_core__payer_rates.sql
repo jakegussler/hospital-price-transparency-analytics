@@ -48,7 +48,6 @@ with joined as (
         end as payer_context_match_basis,
         alias_matches.payer_alias_id,
         context_matches.payer_context_rule_id,
-        coalesce(alias_matches.payer_review_status, 'candidate') as payer_review_status,
         context_matches.payer_context_review_status,
         context_matches.payer_context_confidence
     from {{ hpt_scoped_ref('slv_base__payer_rates') }} pr
