@@ -45,7 +45,15 @@
 
 
 {% macro hpt_resolved_snapshot_state_sql() -%}
-    {%- if execute and not hpt_has_bronze_files('hospital_mrf_snapshots') -%}
+    {#-
+        Only enforce the Bronze-present check for commands that actually execute
+        this SQL against data (run / build / test). `dbt compile` and
+        `docs generate` are data-less render passes that legitimately run in
+        environments without Bronze Parquet (e.g. CI compile checks), so they must
+        not raise here -- the rendered read_parquet() is never executed by them.
+    -#}
+    {%- set requires_bronze = flags.WHICH not in ['compile', 'generate'] -%}
+    {%- if execute and requires_bronze and not hpt_has_bronze_files('hospital_mrf_snapshots') -%}
         {{ exceptions.raise_compiler_error(
             "Cannot resolve current Silver snapshots because no Bronze "
             ~ "hospital_mrf_snapshots Parquet files were found. Check "
