@@ -432,6 +432,7 @@ def run_dbt_logic(
             config,
             log=log,
             audit_recorder=audit.record_attempt,
+            node_recorder=audit.record_nodes,
             bronze_root=storage_cfg.bronze_root,
         ).run()
     except Exception as exc:  # noqa: BLE001

@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from hpt.pipeline.dbt_manager import CLEAR_OPERATION, PRUNE_OPERATION, DbtManager
 
-from ._dbt_doubles import RecordingRunner, patch_dbt_runner
+from ._dbt_doubles import (
+    FakeAdapterResponse,
+    FakeNode,
+    FakeNodeResult,
+    FakeTiming,
+    RecordingRunner,
+    patch_dbt_runner,
+)
 
 TRANSFORM = Path("/tmp/transform")
 
@@ -185,3 +193,132 @@ def test_invocations_emit_audit_attempts(monkeypatch: pytest.MonkeyPatch) -> Non
     assert attempts[1]["snapshot_ids"] == ["s1"]
     assert attempts[1]["dbt_selector"] == "silver"
     assert attempts[1]["status"] == "failed"
+
+
+# -- per-node harvest ----------------------------------------------------------
+
+
+def _node_result() -> FakeNodeResult:
+    start = datetime(2025, 6, 15, 12, 0, 0, tzinfo=UTC)
+    return FakeNodeResult(
+        FakeNode(
+            "model.hpt.slv_core__payer_rates",
+            "slv_core__payer_rates",
+            materialized="incremental",
+            tags=["silver_core"],
+        ),
+        status="success",
+        execution_time=3.5,
+        timing=[
+            FakeTiming("compile", start, start.replace(second=1)),
+            FakeTiming("execute", start.replace(second=1), start.replace(second=4)),
+        ],
+        adapter_response=FakeAdapterResponse(rows_affected=42, code="SELECT"),
+    )
+
+
+def _manager_with_nodes(
+    monkeypatch: pytest.MonkeyPatch, results: list[FakeNodeResult]
+) -> tuple[DbtManager, list[dict[str, object]]]:
+    monkeypatch.setattr("hpt.pipeline.dbt_manager.contextlib.chdir", _noop_chdir)
+    runner = RecordingRunner(node_results=results)
+    patch_dbt_runner(monkeypatch, runner)
+    nodes: list[dict[str, object]] = []
+    mgr = DbtManager(TRANSFORM, node_recorder=nodes.extend)
+    return mgr, nodes
+
+
+def test_invoke_harvests_node_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
+    mgr, nodes = _manager_with_nodes(monkeypatch, [_node_result()])
+    mgr.execute("build", snapshot_ids=["s1", "s2"], selector="silver")
+
+    assert len(nodes) == 1
+    row = nodes[0]
+    assert row["node_unique_id"] == "model.hpt.slv_core__payer_rates"
+    assert row["resource_type"] == "model"
+    assert row["materialization"] == "incremental"
+    assert row["tags"] == ["silver_core"]
+    assert row["execution_time_s"] == 3.5
+    assert row["compile_elapsed_s"] == 1.0
+    assert row["execute_elapsed_s"] == 3.0
+    assert row["rows_affected"] == 42
+    assert row["adapter_code"] == "SELECT"
+    # Denormalized invoke context rides on every node row.
+    assert row["dbt_command"] == "build"
+    assert row["dbt_selector"] == "silver"
+    assert row["snapshot_ids"] == ["s1", "s2"]
+    assert row["snapshot_count"] == 2
+
+
+def test_node_rows_share_their_attempts_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("hpt.pipeline.dbt_manager.contextlib.chdir", _noop_chdir)
+    runner = RecordingRunner(node_results=[_node_result()])
+    patch_dbt_runner(monkeypatch, runner)
+    attempts: list[dict[str, object]] = []
+    nodes: list[dict[str, object]] = []
+    mgr = DbtManager(TRANSFORM, audit_recorder=attempts.append, node_recorder=nodes.extend)
+
+    mgr.execute("build", snapshot_ids=["s1"])
+
+    assert nodes[0]["attempt_id"] == attempts[0]["attempt_id"]
+
+
+def test_test_node_captures_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    failing = FakeNodeResult(
+        FakeNode("test.hpt.some_test", "some_test", resource_type="test", materialized=None),
+        status="fail",
+        failures=7,
+    )
+    mgr, nodes = _manager_with_nodes(monkeypatch, [failing])
+    mgr.execute("build", snapshot_ids=["s1"])
+
+    assert nodes[0]["resource_type"] == "test"
+    assert nodes[0]["node_status"] == "fail"
+    assert nodes[0]["test_failures"] == 7
+
+
+def test_run_operation_node_without_identity_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    # run-operations return a RunExecutionResult whose entry has node=None; it is
+    # not part of the model/test/seed grain and must not emit a null-keyed row.
+    operation = FakeNodeResult(None, status="success", execution_time=0.5)  # type: ignore[arg-type]
+    mgr, nodes = _manager_with_nodes(monkeypatch, [operation, _node_result()])
+    mgr.execute("build", snapshot_ids=["s1"])
+
+    assert [row["node_unique_id"] for row in nodes] == ["model.hpt.slv_core__payer_rates"]
+
+
+def test_invoke_without_node_results_emits_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    # node_results=None -> result.result is None (e.g. a run-operation).
+    mgr, nodes = _manager_with_nodes(monkeypatch, results=None)  # type: ignore[arg-type]
+    mgr.prune_stale_snapshots()
+    assert nodes == []
+
+
+def test_node_harvest_failure_is_non_fatal(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("hpt.pipeline.dbt_manager.contextlib.chdir", _noop_chdir)
+    runner = RecordingRunner(node_results=[_node_result()])
+    patch_dbt_runner(monkeypatch, runner)
+
+    def _boom(_rows: list[dict[str, object]]) -> None:
+        raise RuntimeError("recorder exploded")
+
+    mgr = DbtManager(TRANSFORM, node_recorder=_boom)
+    # The run still succeeds even though node capture raised.
+    assert mgr.execute("build", snapshot_ids=["s1"]) is True
+
+
+# -- peak RSS ------------------------------------------------------------------
+
+
+def test_dbt_attempt_records_peak_rss(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("hpt.pipeline.dbt_manager.contextlib.chdir", _noop_chdir)
+    runner = RecordingRunner()
+    patch_dbt_runner(monkeypatch, runner)
+    attempts: list[dict[str, object]] = []
+    mgr = DbtManager(TRANSFORM, audit_recorder=attempts.append)
+
+    mgr.execute("build", snapshot_ids=["s1"])
+
+    peak = attempts[0]["peak_rss_mb"]
+    assert isinstance(peak, float)
+    assert peak > 0

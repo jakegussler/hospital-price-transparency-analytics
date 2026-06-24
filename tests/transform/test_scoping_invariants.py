@@ -189,10 +189,12 @@ def test_audit_models_are_unscoped_views_outside_snapshot_registry(
     assert {node["name"] for node in audit_nodes} == {
         "stg_audit__run_events",
         "stg_audit__attempts",
+        "stg_audit__node_results",
         "audit__runs",
         "audit__attempts",
         "audit__attempt_stages",
         "audit__attempt_row_counts",
+        "audit__node_results",
     }
     for node in audit_nodes:
         assert node["config"]["materialized"] == "view", node["name"]

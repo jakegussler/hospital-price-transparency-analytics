@@ -74,13 +74,14 @@ class DbtOrchestrator:
         log: logging.Logger | None = None,
         snapshots: SnapshotManager | None = None,
         audit_recorder: Callable[[dict[str, Any]], None] | None = None,
+        node_recorder: Callable[[list[dict[str, Any]]], None] | None = None,
         bronze_root: Path | None = None,
     ) -> None:
         self._config = config
         self._log = log or logger
         self._snapshots = snapshots
         self._bronze_root = bronze_root
-        self._manager = DbtManager(config.transform_dir, self._log, audit_recorder)
+        self._manager = DbtManager(config.transform_dir, self._log, audit_recorder, node_recorder)
 
     def run(self) -> int:
         """Dispatch on the run mode and return a process-style exit code."""

@@ -10,3 +10,5 @@ sources:
         description: "Append-only started and completed state events for command invocations."
       - name: attempts
         description: "Append-only records for concrete download, ingest, and dbt attempts."
+      - name: node_results
+        description: "Append-only per-node dbt results (timing, status, row counts) harvested from each dbt invocation."

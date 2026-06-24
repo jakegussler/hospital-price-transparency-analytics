@@ -37,5 +37,6 @@ select
     dbt_action,
     dbt_command,
     dbt_selector,
-    dbt_full_refresh
+    dbt_full_refresh,
+    peak_rss_mb
 from {{ source('audit', 'attempts') }}

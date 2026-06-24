@@ -72,3 +72,32 @@ models:
       - name: row_count
         tests:
           - not_null
+
+  - name: audit__node_results
+    description: "One row per dbt node per invocation: per-model timing, status, and row counts, enriched with invoke and run context. Grain: one row per (attempt_id, node_unique_id)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - attempt_id
+            - node_unique_id
+    columns:
+      - name: attempt_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('audit__attempts')
+                field: attempt_id
+      - name: node_unique_id
+        tests:
+          - not_null
+      - name: run_command
+        tests:
+          - not_null
+      - name: row_count_semantics
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  ["rebuilt_table_rows", "rows_written_this_run", "not_applicable", "use_test_failures", "rows_seeded", "unknown"]

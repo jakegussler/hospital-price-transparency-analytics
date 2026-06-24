@@ -15,11 +15,19 @@ import pyarrow.parquet as pq
 
 from hpt.audit.models import (
     ATTEMPT_SCHEMA,
+    NODE_RESULT_SCHEMA,
     RUN_SCHEMA,
     AttemptStatus,
     RunState,
     TerminalStatus,
 )
+
+# Map-typed fields normalized on append, with the caster for their values. Only
+# applied when the target schema actually declares the field, so datasets without
+# maps (e.g. node_results) are left untouched.
+_STRING_MAP_FIELDS = ("options", "stage_statuses")
+_FLOAT_MAP_FIELDS = ("stage_elapsed_s",)
+_INT_MAP_FIELDS = ("bronze_row_counts", "quarantine_counts")
 
 
 def new_run_id() -> str:
@@ -36,11 +44,16 @@ def _normalize_map(value: dict[str, Any] | None, caster: type = str) -> dict[str
 
 def _row_for_schema(data: dict[str, Any], schema: pa.Schema) -> dict[str, Any]:
     row = {field.name: data.get(field.name) for field in schema}
-    for name in ("options", "stage_statuses"):
-        row[name] = _normalize_map(row.get(name))
-    row["stage_elapsed_s"] = _normalize_map(row.get("stage_elapsed_s"), float)
-    for name in ("bronze_row_counts", "quarantine_counts"):
-        row[name] = _normalize_map(row.get(name), int)
+    schema_names = set(schema.names)
+    for name in _STRING_MAP_FIELDS:
+        if name in schema_names:
+            row[name] = _normalize_map(row.get(name))
+    for name in _FLOAT_MAP_FIELDS:
+        if name in schema_names:
+            row[name] = _normalize_map(row.get(name), float)
+    for name in _INT_MAP_FIELDS:
+        if name in schema_names:
+            row[name] = _normalize_map(row.get(name), int)
     return row
 
 
@@ -56,8 +69,30 @@ class AuditStore:
     def append_attempt(self, record: dict[str, Any]) -> Path:
         return self._append("attempts", record, ATTEMPT_SCHEMA)
 
+    def append_node_results(self, records: list[dict[str, Any]]) -> Path | None:
+        """Append all node-result rows from one dbt invoke as a single file.
+
+        Returns the written path, or ``None`` when there are no records (e.g. a
+        run-operation invoke that produced no per-node results).
+        """
+        if not records:
+            return None
+        self._initialize_datasets()
+        run_date = str(records[0]["run_date"])
+        directory = self.root / "node_results" / f"run_date={run_date}"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{records[0]['run_id']}_{uuid.uuid4().hex}.parquet"
+        rows = [_row_for_schema(record, NODE_RESULT_SCHEMA) for record in records]
+        table = pa.Table.from_pylist(rows, schema=NODE_RESULT_SCHEMA)
+        pq.write_table(table, path)
+        return path
+
     def _initialize_datasets(self) -> None:
-        for dataset_name, schema in (("runs", RUN_SCHEMA), ("attempts", ATTEMPT_SCHEMA)):
+        for dataset_name, schema in (
+            ("runs", RUN_SCHEMA),
+            ("attempts", ATTEMPT_SCHEMA),
+            ("node_results", NODE_RESULT_SCHEMA),
+        ):
             directory = self.root / dataset_name
             sentinel_directory = directory / "run_date=1970-01-01"
             sentinel_directory.mkdir(parents=True, exist_ok=True)
@@ -168,6 +203,20 @@ class AuditRun:
                 0.0, (record["ended_at"] - record["started_at"]).total_seconds()
             )
         self.store.append_attempt(record)
+
+    def record_nodes(self, node_records: list[dict[str, Any]]) -> None:
+        """Persist per-node dbt results, stamping run lineage onto each row.
+
+        The caller (``DbtManager``) supplies ``attempt_id`` / ``attempt_ordinal``
+        so node rows tie back to their attempt; this only fills run-level lineage.
+        """
+        if not node_records:
+            return
+        run_date = self.started_at.date().isoformat()
+        for record in node_records:
+            record.setdefault("run_id", self.run_id)
+            record.setdefault("run_date", run_date)
+        self.store.append_node_results(node_records)
 
     def complete(
         self,

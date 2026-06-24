@@ -130,19 +130,37 @@ than by copying Bronze data into ad hoc local tables.
 ```text
 {audit_root}/runs/run_date=YYYY-MM-DD/*.parquet
 {audit_root}/attempts/run_date=YYYY-MM-DD/*.parquet
+{audit_root}/node_results/run_date=YYYY-MM-DD/*.parquet
 {audit_root}/runs/run_date=1970-01-01/_schema.parquet
 {audit_root}/attempts/run_date=1970-01-01/_schema.parquet
+{audit_root}/node_results/run_date=1970-01-01/_schema.parquet
 ```
 
-Each invocation writes a `started` run-state record and a terminal `completed`
-record. A run with no completed record is reported as `running_or_interrupted`.
-Attempts record one hospital download, one hospital/snapshot ingest, or one
-concrete dbt invocation. Audit writes are fail-closed: a command does not report
-success when its audit record cannot be persisted.
+Three grains, finest last:
+
+- **runs** — one CLI invocation. Each writes a `started` run-state record and a
+  terminal `completed` record; a run with no completed record is reported as
+  `running_or_interrupted`.
+- **attempts** — one hospital download, one hospital/snapshot ingest, or one
+  concrete dbt invocation (command × selector × snapshot-batch). dbt attempts
+  also carry `peak_rss_mb`, the per-invoke peak resident memory sampled while
+  dbt/DuckDB ran in-process.
+- **node_results** — one dbt node (model/test/seed/snapshot) per dbt invocation,
+  keyed by `(attempt_id, node_unique_id)`. Carries per-model timing
+  (`execution_time_s`, plus a compile/execute split), `node_status`,
+  `rows_affected`, test `failures`, and the denormalized invoke context
+  (command, selector, snapshot scope). Harvested directly from the in-process
+  `dbtRunner` result, not from logs or `run_results.json`. Capture is
+  non-fatal — a harvest failure never fails the dbt run — and run-operations
+  (which have no real node) are skipped.
+
+Audit writes are fail-closed: a command does not report success when its run or
+attempt record cannot be persisted (node-result capture is the exception, being
+best-effort observability).
 
 On the first audit append, `AuditStore` atomically creates zero-row schema
-sentinels for both datasets. They keep both Parquet sources queryable before the
-first attempt is recorded and do not contribute rows.
+sentinels for every dataset. They keep all three Parquet sources queryable before
+the first record is written and do not contribute rows.
 
 The audit data is outside the Bronze/Silver/Gold medallion flow. It can be
 queried directly or through the unscoped dbt views in DuckDB schema
@@ -159,9 +177,14 @@ where a.snapshot_id = '<snapshot-id>'
 order by a.started_at;
 ```
 
-The dbt `audit` selector builds source-faithful staging views, one-row-per-run
-and one-row-per-attempt marts, and long-form stage/count detail views. All audit
-models remain views so newly completed command records are immediately visible.
+The dbt `audit` tag builds source-faithful staging views, one-row-per-run,
+one-row-per-attempt, and one-row-per-node marts (`audit__node_results`), plus
+long-form stage/count detail views. `audit__node_results` adds a
+`row_count_semantics` label so `rows_affected` is read correctly per
+materialization (full-table rebuild count vs. incremental delta vs. n/a for
+views vs. test-failure rows) instead of being summed across incompatible grains.
+All audit models remain views so newly completed command records are immediately
+visible.
 
 Snapshot-grained Silver and validation tables inside DuckDB are incremental
 dbt tables. Normal scoped runs replace rows for the requested `snapshot_id`s

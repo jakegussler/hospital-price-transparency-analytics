@@ -92,5 +92,43 @@ ATTEMPT_SCHEMA = pa.schema(
         ("dbt_command", pa.string()),
         ("dbt_selector", pa.string()),
         ("dbt_full_refresh", pa.bool_()),
+        ("peak_rss_mb", pa.float64()),
+    ]
+)
+
+# One row per dbt node (model/test/seed/snapshot) per dbt invocation. The grain
+# is (attempt_id, node_unique_id): dbt builds each selected node once per invoke,
+# so the pair is unique. Harvested from the in-process dbtRunner result rather
+# than from logs or run_results.json. Invoke context (command, selector,
+# full_refresh, snapshot scope) is denormalized here so the grain is queryable on
+# its own even if the parent attempt row is missing.
+NODE_RESULT_SCHEMA = pa.schema(
+    [
+        ("run_id", pa.string()),
+        ("run_date", pa.string()),
+        ("attempt_id", pa.string()),
+        ("node_unique_id", pa.string()),
+        ("node_name", pa.string()),
+        ("resource_type", pa.string()),
+        ("package_name", pa.string()),
+        ("materialization", pa.string()),
+        ("node_schema", pa.string()),
+        ("tags", pa.list_(pa.string())),
+        ("node_status", pa.string()),
+        ("message", pa.string()),
+        ("test_failures", pa.int64()),
+        ("execution_time_s", pa.float64()),
+        ("compile_elapsed_s", pa.float64()),
+        ("execute_elapsed_s", pa.float64()),
+        ("started_at", pa.timestamp("us", tz="UTC")),
+        ("ended_at", pa.timestamp("us", tz="UTC")),
+        ("rows_affected", pa.int64()),
+        ("adapter_code", pa.string()),
+        ("thread_id", pa.string()),
+        ("dbt_command", pa.string()),
+        ("dbt_selector", pa.string()),
+        ("dbt_full_refresh", pa.bool_()),
+        ("snapshot_ids", pa.list_(pa.string())),
+        ("snapshot_count", pa.int64()),
     ]
 )

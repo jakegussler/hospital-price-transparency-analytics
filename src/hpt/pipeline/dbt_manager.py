@@ -14,9 +14,12 @@ import contextlib
 import json
 import logging
 import time
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
+
+from hpt.pipeline.rss_sampler import PeakRssSampler, peak_rss_sampler
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,105 @@ CLEAR_OPERATION = "hpt_clear_snapshots"
 # them to unscoped runs (make dbt-build / CI).
 UNIT_TEST_EXCLUDED_COMMANDS = {"build", "test"}
 
+# dbt timing phase names we split execution_time into.
+_COMPILE_PHASE = "compile"
+_EXECUTE_PHASE = "execute"
+
+
+def _phase_durations(
+    timing: Any,
+) -> tuple[float | None, float | None, datetime | None, datetime | None]:
+    """Return (compile_s, execute_s, started_at, ended_at) from a node's timing list.
+
+    Each ``TimingInfo`` has a ``name`` and ``started_at`` / ``completed_at``
+    timestamps; we sum nothing, just pick the compile and execute phases and bound
+    the overall window. Missing or malformed entries are skipped.
+    """
+    compile_s = execute_s = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    for entry in timing or []:
+        start = getattr(entry, "started_at", None)
+        end = getattr(entry, "completed_at", None)
+        if start is not None:
+            started_at = start if started_at is None else min(started_at, start)
+        if end is not None:
+            ended_at = end if ended_at is None else max(ended_at, end)
+        if start is None or end is None:
+            continue
+        duration = (end - start).total_seconds()
+        if getattr(entry, "name", None) == _COMPILE_PHASE:
+            compile_s = duration
+        elif getattr(entry, "name", None) == _EXECUTE_PHASE:
+            execute_s = duration
+    return compile_s, execute_s, started_at, ended_at
+
+
+def _harvest_node_results(
+    result: Any, attempt_id: str, audit_extra: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Extract one row per dbt node from an in-process dbtRunner result.
+
+    ``result.result`` is a ``RunExecutionResult`` for build/run/test/seed (its
+    ``.results`` is a list of ``RunResult``); for other commands (e.g.
+    run-operation) it has no ``.results`` list and we return ``[]``. Every field
+    access is defensive so a dbt-version shape change cannot raise here.
+    """
+    run_result = getattr(result, "result", None)
+    nodes = getattr(run_result, "results", None)
+    if not isinstance(nodes, (list, tuple)):
+        return []
+
+    snapshot_ids = list(audit_extra.get("snapshot_ids") or [])
+    invoke_context = {
+        "dbt_command": audit_extra.get("dbt_command"),
+        "dbt_selector": audit_extra.get("dbt_selector"),
+        "dbt_full_refresh": audit_extra.get("dbt_full_refresh"),
+        "snapshot_ids": snapshot_ids,
+        "snapshot_count": len(snapshot_ids),
+    }
+
+    rows: list[dict[str, Any]] = []
+    for node_result in nodes:
+        node = getattr(node_result, "node", None)
+        node_unique_id = getattr(node, "unique_id", None)
+        # run-operations surface a result with no real node (node is None / has no
+        # unique_id). They are not part of the model/test/seed grain, so skip them
+        # rather than emit a null-keyed row that would break the grain.
+        if node is None or node_unique_id is None:
+            continue
+        adapter = getattr(node_result, "adapter_response", None) or {}
+        compile_s, execute_s, started_at, ended_at = _phase_durations(
+            getattr(node_result, "timing", None)
+        )
+        resource_type = getattr(node, "resource_type", None)
+        config = getattr(node, "config", None)
+        rows.append(
+            {
+                "attempt_id": attempt_id,
+                "node_unique_id": node_unique_id,
+                "node_name": getattr(node, "name", None),
+                "resource_type": str(resource_type) if resource_type is not None else None,
+                "package_name": getattr(node, "package_name", None),
+                "materialization": getattr(config, "materialized", None),
+                "node_schema": getattr(node, "schema", None),
+                "tags": list(getattr(node, "tags", None) or []),
+                "node_status": str(getattr(node_result, "status", None)),
+                "message": getattr(node_result, "message", None),
+                "test_failures": getattr(node_result, "failures", None),
+                "execution_time_s": getattr(node_result, "execution_time", None),
+                "compile_elapsed_s": compile_s,
+                "execute_elapsed_s": execute_s,
+                "started_at": started_at,
+                "ended_at": ended_at,
+                "rows_affected": getattr(adapter, "rows_affected", None),
+                "adapter_code": getattr(adapter, "code", None),
+                "thread_id": getattr(node_result, "thread_id", None),
+                **invoke_context,
+            }
+        )
+    return rows
+
 
 class DbtManager:
     """Executes seed, scoped commands, and the stale-snapshot prune in transform/."""
@@ -36,11 +138,13 @@ class DbtManager:
         transform_dir: Path,
         log: logging.Logger | None = None,
         audit_recorder: Callable[[dict[str, Any]], None] | None = None,
+        node_recorder: Callable[[list[dict[str, Any]]], None] | None = None,
     ) -> None:
         self._transform_dir = Path(transform_dir)
         self._log = log or logger
         self._runner: object | None = None
         self._audit_recorder = audit_recorder
+        self._node_recorder = node_recorder
         self._base_args = [
             "--project-dir",
             str(self._transform_dir),
@@ -151,14 +255,23 @@ class DbtManager:
     ) -> bool:
         """Run one dbt invocation from within transform/; log on failure."""
         runner = self._ensure_runner()
+        # Mint the attempt id up front so the per-node rows harvested from this
+        # invoke can be tied to the attempt row the audit_recorder writes; the
+        # AuditRun honors a supplied attempt_id over its own default.
+        attempt_id = str(uuid.uuid4())
+        audit_extra = {"attempt_id": attempt_id, **(audit_extra or {})}
         started_at = datetime.now(UTC)
         started_monotonic = time.monotonic()
         # The dbt profile and Bronze source globs use paths relative to transform/
         # (matching the `make dbt-*` targets that cd into it). dbtRunner does not
         # change the working directory, so we do it here.
         error: Exception | None = None
+        result: Any = None
+        # Pre-bind so the audit record can always read a peak, even if entering the
+        # sampler were to fail; measurement must never break the invocation.
+        rss = PeakRssSampler()
         try:
-            with contextlib.chdir(self._transform_dir):
+            with peak_rss_sampler() as rss, contextlib.chdir(self._transform_dir):
                 result = runner.invoke(args)
             success = bool(result.success)
         except Exception as exc:
@@ -182,9 +295,30 @@ class DbtManager:
                     "started_at": started_at,
                     "ended_at": datetime.now(UTC),
                     "elapsed_s": time.monotonic() - started_monotonic,
-                    **(audit_extra or {}),
+                    "peak_rss_mb": rss.peak_mb,
+                    **audit_extra,
                 }
             )
+        self._record_node_results(result, attempt_id, audit_extra)
         if error is not None:
             raise error
         return success
+
+    def _record_node_results(
+        self, result: Any, attempt_id: str, audit_extra: dict[str, Any]
+    ) -> None:
+        """Harvest per-node metrics from the dbtRunner result; never raise.
+
+        Performance/observability capture must not be able to fail a dbt run, so
+        the whole harvest is defensive: a missing recorder, a result type without
+        per-node results (e.g. run-operation), or any extraction error degrades to
+        recording nothing.
+        """
+        if self._node_recorder is None:
+            return
+        try:
+            rows = _harvest_node_results(result, attempt_id, audit_extra)
+            if rows:
+                self._node_recorder(rows)
+        except Exception:  # noqa: BLE001 - observability must never break a run
+            self._log.warning("dbt_node_harvest_failed", extra={"attempt_id": attempt_id})
