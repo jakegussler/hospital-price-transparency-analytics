@@ -110,3 +110,13 @@ to the relevant docs and delete resolved items from here.
   description and all qualifying charge/note fields are absent. CMS CSV
   Conditional Requirement 11 requires a description and at least one qualifying
   field, so the rule should also emit when either side alone is missing.
+
+## Audit Node-Result Metrics
+
+- `audit__node_results.rows_affected` is sourced from the dbt adapter response
+  (`adapter_response.rows_affected`). The dbt-duckdb adapter does not populate it
+  for every statement type — observed `NULL` for an incremental model build — so
+  row-count coverage is adapter-dependent, not guaranteed. The
+  `row_count_semantics` label documents how to read the value per
+  materialization; treat `NULL` as "not reported" rather than zero rows. Revisit
+  if a later dbt-duckdb version reports it more consistently.

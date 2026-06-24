@@ -166,12 +166,18 @@ Status: implemented in dbt under `models/audit/`.
 
 Operational audit data records pipeline execution rather than hospital pricing
 semantics, so it remains outside the Bronze/Silver/Gold medallion flow. dbt
-exposes append-only run and attempt Parquet through source-faithful staging views
-and operational marts in the `main_audit` DuckDB schema.
+exposes append-only run, attempt, and node-result Parquet through source-faithful
+staging views and operational marts in the `main_audit` DuckDB schema.
 
 Audit models are deliberately unscoped from `snapshot_ids` and materialized as
 views. The run mart resolves started/completed events to one row per invocation;
 attempt, stage, and output-count marts retain their distinct operational grains.
+The `audit__node_results` mart adds per-model performance metrics — one row per
+dbt node per invocation (timing, status, row counts) harvested from the
+in-process `dbtRunner` result — and dbt attempts carry `peak_rss_mb`, the
+per-invoke peak resident memory. Together these answer "how long did each model
+take, how much did it write, and how much memory did the run use" across run
+arguments and snapshot breadth.
 
 ## Layer Ownership
 
