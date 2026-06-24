@@ -9,14 +9,16 @@ models:
           - not_null
           - unique
           - relationships:
-              to: ref('slv_base__payer_rates')
-              field: silver_payer_rate_id
+              arguments:
+                to: ref('slv_base__payer_rates')
+                field: silver_payer_rate_id
       - name: canonical_payer_id
         tests:
           - not_null
           - relationships:
-              to: ref('canonical_payers')
-              field: canonical_payer_id
+              arguments:
+                to: ref('canonical_payers')
+                field: canonical_payer_id
 
   - name: slv_core__payer_context_matches
     description: "Best accepted payer/plan context enrichment per Silver Base payer-rate row. Context rules do not replace canonical payer identity."
@@ -26,34 +28,38 @@ models:
           - not_null
           - unique
           - relationships:
-              to: ref('slv_base__payer_rates')
-              field: silver_payer_rate_id
+              arguments:
+                to: ref('slv_base__payer_rates')
+                field: silver_payer_rate_id
       - name: payer_context_rule_id
         tests:
           - not_null
           - relationships:
-              to: ref('payer_context_rules')
-              field: payer_context_rule_id
+              arguments:
+                to: ref('payer_context_rules')
+                field: payer_context_rule_id
       - name: market_segment
         tests:
           - accepted_values:
-              values:
-                - commercial
-                - medicare_advantage
-                - medicare_fee_for_service
-                - medicaid_managed_care
-                - medicaid_fee_for_service
-                - exchange_marketplace
-                - workers_comp
-                - tricare_va
-                - self_pay
-                - other_government
-                - other
-                - unknown
+              arguments:
+                values:
+                  - commercial
+                  - medicare_advantage
+                  - medicare_fee_for_service
+                  - medicaid_managed_care
+                  - medicaid_fee_for_service
+                  - exchange_marketplace
+                  - workers_comp
+                  - tricare_va
+                  - self_pay
+                  - other_government
+                  - other
+                  - unknown
       - name: benefit_line
         tests:
           - accepted_values:
-              values: ["medical", "dental", "vision", "behavioral_health", "transplant", "unknown"]
+              arguments:
+                values: ["medical", "dental", "vision", "behavioral_health", "transplant", "unknown"]
 
   - name: slv_core__charge_item_codes
     description: >
@@ -69,20 +75,23 @@ models:
           - not_null
           - unique
           - relationships:
-              to: ref('slv_base__charge_item_codes')
-              field: silver_charge_item_code_id
+              arguments:
+                to: ref('slv_base__charge_item_codes')
+                field: silver_charge_item_code_id
       - name: silver_charge_item_id
         tests:
           - not_null
           - relationships:
-              to: ref('slv_base__charge_items')
-              field: silver_charge_item_id
+              arguments:
+                to: ref('slv_base__charge_items')
+                field: silver_charge_item_id
       - name: canonical_code_system
         description: "Canonical CMS code-system token carried through from Silver Base."
         tests:
           - relationships:
-              to: ref('cms_code_types')
-              field: code_type
+              arguments:
+                to: ref('cms_code_types')
+                field: code_type
       - name: match_code
         description: >
           Derived match key for cohort grouping: uppercased and
@@ -95,13 +104,14 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values:
-                - valid
-                - invalid_format
-                - not_validated
-                - missing_code
-                - missing_code_system
-                - unknown_code_system
+              arguments:
+                values:
+                  - valid
+                  - invalid_format
+                  - not_validated
+                  - missing_code
+                  - missing_code_system
+                  - unknown_code_system
       - name: code_cross_hospital_comparable
         description: "False for hospital-internal systems (CDM, LOCAL) and codes without a resolved system; such codes remain valid for within-hospital analysis."
         tests:
@@ -124,15 +134,16 @@ models:
         description: "Authority for NDC format quality. Ambiguous 10-digit unhyphenated values are flagged, never guessed."
         tests:
           - accepted_values:
-              values:
-                - canonical_11
-                - canonical_11_unhyphenated
-                - padded_from_10_4_4_2
-                - padded_from_10_5_3_2
-                - padded_from_10_5_4_1
-                - ambiguous_10_unhyphenated
-                - invalid_layout
-                - invalid_length
+              arguments:
+                values:
+                  - canonical_11
+                  - canonical_11_unhyphenated
+                  - padded_from_10_4_4_2
+                  - padded_from_10_5_3_2
+                  - padded_from_10_5_4_1
+                  - ambiguous_10_unhyphenated
+                  - invalid_layout
+                  - invalid_length
 
   - name: slv_core__charge_items
     description: >
@@ -150,8 +161,9 @@ models:
           - not_null
           - unique
           - relationships:
-              to: ref('slv_base__charge_items')
-              field: silver_charge_item_id
+              arguments:
+                to: ref('slv_base__charge_items')
+                field: silver_charge_item_id
       - name: description_token_signature
         description: >
           Drift-tolerant description signature: md5 of the sorted distinct
@@ -176,12 +188,14 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ["specific_code", "categorical_code", "uncoded"]
+              arguments:
+                values: ["specific_code", "categorical_code", "uncoded"]
       - name: service_item_identity_confidence
         tests:
           - not_null
           - accepted_values:
-              values: ["high", "medium", "low"]
+              arguments:
+                values: ["high", "medium", "low"]
       - name: service_item_id
         description: >
           Within-hospital, cross-snapshot item identity. Built from the
@@ -193,8 +207,9 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('slv_core__service_items')
-              field: service_item_id
+              arguments:
+                to: ref('slv_core__service_items')
+                field: service_item_id
 
   - name: slv_core__service_items
     description: >
@@ -215,18 +230,21 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('slv_base__hospitals')
-              field: hospital_id
+              arguments:
+                to: ref('slv_base__hospitals')
+                field: hospital_id
       - name: service_item_identity_basis
         tests:
           - not_null
           - accepted_values:
-              values: ["specific_code", "categorical_code", "uncoded"]
+              arguments:
+                values: ["specific_code", "categorical_code", "uncoded"]
       - name: service_item_identity_confidence
         tests:
           - not_null
           - accepted_values:
-              values: ["high", "medium", "low"]
+              arguments:
+                values: ["high", "medium", "low"]
       - name: representative_clean_description
         description: "Description from the most recent snapshot containing the item, with deterministic tie-breaking."
       - name: first_seen_snapshot_id
@@ -261,8 +279,9 @@ models:
           - not_null
           - unique
           - relationships:
-              to: ref('slv_base__charge_modifiers')
-              field: silver_charge_modifier_id
+              arguments:
+                to: ref('slv_base__charge_modifiers')
+                field: silver_charge_modifier_id
       - name: match_modifier_code
         description: "Uppercased clean modifier code used for reference matching and signature grouping."
       - name: modifier_class
@@ -277,7 +296,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ["matched_reference", "no_reference", "missing_modifier_code"]
+              arguments:
+                values: ["matched_reference", "no_reference", "missing_modifier_code"]
 
   - name: slv_core__drug_information
     description: >
@@ -291,20 +311,23 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('slv_base__drug_information')
-              field: silver_drug_information_id
+              arguments:
+                to: ref('slv_base__drug_information')
+                field: silver_drug_information_id
       - name: canonical_drug_unit_type
         description: "Canonical unit token from drug_unit_aliases (each, unit, international_unit, mg, g, ml)."
       - name: drug_unit_group
         description: "Unit family; quantities are only meaningfully comparable within a group, and count/activity groups are not convertible at all."
         tests:
           - accepted_values:
-              values: ["count", "activity", "mass", "volume"]
+              arguments:
+                values: ["count", "activity", "mass", "volume"]
       - name: drug_unit_status
         tests:
           - not_null
           - accepted_values:
-              values: ["canonical", "unknown_unit", "missing_unit"]
+              arguments:
+                values: ["canonical", "unknown_unit", "missing_unit"]
       - name: item_has_ndc_code
         description: "Whether the parent charge item carries an NDC code."
         tests:
@@ -322,8 +345,9 @@ models:
           - not_null
           - unique
           - relationships:
-              to: ref('slv_base__payer_rates')
-              field: silver_payer_rate_id
+              arguments:
+                to: ref('slv_base__payer_rates')
+                field: silver_payer_rate_id
       - name: modifier_signature
         description: "MD5 of the sorted distinct uppercased modifier codes on the rate."
         tests:
@@ -341,18 +365,21 @@ models:
           - not_null
           - unique
           - relationships:
-              to: ref('slv_base__payer_rates')
-              field: silver_payer_rate_id
+              arguments:
+                to: ref('slv_base__payer_rates')
+                field: silver_payer_rate_id
       - name: clean_setting
         description: "Care setting denormalized from the parent Silver Base standard charge. CMS setting enum; out-of-enum values are rejected upstream, so this is a defense-in-depth guard. Nulls pass."
         tests:
           - accepted_values:
-              values: ["inpatient", "outpatient", "both"]
+              arguments:
+                values: ["inpatient", "outpatient", "both"]
       - name: clean_billing_class
         description: "Billing class denormalized from the parent Silver Base standard charge. Warn-only: CMS documents these as recommended, so out-of-enum values are retained source-faithfully. Nulls pass."
         tests:
           - accepted_values:
-              values: ["professional", "facility", "both"]
+              arguments:
+                values: ["professional", "facility", "both"]
               config:
                 severity: warn
       - name: modifier_signature
@@ -366,8 +393,9 @@ models:
       - name: canonical_payer_id
         tests:
           - relationships:
-              to: ref('canonical_payers')
-              field: canonical_payer_id
+              arguments:
+                to: ref('canonical_payers')
+                field: canonical_payer_id
       - name: raw_plan_name
         description: "Source-reported plan name attached to this payer-rate row, preserved without normalization."
       - name: clean_plan_name
@@ -379,13 +407,15 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ["case rate", "fee schedule", "percent of total billed charges", "per diem", "other", "unmapped"]
+              arguments:
+                values: ["case rate", "fee schedule", "percent of total billed charges", "per diem", "other", "unmapped"]
       - name: methodology_basis
         description: "Provenance for methodology: 'cms_value' for exact CMS values, 'mapped' reserved for a future alias map, and 'unmapped' when no canonical methodology is available."
         tests:
           - not_null
           - accepted_values:
-              values: ["cms_value", "mapped", "unmapped"]
+              arguments:
+                values: ["cms_value", "mapped", "unmapped"]
       - name: count_raw
         description: "Source-preserved v3 count string exposed alongside raw_count for the public payer-rate semantics contract."
       - name: count_min
@@ -397,58 +427,67 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ["dollar", "percentage", "algorithm", "estimated", "none"]
+              arguments:
+                values: ["dollar", "percentage", "algorithm", "estimated", "none"]
       - name: amount_comparability_tier
         description: "Analytic comparability class for the authoritative amount. Direct fee schedule, case rate, and per diem dollars are comparable_dollar; percent, other, and unmapped methodology dollars are derived_dollar."
         tests:
           - not_null
           - accepted_values:
-              values: ["comparable_dollar", "derived_dollar", "percentage", "algorithm", "none"]
+              arguments:
+                values: ["comparable_dollar", "derived_dollar", "percentage", "algorithm", "none"]
       - name: is_price_comparable
         description: "Convenience boolean for price-ranking filters; true only when amount_comparability_tier is comparable_dollar."
         tests:
           - not_null
           - accepted_values:
-              values: [true, false]
-              quote: false
+              arguments:
+                values: [true, false]
+                quote: false
       - name: payer_match_basis
         tests:
           - not_null
           - accepted_values:
-              values: ["payer_alias", "unmatched"]
+              arguments:
+                values: ["payer_alias", "unmatched"]
       - name: payer_context_match_basis
         tests:
           - not_null
           - accepted_values:
-              values: ["payer_context_rule", "no_context_rule"]
+              arguments:
+                values: ["payer_context_rule", "no_context_rule"]
       - name: market_segment
         tests:
           - accepted_values:
-              values:
-                - commercial
-                - medicare_advantage
-                - medicare_fee_for_service
-                - medicaid_managed_care
-                - medicaid_fee_for_service
-                - exchange_marketplace
-                - workers_comp
-                - tricare_va
-                - self_pay
-                - other_government
-                - other
-                - unknown
+              arguments:
+                values:
+                  - commercial
+                  - medicare_advantage
+                  - medicare_fee_for_service
+                  - medicaid_managed_care
+                  - medicaid_fee_for_service
+                  - exchange_marketplace
+                  - workers_comp
+                  - tricare_va
+                  - self_pay
+                  - other_government
+                  - other
+                  - unknown
       - name: benefit_line
         tests:
           - accepted_values:
-              values: ["medical", "dental", "vision", "behavioral_health", "transplant", "unknown"]
+              arguments:
+                values: ["medical", "dental", "vision", "behavioral_health", "transplant", "unknown"]
       - name: plan_type
         description: "Structural plan type (ppo/hmo/pos/epo/pffs/hdhp), comparable across payers as a network-structure attribute, not a plan identity. Supplied by a payer-context rule when one classifies it; otherwise derived from a single whole-word plan-type token in clean_plan_name. Null when no rule applies and the plan name carries zero or ambiguous (more than one distinct) tokens. Enrichment only: never gates inclusion and never feeds market_segment."
         tests:
           - accepted_values:
-              values: ["ppo", "hmo", "pos", "epo", "pffs", "hdhp"]
+              arguments:
+                values: ["ppo", "hmo", "pos", "epo", "pffs", "hdhp"]
       - name: plan_type_basis
         description: "Provenance of plan_type: 'payer_context_rule' when a curated rule supplied it, 'derived_plan_type' when the deterministic token derivation supplied it, 'none' when plan_type is null. Names plan_type provenance precisely; market_segment and other context provenance are carried by payer_context_match_basis and payer_context_confidence."
         tests:
           - not_null
           - accepted_values:
-              values: ["payer_context_rule", "derived_plan_type", "none"]
+              arguments:
+                values: ["payer_context_rule", "derived_plan_type", "none"]

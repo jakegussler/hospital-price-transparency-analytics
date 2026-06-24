@@ -134,7 +134,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ["pass", "fail", "info"]
+              arguments:
+                values: ["pass", "fail", "info"]
       - name: numerator_count
         description: "Raw numerator count for the metric."
       - name: denominator_count

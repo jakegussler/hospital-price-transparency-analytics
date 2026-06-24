@@ -50,20 +50,23 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('cms_validation_rules')
-              field: rule_id
+              arguments:
+                to: ref('cms_validation_rules')
+                field: rule_id
       - name: rule_name
         description: "Human-readable validation rule name from the rule registry."
       - name: severity
         description: "Compliance seriousness of the violation: error (hard CMS requirement failure) or warn (recommended/optional value advisory). Reporting signal only; record routing is controlled separately by disposition."
         tests:
           - accepted_values:
-              values: ["error", "warn"]
+              arguments:
+                values: ["error", "warn"]
       - name: grain
         description: "Actual business/source grain of the emitted failing entity."
         tests:
           - accepted_values:
-              values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier", "modifier_payer", "npi", "provision", "structural"]
+              arguments:
+                values: ["file", "header", "charge_item", "standard_charge", "payer_rate", "code", "drug", "modifier", "modifier_payer", "npi", "provision", "structural"]
       - name: disposition
         description: "Routing policy for the emitted violation."
       - name: column_name
@@ -138,8 +141,9 @@ models:
         description: "Exact-grain charge-item exclusion rule that created this rejection."
         tests:
           - relationships:
-              to: ref('cms_validation_rules')
-              field: rule_id
+              arguments:
+                to: ref('cms_validation_rules')
+                field: rule_id
       - name: severity
         description: "Severity for the rejection row; always error."
       - name: diagnostic_type
@@ -170,8 +174,9 @@ models:
         description: "Error-severity standard-charge rule that created this rejection."
         tests:
           - relationships:
-              to: ref('cms_validation_rules')
-              field: rule_id
+              arguments:
+                to: ref('cms_validation_rules')
+                field: rule_id
       - name: severity
         description: "Severity for the rejection row; always error."
       - name: diagnostic_type
@@ -204,8 +209,9 @@ models:
         description: "Error-severity payer-rate rule that created this rejection."
         tests:
           - relationships:
-              to: ref('cms_validation_rules')
-              field: rule_id
+              arguments:
+                to: ref('cms_validation_rules')
+                field: rule_id
       - name: severity
         description: "Severity for the rejection row; always error."
       - name: diagnostic_type
@@ -273,8 +279,9 @@ models:
         description: "Rule whose violations are counted for the snapshot/grain."
         tests:
           - relationships:
-              to: ref('cms_validation_rules')
-              field: rule_id
+              arguments:
+                to: ref('cms_validation_rules')
+                field: rule_id
       - name: severity
         description: "Rule severity represented in the summary row."
       - name: total_records
@@ -378,4 +385,5 @@ models:
         description: "Monitoring severity for anomaly rows; always warn because these checks do not exclude Silver records."
         tests:
           - accepted_values:
-              values: ["warn"]
+              arguments:
+                values: ["warn"]

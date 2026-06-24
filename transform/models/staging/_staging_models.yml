@@ -14,7 +14,8 @@ models:
       - name: source_format
         tests:
           - accepted_values:
-              values: ["json", "csv_tall", "csv_wide"]
+              arguments:
+                values: ["json", "csv_tall", "csv_wide"]
 
   - name: stg_bronze__hospital_locations
     description: "Staging view for source-reported hospital locations."
@@ -157,4 +158,5 @@ models:
       - name: diagnostic_type
         tests:
           - accepted_values:
-              values: ["numeric_cast_failed"]
+              arguments:
+                values: ["numeric_cast_failed"]

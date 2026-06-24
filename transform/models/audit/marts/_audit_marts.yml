@@ -77,9 +77,10 @@ models:
     description: "One row per dbt node per invocation: per-model timing, status, and row counts, enriched with invoke and run context. Grain: one row per (attempt_id, node_unique_id)."
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - attempt_id
-            - node_unique_id
+          arguments:
+            combination_of_columns:
+              - attempt_id
+              - node_unique_id
     columns:
       - name: attempt_id
         tests:
