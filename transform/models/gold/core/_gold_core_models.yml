@@ -339,3 +339,76 @@ models:
         description: "Convenience mirror of the snapshot dimension's currentness flag."
         tests:
           - not_null
+
+  - name: gld_bridge__rate_observation_code
+    description: >
+      Code bridge for the rate-observation fact. Grain: one row per
+      (gold_rate_observation_id, silver_charge_item_code_id) = one amount
+      observation × each billing code on its charge item. Carries the many-to-many
+      "code expansion" of decision 0017 outside the fact so the fact stays additive
+      and double-count-proof. Does NOT filter to comparable/specific codes: it
+      exposes the comparability flags so the coverage scorecard can count
+      non-comparable codes and the comparison mart can apply the gate.
+      service_code_key is populated only for cross-hospital-comparable codes with a
+      non-null match_code (exactly the gld_dim__service_code membership) and is null
+      otherwise. Snapshot-grained incremental (snapshot_replace on snapshot_id),
+      same as the fact.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - gold_rate_observation_id
+              - silver_charge_item_code_id
+    columns:
+      - name: gold_rate_observation_id
+        description: "Foreign key to the rate-observation fact; grain component."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_core__rate_observations')
+                field: gold_rate_observation_id
+      - name: silver_charge_item_code_id
+        description: "Lineage to the item-code row; grain component."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_core__charge_item_codes')
+                field: silver_charge_item_code_id
+      - name: service_code_key
+        description: >
+          Foreign key to gld_dim__service_code (md5(canonical_code_system ||
+          match_code)). Null for non-comparable or null-keyed codes, which are
+          exposed here but never promoted to a cohort.
+        tests:
+          - relationships:
+              arguments:
+                to: ref('gld_dim__service_code')
+                field: service_code_key
+      - name: snapshot_id
+        description: "Owning snapshot; scoping/partition key."
+        tests:
+          - not_null
+      - name: hospital_id
+        description: "Owning hospital (convenience)."
+        tests:
+          - not_null
+      - name: canonical_code_system
+        description: "Normalized code system, denormalized from the cohort key for readability."
+        tests:
+          - not_null
+      - name: match_code
+        description: "Normalized comparison code value; null where the source code has no match_code."
+      - name: code_is_specific
+        description: "Whether the code system pins down a single item (filter input — not applied here)."
+        tests:
+          - not_null
+      - name: code_cross_hospital_comparable
+        description: "Whether the code system is cross-hospital comparable (filter input — not applied here)."
+        tests:
+          - not_null
+      - name: code_format_status
+        description: "Source-faithful code format/quality status carried from Silver."
+      - name: ndc_format_status
+        description: "NDC-specific format status carried from Silver; null for non-NDC codes."

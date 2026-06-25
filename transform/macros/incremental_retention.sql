@@ -41,6 +41,7 @@
         'val_stats__anomalies',
         'val_stats__value_distributions',
         'gld_core__rate_observations',
+        'gld_bridge__rate_observation_code',
     ]) }}
 {%- endmacro %}
 
