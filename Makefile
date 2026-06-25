@@ -1,5 +1,6 @@
 .PHONY: install install-dev test lint format download ingest export-hospitals-seed \
 	dbt-run-hospitals dbt-run-all-hospitals dbt-incremental dbt-rebuild \
+	dbt-per-snapshot-full-refresh \
 	require-hospital-ids require-dbt-incremental-scope \
 	dbt-deps dbt-run dbt-run-selector dbt-test dbt-test-selector \
 	dbt-unit-test dbt-seed dbt-seed-selector dbt-build dbt-build-selector \
@@ -51,6 +52,23 @@ dbt-incremental: require-dbt-incremental-scope
 
 dbt-rebuild:
 	hpt run-dbt --full-rebuild --command build
+
+# Per-snapshot full refresh: rebuild snapshot-grained incremental tables from
+# scratch (full-refresh on the first snapshot, append the rest), then rebuild
+# operational audit views once (they read append-only run Parquet, not
+# snapshot-scoped Silver). --defer-tests on the per-snapshot pass materializes
+# every snapshot with run, prunes once, then runs one unscoped test pass.
+dbt-per-snapshot-full-refresh:
+	hpt run-dbt \
+		--per-snapshot \
+		--full-refresh \
+		--defer-tests \
+		--seeds \
+		--selector per_snapshot
+	hpt run-dbt \
+		--all-hospitals \
+		--selector audit \
+		--command build
 
 require-hospital-ids:
 	@test -n "$(HOSPITAL_IDS)" || (printf '%s\n' 'Set HOSPITAL_IDS, for example: make dbt-run-hospitals HOSPITAL_IDS=some-hospital' >&2; exit 2)
