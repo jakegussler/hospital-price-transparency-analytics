@@ -159,3 +159,183 @@ models:
         description: "True when the code system pins down a single item (whitelist; cdm/local/revenue/icd are not specific)."
       - name: code_cross_hospital_comparable
         description: "Always true here (membership filter); kept for explicit downstream filtering and readability."
+
+  - name: gld_core__rate_observations
+    description: >
+      Atomic rate-observation fact. Grain: one row per reported amount cell =
+      one (source charge/rate row, amount_kind) pair within one snapshot. The
+      foundational Gold model and reconciliation backbone. It does NOT fan out on
+      billing code: a standard charge contributes up to four observation rows
+      (gross/cash/min/max) and a payer rate up to seven
+      (dollar/percentage/algorithm/estimated/median/p10/p90). Code expansion
+      lives in gld_bridge__rate_observation_code so this fact stays additive and
+      double-count-proof. Snapshot-grained incremental (snapshot_replace on
+      snapshot_id) reading its snapshot-grained inputs through hpt_scoped_ref.
+      Most rows are true price observations; min/max bounds, percentages,
+      algorithms, estimated and allowed-amount-stat values are retained for
+      coverage but carry is_price_rankable = false.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - observation_scope
+              - silver_standard_charge_id
+              - silver_payer_rate_id
+              - amount_kind
+    columns:
+      - name: gold_rate_observation_id
+        description: "md5(observation_scope || source row id || amount_kind). Primary key."
+        tests:
+          - not_null
+          - unique
+      - name: snapshot_id
+        description: "Owning snapshot. Foreign key to gld_dim__snapshot; scoping/partition key."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__snapshot')
+                field: snapshot_id
+      - name: hospital_id
+        description: "Owning hospital. Foreign key to gld_dim__hospital."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__hospital')
+                field: hospital_id
+      - name: observation_scope
+        description: "Which source produced the observation."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["standard_charge", "payer_rate"]
+      - name: silver_standard_charge_id
+        description: "Lineage to the standard charge the observation sits under (not null in both scopes)."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_base__standard_charges')
+                field: silver_standard_charge_id
+      - name: silver_charge_item_id
+        description: "Lineage to the charge item; the bridge join key for code expansion."
+        tests:
+          - not_null
+      - name: silver_payer_rate_id
+        description: "Lineage to the payer rate; null for standard_charge scope."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('slv_core__payer_rates')
+                field: silver_payer_rate_id
+      - name: source_format
+        description: "Source MRF format (json/csv) for traceability."
+      - name: amount_kind
+        description: "The reported amount cell this row represents."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - gross_charge
+                  - discounted_cash
+                  - min_negotiated
+                  - max_negotiated
+                  - negotiated_dollar
+                  - negotiated_percentage
+                  - negotiated_algorithm
+                  - estimated_amount
+                  - median_amount
+                  - p10_amount
+                  - p90_amount
+      - name: amount_role
+        description: "Coarse role of the amount cell."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - gross
+                  - cash
+                  - bound
+                  - negotiated
+                  - estimated
+                  - allowed_amount_stat
+      - name: amount_unit
+        description: "Unit of amount_value."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["usd", "percent", "text"]
+      - name: amount_value
+        description: "Numeric value for usd/percent units; null for the text (algorithm) kind."
+      - name: raw_algorithm_value
+        description: "Algorithm text for negotiated_algorithm; null otherwise."
+      - name: is_price_rankable
+        description: >
+          The price-ranking gate (decision 0017, observation grain). True only for
+          gross_charge, discounted_cash, and comparable_dollar negotiated_dollar.
+        tests:
+          - not_null
+      - name: methodology
+        description: "Payer-rate methodology; null for standard_charge scope."
+      - name: amount_comparability_tier
+        description: "Carried from Silver (payer-rate row level); null for standard_charge scope."
+      - name: is_price_comparable
+        description: "Carried from Silver (payer-rate row level); null for standard_charge scope."
+      - name: count_min
+        description: "Lower CMS count bound (payer-rate); null for standard_charge scope."
+      - name: count_max
+        description: "Upper CMS count bound (payer-rate); null for standard_charge scope."
+      - name: clean_setting
+        description: "Comparison context (degenerate dimension)."
+      - name: clean_billing_class
+        description: "Comparison context (degenerate dimension)."
+      - name: modifier_signature
+        description: "Sorted-set modifier signature for the charge; never aggregate across it."
+        tests:
+          - not_null
+      - name: modifier_count
+        description: "Distinct modifier codes on the charge."
+        tests:
+          - not_null
+      - name: has_modifier
+        description: "modifier_count > 0."
+        tests:
+          - not_null
+      - name: has_pro_tech_split_modifier
+        description: "Any 26/TC professional-technical split modifier on the charge; must isolate, never aggregate across."
+        tests:
+          - not_null
+      - name: canonical_payer_id
+        description: >
+          Foreign key to gld_dim__payer. '<unmatched>' for payer-rate rows with no
+          identity; null for standard_charge scope (no payer concept).
+        tests:
+          - relationships:
+              arguments:
+                to: ref('gld_dim__payer')
+                field: canonical_payer_id
+      - name: market_segment
+        description: "Observation-level payer context; gates segment cuts downstream."
+      - name: benefit_line
+        description: "Observation-level payer context."
+      - name: plan_type
+        description: "Enrichment only; never gates inclusion."
+      - name: plan_type_basis
+        description: "Provenance of plan_type."
+      - name: is_drug_observation
+        description: "True when the charge item carries an NDC code and/or a drug unit type."
+        tests:
+          - not_null
+      - name: canonical_drug_unit_type
+        description: "Drug comparison context; null for non-drug items."
+      - name: drug_unit_status
+        description: "Most informative drug-unit status across the item (canonical > unknown_unit > missing_unit)."
+      - name: is_current_snapshot
+        description: "Convenience mirror of the snapshot dimension's currentness flag."
+        tests:
+          - not_null

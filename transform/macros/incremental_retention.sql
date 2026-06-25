@@ -40,6 +40,7 @@
         'val_stats__snapshot_summary',
         'val_stats__anomalies',
         'val_stats__value_distributions',
+        'gld_core__rate_observations',
     ]) }}
 {%- endmacro %}
 
