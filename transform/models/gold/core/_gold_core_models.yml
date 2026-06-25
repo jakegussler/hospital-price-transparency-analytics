@@ -1,0 +1,161 @@
+version: 2
+
+models:
+  - name: gld_dim__hospital
+    description: >
+      Conformed hospital dimension. Grain: one row per hospital_id. Full-refresh
+      table read unscoped from the registry-backed slv_base__hospitals (SCD type
+      1, no history retained). canonical_census_region/division are the only
+      market-geography attributes v1 ships; hospital_type and health_system are
+      the peer-group dimensions the benchmarks use.
+    columns:
+      - name: hospital_id
+        description: "Stable registry hospital identifier. Primary key."
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('slv_base__hospitals')
+                field: hospital_id
+      - name: canonical_hospital_name
+        description: "Registry display name for the hospital."
+      - name: clean_canonical_hospital_name
+        description: "Normalized hospital name for matching/joins."
+      - name: canonical_state
+        description: "Two-letter registry state code."
+      - name: canonical_state_name
+        description: "State display label from the states seed."
+      - name: canonical_state_type
+        description: "State seed category (state, district, territory, freely associated state)."
+      - name: canonical_census_region
+        description: "U.S. Census region for geographic rollups when available."
+      - name: canonical_census_division
+        description: "U.S. Census division for geographic rollups when available."
+      - name: hospital_type
+        description: "Registry hospital type; a peer-group dimension for benchmarks."
+      - name: health_system
+        description: "Parent health system; a peer-group dimension for benchmarks."
+      - name: expected_format
+        description: "Registry-declared MRF format for the hospital."
+      - name: mrf_url
+        description: "Registry-recorded machine-readable file URL."
+
+  - name: gld_dim__snapshot
+    description: >
+      Conformed snapshot dimension. Grain: one row per snapshot_id. Full-refresh
+      table read unscoped from slv_base__hospital_snapshots so it spans every
+      snapshot even on a scoped run. Carries the time / lineage / currentness
+      attributes that keep the rate-observation fact lean. In v1 it also holds the
+      date attributes a separate gld_dim__date would own in a history-enabled
+      build.
+    columns:
+      - name: snapshot_id
+        description: "Snapshot identifier. Primary key."
+        tests:
+          - not_null
+          - unique
+      - name: hospital_id
+        description: "Owning hospital. Foreign key to gld_dim__hospital."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__hospital')
+                field: hospital_id
+      - name: source_format
+        description: "Source MRF format for the snapshot."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["json", "csv_tall", "csv_wide"]
+      - name: is_current_snapshot
+        description: "True for the most recent snapshot per hospital (derived currentness)."
+      - name: valid_from
+        description: "Effective start (typed valid_from of the snapshot)."
+      - name: valid_to
+        description: "Effective end; null for the current snapshot."
+      - name: published_last_updated_on
+        description: "Hospital-published last-updated date for the MRF."
+      - name: ingested_at
+        description: "When the snapshot was ingested into Bronze."
+      - name: schema_version
+        description: "CMS MRF schema version declared by the source file."
+      - name: source_url
+        description: "Source MRF URL (lineage)."
+      - name: source_file_name
+        description: "Source MRF file name (lineage)."
+      - name: file_hash
+        description: "Content hash of the source file (lineage)."
+        tests:
+          - not_null
+      - name: snapshot_age_days
+        description: "current_date minus published_last_updated_on, in days; null when unpublished."
+      - name: freshness_bucket
+        description: "Coarse freshness band derived from snapshot_age_days."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["<=90d", "<=180d", "<=365d", ">365d", "unknown"]
+
+  - name: gld_dim__payer
+    description: >
+      Conformed payer dimension. Grain: one row per canonical_payer_id. Source:
+      the canonical_payers seed (the authoritative payer master), plus one
+      explicit <unmatched> member so unmatched and standard-charge-scope
+      observations can join without losing rows. Only stable payer attributes live
+      here; observation-level context (market_segment, benefit_line, plan_type)
+      stays on the fact.
+    columns:
+      - name: canonical_payer_id
+        description: "Stable canonical payer identifier, or '<unmatched>' for the sentinel member. Primary key."
+        tests:
+          - not_null
+          - unique
+      - name: canonical_payer_name
+        description: "Reviewed display name for the canonical payer."
+        tests:
+          - not_null
+      - name: payer_parent_id
+        description: "Parent organization identifier for corporate rollups; null for the unmatched member."
+      - name: payer_parent_name
+        description: "Parent organization display name; null for the unmatched member."
+      - name: payer_type
+        description: "Broad payer identity type, or 'unmatched' for the sentinel member."
+        tests:
+          - not_null
+      - name: is_unmatched_member
+        description: >
+          True only for the synthetic <unmatched> sentinel. Per decision 0017 this
+          member appears in coverage scorecards but must be excluded from payer
+          benchmark math.
+        tests:
+          - not_null
+
+  - name: gld_dim__service_code
+    description: >
+      Thin conformed service-code (code-cohort) dimension. Grain: one row per
+      (canonical_code_system, match_code) observed among cross-hospital-comparable
+      codes with a non-null match_code. service_code_key is the conformed cohort
+      key the bridge and marts join on. Thin by design: v1 ships no external code
+      descriptions or groupers (decision 0017 non-goal); this model is the
+      conformed key plus the seam where enrichment later attaches descriptions and
+      service families.
+    columns:
+      - name: service_code_key
+        description: "md5(canonical_code_system || match_code). Conformed cohort key. Primary key."
+        tests:
+          - not_null
+          - unique
+      - name: canonical_code_system
+        description: "Normalized code system (cpt, hcpcs, ndc, ms-drg, ...)."
+        tests:
+          - not_null
+      - name: match_code
+        description: "Normalized comparison code value within the code system."
+        tests:
+          - not_null
+      - name: code_is_specific
+        description: "True when the code system pins down a single item (whitelist; cdm/local/revenue/icd are not specific)."
+      - name: code_cross_hospital_comparable
+        description: "Always true here (membership filter); kept for explicit downstream filtering and readability."

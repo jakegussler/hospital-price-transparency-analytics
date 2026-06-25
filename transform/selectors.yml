@@ -47,6 +47,18 @@ selectors:
       method: tag
       value: pipeline_charge_data
 
+  - name: gold_core
+    description: "Gold conformed dimensions, the rate-observation fact, and the code bridge."
+    definition:
+      method: tag
+      value: gold_core
+
+  - name: gold
+    description: "All Gold models: core, marts, and scorecards."
+    definition:
+      method: tag
+      value: gold
+
   - name: per_snapshot
     description: "All standard per-snapshot pipeline models, excluding operational audit models."
     definition:
