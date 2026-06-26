@@ -65,8 +65,37 @@ selectors:
       method: tag
       value: gold
 
+  - name: gold_dimension
+    description: >
+      Conformed Gold dimensions only (gld_dim__hospital, gld_dim__snapshot,
+      gld_dim__payer, gld_dim__service_code). Full-refresh tables read unscoped
+      from Silver so they span every snapshot. Built once after the per-snapshot
+      Silver pass completes and before the per-snapshot Gold fact so the fact's
+      relationships tests against the dimensions can pass.
+    definition:
+      method: tag
+      value: gold_dimension
+
+  - name: gold_per_snapshot
+    description: >
+      Snapshot-grained Gold models built per snapshot: the rate-observation fact
+      (gld_core__rate_observations) and the code bridge
+      (gld_bridge__rate_observation_code). They read inputs through
+      hpt_scoped_ref and use the snapshot_replace incremental strategy, so the
+      per-snapshot full-refresh workflow full-refreshes the first snapshot and
+      appends the rest. Excludes the conformed dimensions and marts, which are
+      run-once models built unscoped.
+    definition:
+      method: tag
+      value: gold_per_snapshot
+
   - name: per_snapshot
-    description: "All standard per-snapshot pipeline models, excluding operational audit models."
+    description: >
+      All standard per-snapshot Silver/staging/validation pipeline models,
+      excluding operational audit models and Gold. Gold models are built in
+      their own dedicated passes in the per-snapshot full-refresh workflow: the
+      snapshot-grained fact and bridge (selector gold_per_snapshot) and the
+      run-once dimensions and marts (selectors gold_dimension and gold_marts).
     definition:
       union:
         - method: path
@@ -74,6 +103,8 @@ selectors:
         - exclude:
             - method: path
               value: models/audit
+            - method: tag
+              value: gold
 
   - name: validation
     description: "Validation models, rejection keysets, and validation statistics."

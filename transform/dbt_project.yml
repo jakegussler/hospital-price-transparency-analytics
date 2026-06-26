@@ -149,15 +149,17 @@ models:
       +schema: gold
       core:
         +tags: ["gold_core", "gold"]
-        # gld_core__rate_observations + gld_bridge__rate_observation_code inherit
-        # the incremental snapshot_replace config from the gold block above.
-        gld_dim__hospital: { +materialized: table, +incremental_strategy: null }
-        gld_dim__snapshot: { +materialized: table, +incremental_strategy: null }
-        gld_dim__payer: { +materialized: table, +incremental_strategy: null }
-        gld_dim__service_code: { +materialized: table, +incremental_strategy: null }
+        gld_core__rate_observations: { +tags: ["gold_per_snapshot"] }
+        gld_bridge__rate_observation_code: { +tags: ["gold_per_snapshot"] }
+        # Conformed dimensions are full-refresh tables read UNscoped (plain ref)
+        gld_dim__snapshot: { +materialized: table, +incremental_strategy: null, +tags: ["gold_dimension"] }
+        gld_dim__payer: { +materialized: table, +incremental_strategy: null, +tags: ["gold_dimension"] }
+        gld_dim__service_code: { +materialized: table, +incremental_strategy: null, +tags: ["gold_dimension"] }
       marts:
         +materialized: table
         +incremental_strategy: null
+        # Marts read the completed fact + dimensions unscoped and are built once
+        # at the end of the per-snapshot full-refresh workflow.
         +tags: ["gold_marts", "gold"]
 
 seeds:

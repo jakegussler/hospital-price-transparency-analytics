@@ -1,6 +1,6 @@
 .PHONY: install install-dev test lint format download ingest export-hospitals-seed \
 	dbt-run-hospitals dbt-run-all-hospitals dbt-incremental dbt-rebuild \
-	dbt-per-snapshot-full-refresh \
+	dbt-per-snapshot dbt-per-snapshot-full-refresh \
 	require-hospital-ids require-dbt-incremental-scope \
 	dbt-deps dbt-run dbt-run-selector dbt-test dbt-test-selector \
 	dbt-unit-test dbt-seed dbt-seed-selector dbt-build dbt-build-selector \
@@ -53,11 +53,57 @@ dbt-incremental: require-dbt-incremental-scope
 dbt-rebuild:
 	hpt run-dbt --full-rebuild --command build
 
+# Per-snapshot (incremental): same five-pass ordering as
+# dbt-per-snapshot-full-refresh but without --full-refresh.
+dbt-per-snapshot:
+	hpt run-dbt \
+		--per-snapshot \
+		--defer-tests \
+		--seeds \
+		--selector per_snapshot
+	hpt run-dbt \
+		--all-hospitals \
+		--defer-tests \
+		--seeds \
+		--selector gold_dimension \
+		--command build
+	hpt run-dbt \
+		--per-snapshot \
+		--defer-tests \
+		--selector gold_per_snapshot
+	hpt run-dbt \
+		--all-hospitals \
+		--defer-tests \
+		--selector gold_marts \
+		--command build
+	hpt run-dbt \
+		--all-hospitals \
+		--selector audit \
+		--command build
+
 # Per-snapshot full refresh: rebuild snapshot-grained incremental tables from
 # scratch (full-refresh on the first snapshot, append the rest), then rebuild
 # operational audit views once (they read append-only run Parquet, not
 # snapshot-scoped Silver). --defer-tests on the per-snapshot pass materializes
 # every snapshot with run, prunes once, then runs one unscoped test pass.
+#
+# Gold is refreshed in three ordered passes around the per-snapshot fact:
+#   1. gold_dimension  - run-once full-refresh dimensions, built UNscoped AFTER
+#      the per-snapshot Silver pass completes (dimensions read unscoped Silver,
+#      so they need every snapshot accumulated) and BEFORE the per-snapshot Gold
+#      fact, so the fact's relationships tests against the dimensions can pass.
+#   2. gold_per_snapshot - the snapshot-grained fact (gld_core__rate_observations)
+#      and code bridge, built per snapshot (full-refresh the first, append the
+#      rest), reading inputs through hpt_scoped_ref. Built after the dimensions
+#      so the dimensions are up-to-date by the time the fact is created.
+#   3. gold_marts      - run-once full-refresh marts, built UNscoped AFTER the
+#      per-snapshot Gold fact completes (marts read the completed fact and
+#      dimensions).
+# Each Gold pass re-runs seeds only where the pass's models depend on them
+# directly: the dimensions read the canonical_payers and states seeds; the
+# per-snapshot fact/bridge and the marts read already-built Silver/Gold models
+# and so omit --seeds. --defer-tests batches each pass's tests into a trailing
+# unscoped test pass that runs after that pass's materialization.
 dbt-per-snapshot-full-refresh:
 	hpt run-dbt \
 		--per-snapshot \
@@ -65,6 +111,22 @@ dbt-per-snapshot-full-refresh:
 		--defer-tests \
 		--seeds \
 		--selector per_snapshot
+	hpt run-dbt \
+		--all-hospitals \
+		--defer-tests \
+		--seeds \
+		--selector gold_dimension \
+		--command build
+	hpt run-dbt \
+		--per-snapshot \
+		--full-refresh \
+		--defer-tests \
+		--selector gold_per_snapshot
+	hpt run-dbt \
+		--all-hospitals \
+		--defer-tests \
+		--selector gold_marts \
+		--command build
 	hpt run-dbt \
 		--all-hospitals \
 		--selector audit \
