@@ -1,0 +1,115 @@
+version: 2
+
+models:
+  - name: gld__snapshot_coverage_scorecard
+    description: >
+      Coverage / trust scorecard. Grain: one row per snapshot_id. Ranks trust
+      before price and doubles as the Gold-side reconciliation anchor — its atomic
+      observation/charge/rate counts come straight from gld_core__rate_observations
+      (no code fan-out) and reconcile to the fact by construction. Code counts come
+      from the bridge; comparison-tier and blocker-reason counts are re-derived from
+      fact ⋈ bridge through the §6 framework macros (same classification the
+      comparison mart applies) across all snapshots. This is a coverage /
+      data-readiness instrument, not a legal-compliance verdict.
+    columns:
+      - name: snapshot_id
+        description: "Snapshot identifier. Primary key."
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('gld_dim__snapshot')
+                field: snapshot_id
+      - name: hospital_id
+        description: "Owning hospital for the snapshot."
+        tests: [not_null]
+      - name: is_current_snapshot
+        description: "Whether this is the hospital's current snapshot."
+      - name: published_last_updated_on
+        description: "Hospital-published last-updated date for the MRF."
+      - name: snapshot_age_days
+        description: "Age of the snapshot in days; null when unpublished."
+      - name: freshness_bucket
+        description: "Coarse freshness band from gld_dim__snapshot."
+      - name: charge_item_count
+        description: "Distinct charge items in the snapshot."
+      - name: standard_charge_count
+        description: "Distinct standard charges in the snapshot."
+      - name: payer_rate_count
+        description: "Distinct payer rates in the snapshot."
+      - name: observation_count
+        description: "Total atomic amount observations (reconciles to the fact)."
+        tests: [not_null]
+      - name: obs_gross_charge
+        description: "Gross-charge observations."
+      - name: obs_discounted_cash
+        description: "Discounted-cash observations."
+      - name: obs_min_negotiated
+        description: "Minimum-negotiated (bound) observations."
+      - name: obs_max_negotiated
+        description: "Maximum-negotiated (bound) observations."
+      - name: obs_negotiated_dollar
+        description: "Negotiated-dollar observations."
+      - name: obs_negotiated_percentage
+        description: "Negotiated-percentage observations (percentage-only coverage)."
+      - name: obs_negotiated_algorithm
+        description: "Negotiated-algorithm observations (algorithm-only coverage)."
+      - name: obs_estimated_amount
+        description: "Estimated-amount observations."
+      - name: obs_median_amount
+        description: "Median allowed-amount-stat observations."
+      - name: obs_p10_amount
+        description: "10th-percentile allowed-amount-stat observations."
+      - name: obs_p90_amount
+        description: "90th-percentile allowed-amount-stat observations."
+      - name: distinct_comparable_codes
+        description: "Distinct cross-hospital-comparable code cohorts (service_code_key) in the snapshot."
+      - name: items_with_comparable_code
+        description: "Charge items carrying at least one comparable code."
+      - name: coded_item_coverage_rate
+        description: "items_with_comparable_code / charge_item_count."
+      - name: dollar_observation_count
+        description: "Observations whose amount_unit is usd."
+      - name: dollar_observation_coverage_rate
+        description: "dollar_observation_count / observation_count."
+      - name: discounted_cash_coverage_rate
+        description: "obs_discounted_cash / standard_charge_count."
+      - name: negotiated_dollar_coverage_rate
+        description: "obs_negotiated_dollar / payer_rate_count."
+      - name: comparable_dollar_count
+        description: "Negotiated-dollar observations tiered comparable_dollar (directly rankable)."
+      - name: derived_dollar_count
+        description: "Negotiated-dollar observations tiered derived_dollar (visible, not rankable)."
+      - name: matched_payer_rate_count
+        description: "Distinct payer rates with a matched canonical payer."
+      - name: payer_mapping_coverage_rate
+        description: "matched_payer_rate_count / payer_rate_count."
+      - name: modifier_bearing_charge_count
+        description: "Distinct standard charges carrying at least one modifier."
+      - name: tier_0_count
+        description: "Comparison rows at tier_0_trace_only (observation × comparable cohort grain)."
+      - name: tier_1_count
+        description: "Comparison rows at tier_1_code_backed."
+      - name: tier_2_count
+        description: "Comparison rows at tier_2_context_aligned."
+      - name: blocker_not_current_snapshot
+        description: "Comparison rows blocked: not the current snapshot."
+      - name: blocker_code_not_cross_hospital_comparable
+        description: "Comparison rows blocked: no cross-hospital-comparable code."
+      - name: blocker_code_not_specific
+        description: "Comparison rows blocked: comparable code but not item-specific."
+      - name: blocker_missing_match_code
+        description: "Comparison rows blocked: match_code is null."
+      - name: blocker_non_rankable_amount
+        description: "Comparison rows blocked: non-dollar / stat / estimated amount."
+      - name: blocker_derived_dollar
+        description: "Comparison rows blocked: derived (not directly comparable) dollar."
+      - name: blocker_modifier_context_required
+        description: "Comparison rows blocked: 26/TC professional-technical split modifier present."
+      - name: blocker_drug_unit_context_missing
+        description: "Comparison rows blocked: drug observation with a missing drug unit."
+      - name: blocker_payer_unmatched
+        description: "Comparison rows blocked: payer-rate observation with no canonical payer."
+      - name: blocker_market_segment_unknown
+        description: "Comparison rows blocked: market_segment unknown."

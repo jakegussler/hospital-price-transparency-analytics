@@ -176,3 +176,82 @@ models:
         description: "Snapshot age in days from gld_dim__snapshot."
       - name: freshness_bucket
         description: "Snapshot freshness band from gld_dim__snapshot."
+
+  - name: gld__service_price_summary
+    description: >
+      User question: "Across hospitals, how does the price for this service +
+      context vary?" Aggregate distribution model. Grain: one row per
+      (service_code_key, clean_setting, clean_billing_class, modifier_signature,
+      amount_kind). Built from the price-ranking subset of
+      gld__service_price_comparison_current (is_price_ranking_row = true), so it
+      reconciles to that mart and inherits its current-only, tier_2 + dollar-rankable
+      inclusion. Denominator rule (0017): percentile/median/spread/IQR/outlier
+      columns are suppressed (null) below the 3-hospital floor, with the
+      observation/hospital/payer denominators always beside them and
+      meets_hospital_threshold flagging the row. Outliers are flagged via robust
+      1.5×IQR fences, never winsorized. Known missingness/bias: a single-hospital
+      corpus never clears the floor, so all distribution columns are null until a
+      multi-hospital corpus is built (human-run).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - service_code_key
+              - clean_setting
+              - clean_billing_class
+              - modifier_signature
+              - amount_kind
+    columns:
+      - name: service_code_key
+        description: "Conformed code-cohort key. Grain component."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__service_code')
+                field: service_code_key
+      - name: clean_setting
+        description: "Care setting. Grain component."
+        tests: [not_null]
+      - name: clean_billing_class
+        description: "Billing class. Grain component."
+        tests: [not_null]
+      - name: modifier_signature
+        description: "Sorted-set modifier signature. Grain component (never aggregated across)."
+        tests: [not_null]
+      - name: amount_kind
+        description: "Rankable amount kind (gross_charge / discounted_cash / negotiated_dollar)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["gross_charge", "discounted_cash", "negotiated_dollar"]
+      - name: observation_count
+        description: "Rankable observations in the group (always published)."
+        tests: [not_null]
+      - name: hospital_count
+        description: "Distinct hospitals in the group (denominator; always published)."
+        tests: [not_null]
+      - name: payer_count
+        description: "Distinct matched payers contributing to the group."
+      - name: meets_hospital_threshold
+        description: "True when hospital_count >= 3 (the publish gate for distribution stats)."
+        tests: [not_null]
+      - name: market_coverage_rate
+        description: "hospital_count / total distinct hospitals reporting any rankable price."
+      - name: min_amount
+        description: "Group minimum; null below the 3-hospital floor."
+      - name: p10_amount
+        description: "Group 10th percentile; null below the floor."
+      - name: median_amount
+        description: "Group median; null below the floor."
+      - name: p90_amount
+        description: "Group 90th percentile; null below the floor."
+      - name: max_amount
+        description: "Group maximum; null below the floor."
+      - name: iqr_amount
+        description: "Interquartile range (p75 − p25); null below the floor."
+      - name: spread_ratio_p90_to_p10
+        description: "p90 / p10; null below the floor or when p10 is zero."
+      - name: outlier_observation_count
+        description: "Observations outside the 1.5×IQR fences; null below the floor."
