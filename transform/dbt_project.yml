@@ -149,10 +149,16 @@ models:
       +schema: gold
       core:
         +tags: ["gold_core", "gold"]
+        # gld_core__rate_observations + gld_bridge__rate_observation_code inherit
+        # the incremental snapshot_replace config from the gold block above.
         gld_dim__hospital: { +materialized: table, +incremental_strategy: null }
         gld_dim__snapshot: { +materialized: table, +incremental_strategy: null }
         gld_dim__payer: { +materialized: table, +incremental_strategy: null }
         gld_dim__service_code: { +materialized: table, +incremental_strategy: null }
+      marts:
+        +materialized: table
+        +incremental_strategy: null
+        +tags: ["gold_marts", "gold"]
 
 seeds:
   hospital_price_transparency:

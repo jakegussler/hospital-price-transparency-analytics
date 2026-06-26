@@ -53,6 +53,12 @@ selectors:
       method: tag
       value: gold_core
 
+  - name: gold_marts
+    description: "Gold analytical marts."
+    definition:
+      method: tag
+      value: gold_marts
+
   - name: gold
     description: "All Gold models: core, marts, and scorecards."
     definition:

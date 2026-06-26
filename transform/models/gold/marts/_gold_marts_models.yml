@@ -1,0 +1,178 @@
+version: 2
+
+models:
+  - name: gld__service_price_comparison_current
+    description: >
+      User question: "For this service (code cohort + context), which hospitals
+      report comparable current prices, how do they vary, and how much should I
+      trust it?" Grain: one row per (gold_rate_observation_id, service_code_key)
+      over current snapshots only (fact ⋈ bridge ⋈ dims). Inclusion: every current
+      observation, all comparison tiers retained — non-qualifying rows stay with
+      their comparison_tier and blocker_reasons set, never dropped. Amount
+      semantics are consumed from the fact (is_price_rankable); the price-ranking
+      subset is comparison_tier = tier_2_context_aligned AND is_price_rankable =
+      true. Two peer cuts are published: the market-wide cut and the
+      payer-specific cut (additionally partitioned by canonical_payer_id, matched
+      payers only). Both are published only when their peer hospital count >= 3
+      (decision 0017 denominator floor); below that the row still appears with
+      below_min_hospital_denominator set and null stats. Guarded gross/cash and
+      cash/negotiated ratios are carried per charge-item context. Known
+      missingness/bias: cross-hospital stats require a multi-hospital corpus (a
+      single pinned snapshot yields one hospital and therefore null peer stats).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - gold_rate_observation_id
+              - service_code_key
+    columns:
+      - name: gold_rate_observation_id
+        description: "Foreign key to the rate-observation fact; grain component."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_core__rate_observations')
+                field: gold_rate_observation_id
+      - name: service_code_key
+        description: >
+          Conformed code-cohort key; null on tier_0 rows (observations with no
+          cross-hospital-comparable code). Grain component.
+        tests:
+          - relationships:
+              arguments:
+                to: ref('gld_dim__service_code')
+                field: service_code_key
+      - name: snapshot_id
+        description: "Owning snapshot."
+        tests:
+          - not_null
+      - name: hospital_id
+        description: "Owning hospital."
+        tests:
+          - not_null
+      - name: observation_scope
+        description: "standard_charge | payer_rate (carried from the fact)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["standard_charge", "payer_rate"]
+      - name: amount_kind
+        description: "The reported amount cell (carried from the fact)."
+        tests:
+          - not_null
+      - name: amount_unit
+        description: "Unit of amount_value (usd/percent/text)."
+        tests:
+          - not_null
+      - name: amount_value
+        description: "Numeric value for usd/percent units; null for the text (algorithm) kind."
+      - name: is_price_rankable
+        description: "Observation-grain price-ranking gate carried from the fact."
+        tests:
+          - not_null
+      - name: is_price_ranking_row
+        description: "True for rows in the price-ranking subset (tier_2 + is_price_rankable)."
+        tests:
+          - not_null
+      - name: comparison_tier
+        description: >
+          0017 comparison tier for this (observation, code) row. tier_3/tier_4 are
+          reserved and never produced in v1.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - tier_0_trace_only
+                  - tier_1_code_backed
+                  - tier_2_context_aligned
+      - name: not_current_snapshot
+        description: "Blocker: observation is not from the current snapshot."
+        tests: [not_null]
+      - name: code_not_cross_hospital_comparable
+        description: "Blocker: no cross-hospital-comparable code on the item."
+        tests: [not_null]
+      - name: code_not_specific
+        description: "Blocker: comparable code system but not item-specific."
+        tests: [not_null]
+      - name: missing_match_code
+        description: "Blocker: match_code is null."
+        tests: [not_null]
+      - name: non_rankable_amount
+        description: "Blocker: amount is non-dollar or an allowed-amount-stat/estimated value."
+        tests: [not_null]
+      - name: derived_dollar
+        description: "Blocker: dollar value was derived (amount_comparability_tier = derived_dollar), not directly comparable."
+        tests: [not_null]
+      - name: modifier_context_required
+        description: "Blocker: a 26/TC professional-technical split modifier is present; must isolate."
+        tests: [not_null]
+      - name: drug_unit_context_missing
+        description: "Blocker: drug observation with a missing drug unit."
+        tests: [not_null]
+      - name: payer_unmatched
+        description: "Blocker: payer-rate observation with no canonical payer identity."
+        tests: [not_null]
+      - name: market_segment_unknown
+        description: "Blocker: market_segment is unknown (gates segment cuts)."
+        tests: [not_null]
+      - name: below_min_hospital_denominator
+        description: "Blocker: price-ranking row whose comparison context has < 3 distinct hospitals."
+        tests: [not_null]
+      - name: blocker_reasons
+        description: "Array of the blocker codes that fired on the row (convenience over the boolean flags)."
+      - name: peer_hospital_count
+        description: "Distinct hospitals in the comparison context (price-ranking subset); null off-subset."
+      - name: market_median_amount
+        description: "Median dollar amount across the comparison context; null below the 3-hospital floor."
+      - name: market_p10_amount
+        description: "10th-percentile dollar amount across the context; null below the floor."
+      - name: market_p90_amount
+        description: "90th-percentile dollar amount across the context; null below the floor."
+      - name: amount_pct_rank
+        description: "This observation's percentile rank within its context; null below the floor."
+      - name: delta_from_market_median
+        description: "amount_value minus market_median_amount; null below the floor."
+      - name: pct_delta_from_market_median
+        description: "Percent delta from the market median; null below the floor or when the median is zero."
+      - name: payer_peer_hospital_count
+        description: "Distinct hospitals in the payer-specific comparison context (matched payers only); null off-subset."
+      - name: payer_market_median_amount
+        description: "Median negotiated dollar for the same payer + context; null below the 3-hospital floor."
+      - name: payer_amount_pct_rank
+        description: "This observation's percentile rank within its payer + context; null below the floor."
+      - name: payer_delta_from_market_median
+        description: "amount_value minus payer_market_median_amount; null below the floor."
+      - name: payer_pct_delta_from_market_median
+        description: "Percent delta from the payer market median; null below the floor or when the median is zero."
+      - name: gross_to_cash_ratio
+        description: "Charge-item gross_charge / discounted_cash; null when the cash denominator is zero or absent."
+      - name: cash_to_negotiated_ratio
+        description: "Charge-item discounted_cash / median rankable negotiated_dollar; null when the denominator is zero or absent."
+      - name: canonical_payer_id
+        description: "Foreign key to gld_dim__payer; null for standard_charge scope."
+      - name: canonical_payer_name
+        description: "Payer display name from gld_dim__payer."
+      - name: payer_parent_name
+        description: "Payer parent name from gld_dim__payer."
+      - name: payer_type
+        description: "Payer type from gld_dim__payer."
+      - name: canonical_state
+        description: "Hospital state from gld_dim__hospital."
+      - name: canonical_state_name
+        description: "Hospital state name from gld_dim__hospital."
+      - name: hospital_type
+        description: "Hospital peer-group type from gld_dim__hospital."
+      - name: health_system
+        description: "Hospital health system from gld_dim__hospital."
+      - name: is_current_snapshot
+        description: "Always true in this mart (current-only inclusion)."
+        tests: [not_null]
+      - name: published_last_updated_on
+        description: "Snapshot publish date from gld_dim__snapshot."
+      - name: snapshot_age_days
+        description: "Snapshot age in days from gld_dim__snapshot."
+      - name: freshness_bucket
+        description: "Snapshot freshness band from gld_dim__snapshot."

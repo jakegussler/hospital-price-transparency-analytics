@@ -120,3 +120,18 @@ to the relevant docs and delete resolved items from here.
   `row_count_semantics` label documents how to read the value per
   materialization; treat `NULL` as "not reported" rather than zero rows. Revisit
   if a later dbt-duckdb version reports it more consistently.
+
+## Gold cross-hospital output is unverifiable locally
+
+- Every Gold peer/percentile/benchmark output (the comparison mart's market and
+  payer peer stats, and the Phase 2 summary/benchmark marts) is unverifiable on a
+  single pinned snapshot: one hospital means the peer hospital count never clears
+  the 3-hospital floor, so published stats stay null and rows carry
+  `below_min_hospital_denominator`. Scoped agent runs smoke-test mechanics only;
+  validating published percentiles and deltas needs a multi-hospital corpus and is
+  a human-run task per AGENTS.md.
+- The `gld__service_price_comparison_current` ratio columns
+  (`gross_to_cash_ratio`, `cash_to_negotiated_ratio`) are computed per charge-item
+  context in the mart per open question §14.2 ("a couple of guarded ratio columns
+  in the mart now; dedicated model later"). Promote to a dedicated
+  `gld__cash_vs_negotiated` model if the cross-amount-kind logic grows.
