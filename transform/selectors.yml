@@ -59,6 +59,15 @@ selectors:
       method: tag
       value: gold_marts
 
+  - name: gold_scorecards
+    description: >
+      Gold coverage and transparency scorecards. Full-refresh tables read
+      unscoped from the completed fact, bridge, and dimensions; built once after
+      the marts in the per-snapshot workflow.
+    definition:
+      method: tag
+      value: gold_scorecards
+
   - name: gold
     description: "All Gold models: core, marts, and scorecards."
     definition:

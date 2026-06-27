@@ -293,3 +293,204 @@ models:
         description: "p90 / p10; null below the floor or when p10 is zero."
       - name: outlier_observation_count
         description: "Observations outside the 1.5×IQR fences; null below the floor."
+
+  - name: gld__hospital_service_benchmarks
+    description: >
+      User question: "For a service + context, how does THIS hospital's price
+      compare to the market and to its peer groups?" Grain: one row per
+      (hospital_id, service_code_key, clean_setting, clean_billing_class,
+      modifier_signature, amount_kind). Built from the price-ranking subset of
+      gld__service_price_comparison_current. The hospital's representative amount is
+      the median of its rankable observations in the context. Market comparison is
+      published for four peer groups (all / same state / same hospital_type / same
+      health_system), each gated by its own 3-hospital denominator (0017): below the
+      floor a peer group's stats are null but the row and hospital_amount remain.
+      Known missingness/bias: peer groups with < 3 hospitals (common in a small
+      corpus) yield null comparisons.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - hospital_id
+              - service_code_key
+              - clean_setting
+              - clean_billing_class
+              - modifier_signature
+              - amount_kind
+    columns:
+      - name: hospital_id
+        description: "Hospital. Grain component; FK to gld_dim__hospital."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__hospital')
+                field: hospital_id
+      - name: service_code_key
+        description: "Conformed code-cohort key. Grain component."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__service_code')
+                field: service_code_key
+      - name: clean_setting
+        description: "Care setting. Grain component."
+        tests: [not_null]
+      - name: clean_billing_class
+        description: "Billing class. Grain component."
+        tests: [not_null]
+      - name: modifier_signature
+        description: "Modifier signature. Grain component (never aggregated across)."
+        tests: [not_null]
+      - name: amount_kind
+        description: "Rankable amount kind."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["gross_charge", "discounted_cash", "negotiated_dollar"]
+      - name: canonical_state
+        description: "Hospital state (peer-group key)."
+      - name: hospital_type
+        description: "Hospital type (peer-group key)."
+      - name: health_system
+        description: "Health system (peer-group key)."
+      - name: comparison_tier
+        description: "Always tier_2_context_aligned (built from the rankable subset)."
+      - name: hospital_amount
+        description: "Median of the hospital's rankable observations in the context."
+        tests: [not_null]
+      - name: peer_hospital_count_all
+        description: "Distinct hospitals reporting this context (all-market denominator)."
+      - name: market_median_all
+        description: "All-market median hospital amount; null below the 3-hospital floor."
+      - name: market_p10_all
+        description: "All-market 10th percentile; null below the floor."
+      - name: market_p90_all
+        description: "All-market 90th percentile; null below the floor."
+      - name: amount_pct_rank_all
+        description: "Hospital percentile rank within the all-market peer group; null below the floor."
+      - name: delta_from_market_median_all
+        description: "hospital_amount − market_median_all; null below the floor."
+      - name: pct_delta_from_market_median_all
+        description: "Percent delta from the all-market median; null below the floor or when median is zero."
+      - name: peer_hospital_count_state
+        description: "Distinct hospitals in the same state reporting this context."
+      - name: market_median_state
+        description: "Same-state median; null below the floor."
+      - name: amount_pct_rank_state
+        description: "Percentile rank within the same-state peer group; null below the floor."
+      - name: delta_from_market_median_state
+        description: "hospital_amount − market_median_state; null below the floor."
+      - name: peer_hospital_count_type
+        description: "Distinct same-hospital_type hospitals reporting this context."
+      - name: market_median_type
+        description: "Same-type median; null below the floor."
+      - name: amount_pct_rank_type
+        description: "Percentile rank within the same-type peer group; null below the floor."
+      - name: delta_from_market_median_type
+        description: "hospital_amount − market_median_type; null below the floor."
+      - name: peer_hospital_count_system
+        description: "Distinct same-health_system hospitals reporting this context."
+      - name: market_median_system
+        description: "Same-system median; null below the floor."
+      - name: amount_pct_rank_system
+        description: "Percentile rank within the same-system peer group; null below the floor."
+      - name: delta_from_market_median_system
+        description: "hospital_amount − market_median_system; null below the floor."
+
+  - name: gld__payer_service_benchmarks
+    description: >
+      User question: "For a matched payer, how does this hospital's negotiated
+      dollar compare to the payer's market and to the hospital's own cash price?"
+      Grain: one row per (canonical_payer_id, hospital_id, service_code_key,
+      clean_setting, clean_billing_class, modifier_signature); amount_kind is always
+      negotiated_dollar. Prerequisite gate (0017): canonical_payer_id is required —
+      unmatched/null-payer rows never enter. market_segment is a representative
+      (any_value) attribute for segment cuts, not a grain key. Built from the
+      price-ranking negotiated_dollar subset of gld__service_price_comparison_current.
+      The payer-market median is gated by a 3-hospital floor. Known missingness/bias:
+      payer + context groups rarely reach 3 hospitals in a small corpus, so
+      payer_market_median_negotiated is often null; the hospital-cash delta is null
+      when the hospital publishes no cash price for the context.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - canonical_payer_id
+              - hospital_id
+              - service_code_key
+              - clean_setting
+              - clean_billing_class
+              - modifier_signature
+    columns:
+      - name: canonical_payer_id
+        description: "Matched canonical payer. Grain component; FK to gld_dim__payer (never unmatched)."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__payer')
+                field: canonical_payer_id
+      - name: canonical_payer_name
+        description: "Payer display name from gld_dim__payer."
+      - name: payer_parent_name
+        description: "Payer parent name from gld_dim__payer."
+      - name: payer_type
+        description: "Payer type from gld_dim__payer."
+      - name: hospital_id
+        description: "Hospital. Grain component; FK to gld_dim__hospital."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__hospital')
+                field: hospital_id
+      - name: service_code_key
+        description: "Conformed code-cohort key. Grain component."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__service_code')
+                field: service_code_key
+      - name: clean_setting
+        description: "Care setting. Grain component."
+        tests: [not_null]
+      - name: clean_billing_class
+        description: "Billing class. Grain component."
+        tests: [not_null]
+      - name: modifier_signature
+        description: "Modifier signature. Grain component."
+        tests: [not_null]
+      - name: amount_kind
+        description: "Always negotiated_dollar."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["negotiated_dollar"]
+      - name: market_segment
+        description: "Representative market segment for the (payer, hospital, context) group."
+      - name: negotiated_dollar
+        description: "Median of the hospital's negotiated dollars for this payer + context."
+        tests: [not_null]
+      - name: hospital_cash_amount
+        description: "Hospital's median cash price for the same context; null when none published."
+      - name: delta_from_hospital_cash
+        description: "negotiated_dollar − hospital_cash_amount; null when cash is absent."
+      - name: pct_delta_from_hospital_cash
+        description: "Percent delta from hospital cash; null when cash is absent or zero."
+      - name: payer_hospital_count
+        description: "Distinct hospitals reporting this payer + context."
+      - name: payer_market_median_negotiated
+        description: "Median negotiated dollar for the payer + context across hospitals; null below the 3-hospital floor."
+      - name: delta_from_payer_market_median
+        description: "negotiated_dollar − payer_market_median_negotiated; null below the floor."
+      - name: pct_delta_from_payer_market_median
+        description: "Percent delta from the payer-market median; null below the floor or when median is zero."
+      - name: context_hospital_count
+        description: "Distinct hospitals reporting a comparable negotiated dollar for the context (matched or not)."
+      - name: payer_match_coverage_rate
+        description: "payer_hospital_count / context_hospital_count — how broadly this payer is matched for the context."

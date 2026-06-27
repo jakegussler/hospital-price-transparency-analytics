@@ -12,7 +12,7 @@ files to local analytical models.
 
 ```text
 registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
-         -> Bronze Parquet -> dbt/DuckDB -> validation + Silver -> planned Gold
+         -> Bronze Parquet -> dbt/DuckDB -> validation + Silver -> Gold
 ```
 
 ## Key Source Areas
@@ -24,7 +24,8 @@ registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
 - `src/hpt/loaders/parquet.py`: Bronze Parquet writer.
 - `src/hpt/pipeline/ingest_snapshot.py`: ingest orchestration.
 - `src/hpt/registry/`: active registry loader, models, and bundled registry.
-- `transform/`: dbt project targeting DuckDB.
+- `transform/`: dbt project targeting DuckDB (Bronze sources, Silver models, and
+  the implemented Gold layer in `main_gold`).
 - `tests/`: pytest coverage for current Python behavior.
 
 ## Important Constraints
@@ -36,8 +37,11 @@ registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
 - Raw storage and snapshot metadata use `fsspec`.
 - Local runtime data under `data/` should not be committed.
 - `docs/notes/` is historical source material, not the primary current docs.
-- Airflow, Docker, Terraform, and Gold are planned or skeletal unless
-  implementation files are added. Silver foundation models are implemented.
+- Airflow, Docker, and Terraform are planned or skeletal unless implementation
+  files are added. Silver foundation models and the Gold layer (Phase 1
+  dimensions/fact/bridge/coverage scorecard + Phase 2 marts/benchmarks) are
+  implemented; the Gold contract is decisions 0017/0018 and
+  `docs/architecture/gold-schema.md`.
 
 ## Useful References
 
@@ -45,6 +49,8 @@ registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
 - `AGENTS.md`
 - `docs/architecture/pipeline-overview.md`
 - `docs/architecture/medallion-layers.md`
+- `docs/architecture/silver-schema.md`
+- `docs/architecture/gold-schema.md`
 - `docs/architecture/storage-layout.md`
 - `docs/domain/hpt-glossary.md`
 - `docs/domain/cms-mrf-schema-notes.md`

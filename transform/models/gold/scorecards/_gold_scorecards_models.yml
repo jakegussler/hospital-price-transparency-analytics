@@ -113,3 +113,71 @@ models:
         description: "Comparison rows blocked: payer-rate observation with no canonical payer."
       - name: blocker_market_segment_unknown
         description: "Comparison rows blocked: market_segment unknown."
+
+  - name: gld__hospital_transparency_scorecard
+    description: >
+      Transparency / coverage / data-readiness scorecard. Grain: one row per
+      hospital_id (its current snapshot). Rolls the per-snapshot coverage scorecard
+      up to a small set of 0–1 readiness scores that separate "large file" from
+      "usable comparison coverage." NAMING CAUTION: these measure published-data
+      coverage and readiness, NOT legal compliance — do not read a compliance
+      verdict from them. Each score is in [0, 1]; overall_readiness_score is the
+      mean of the five component scores.
+    columns:
+      - name: hospital_id
+        description: "Hospital. Primary key; FK to gld_dim__hospital."
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('gld_dim__hospital')
+                field: hospital_id
+      - name: canonical_hospital_name
+        description: "Hospital display name from gld_dim__hospital."
+      - name: canonical_state
+        description: "Hospital state from gld_dim__hospital."
+      - name: hospital_type
+        description: "Hospital type from gld_dim__hospital."
+      - name: health_system
+        description: "Health system from gld_dim__hospital."
+      - name: snapshot_id
+        description: "The snapshot the scores are computed from (the hospital's current/freshest)."
+        tests: [not_null]
+      - name: current_snapshot_available
+        description: "Whether the scored snapshot is the hospital's current snapshot."
+        tests: [not_null]
+      - name: freshness_bucket
+        description: "Freshness band of the scored snapshot."
+      - name: snapshot_age_days
+        description: "Age of the scored snapshot in days."
+      - name: freshness_score
+        description: "0–1 score mapped from freshness_bucket (<=90d→1.0 … >365d→0.25, unknown→0)."
+        tests: [not_null]
+      - name: code_coverage_score
+        description: "Coded-item coverage rate (0–1)."
+        tests: [not_null]
+      - name: amount_coverage_score
+        description: "Dollar-observation coverage rate (0–1)."
+        tests: [not_null]
+      - name: payer_mapping_score
+        description: "Payer-mapping coverage rate (0–1)."
+        tests: [not_null]
+      - name: comparison_readiness_score
+        description: "Share of comparison rows reaching tier_2_context_aligned (0–1)."
+        tests: [not_null]
+      - name: overall_readiness_score
+        description: "Mean of the five component scores (0–1). Convenience composite."
+        tests: [not_null]
+      - name: charge_item_count
+        description: "Charge items in the scored snapshot (drill-down context)."
+      - name: observation_count
+        description: "Atomic observations in the scored snapshot (drill-down context)."
+      - name: distinct_comparable_codes
+        description: "Distinct comparable code cohorts in the scored snapshot."
+      - name: coded_item_coverage_rate
+        description: "Underlying coded-item coverage rate."
+      - name: dollar_observation_coverage_rate
+        description: "Underlying dollar-observation coverage rate."
+      - name: payer_mapping_coverage_rate
+        description: "Underlying payer-mapping coverage rate."

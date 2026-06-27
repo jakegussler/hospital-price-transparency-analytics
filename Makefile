@@ -78,6 +78,11 @@ dbt-per-snapshot:
 		--command build
 	hpt run-dbt \
 		--all-hospitals \
+		--defer-tests \
+		--selector gold_scorecards \
+		--command build
+	hpt run-dbt \
+		--all-hospitals \
 		--selector audit \
 		--command build
 
@@ -99,6 +104,9 @@ dbt-per-snapshot:
 #   3. gold_marts      - run-once full-refresh marts, built UNscoped AFTER the
 #      per-snapshot Gold fact completes (marts read the completed fact and
 #      dimensions).
+#   4. gold_scorecards - run-once full-refresh coverage/transparency scorecards,
+#      built UNscoped AFTER the marts (they read the completed fact, bridge, and
+#      the snapshot coverage scorecard).
 # Each Gold pass re-runs seeds only where the pass's models depend on them
 # directly: the dimensions read the canonical_payers and states seeds; the
 # per-snapshot fact/bridge and the marts read already-built Silver/Gold models
@@ -126,6 +134,11 @@ dbt-per-snapshot-full-refresh:
 		--all-hospitals \
 		--defer-tests \
 		--selector gold_marts \
+		--command build
+	hpt run-dbt \
+		--all-hospitals \
+		--defer-tests \
+		--selector gold_scorecards \
 		--command build
 	hpt run-dbt \
 		--all-hospitals \

@@ -138,27 +138,35 @@ including the full pipeline DAG, column schemas, and a comparison against the
 
 ## Gold
 
-Status: planned. The dbt project has a `models/gold/` directory, but no
-implemented models yet.
+Status: implemented (Phase 1 + Phase 2 marts), in the `main_gold` schema. The v1
+comparability contract is decision
+`docs/decisions/0017-gold-comparability-framework.md`: current cross-hospital
+comparison is code-cohort based, context-aligned, dollar-aware, and explainable
+through blocker reasons. The atomic-fact + bridge split is decision
+`docs/decisions/0018-gold-fact-is-atomic-code-expansion-is-a-bridge.md`. See
+`docs/architecture/gold-schema.md` for the full DAG, per-model column tables, and
+ER overview.
 
-Gold will serve use-case-specific analytics. The v1 comparability contract is
-decision `docs/decisions/0017-gold-comparability-framework.md`: current
-cross-hospital comparison is code-cohort based, context-aligned, dollar-aware,
-and explainable through blocker reasons.
+Implemented models:
 
-Likely responsibilities:
+- **Conformed dimensions** (`gld_dim__hospital`, `gld_dim__snapshot`,
+  `gld_dim__payer`, `gld_dim__service_code`, `gld_dim__modifier_signature`) —
+  full-refresh tables read unscoped so they span every snapshot.
+- **Atomic fact** `gld_core__rate_observations` — one row per reported amount
+  cell; preserves lineage and exposes amount semantics. Does not fan out on code.
+- **Bridge** `gld_bridge__rate_observation_code` — the multi-code many-to-many,
+  keeping the fact additive.
+- **Marts** — `gld__service_price_comparison_current` (current code-cohort price
+  comparison with blocker reasons + peer cuts), `gld__service_price_summary`,
+  `gld__hospital_service_benchmarks`, `gld__payer_service_benchmarks`.
+- **Scorecards** — `gld__snapshot_coverage_scorecard` (trust before price; a
+  reconciliation anchor to the fact) and `gld__hospital_transparency_scorecard`
+  (coverage/readiness, not compliance).
 
-- A rate-observation spine that preserves lineage and exposes amount semantics.
-- Current hospital-level price comparison views over comparable code cohorts.
-- Payer and market-segment benchmark tables where identity/context gates pass.
-- Charge-code and service-context summaries with denominator thresholds.
-- Coverage and data-readiness scorecards that explain blocked observations.
-- Datasets suitable for dashboards or notebooks.
-
-Gold models can trade some source detail for usability, but they should retain
-lineage back to Silver and Bronze identifiers. They should not create a global
-service master, canonical plan dimension, price-history mart, basket index,
-geography enrichment, or semantic layer in v1.
+Gold models trade some source detail for usability but retain lineage back to
+Silver and Bronze identifiers. Per decisions 0016/0017 they do **not** build a
+global service master, canonical plan dimension, price-history mart, basket
+index, CBSA geography enrichment, `gld_dim__date`, or a semantic layer in v1.
 
 ## Operational Audit
 

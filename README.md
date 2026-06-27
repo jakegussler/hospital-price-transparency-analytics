@@ -14,11 +14,13 @@ dbt.
 
 This is an active data engineering project with a working local ingestion and
 modeling pipeline. The Python downloader, snapshot tracker, Bronze parsers, dbt
-staging models, Silver foundation models, Silver payer normalization models, and
-review queues are implemented.
+staging models, Silver foundation models, Silver payer normalization models,
+review queues, and the Gold analytics layer (conformed dimensions, the atomic
+rate-observation fact, the code bridge, the current price-comparison and
+benchmark marts, and the coverage/transparency scorecards) are implemented.
 
-Gold analytics models, dashboards, orchestration, Docker, and Terraform are not
-production-ready in this repository yet.
+Dashboards, orchestration, Docker, and Terraform are not production-ready in this
+repository yet.
 
 ## Why This Project Matters
 
@@ -50,6 +52,11 @@ The current implementation includes:
 - Incremental dbt materialization for snapshot-grained Silver and validation
   tables, with configurable current-only or all-snapshot retention.
 - Review queue models for unmatched payer and payer/plan candidates.
+- Gold dimensional models: five conformed dimensions, the atomic
+  `gld_core__rate_observations` fact and `gld_bridge__rate_observation_code`,
+  the `gld__service_price_comparison_current` mart with comparability tiers and
+  blocker reasons, service/hospital/payer benchmark marts, and snapshot
+  coverage + hospital transparency scorecards (`main_gold` schema).
 - pytest coverage for configuration, registry validation, download, storage,
   snapshots, parser behavior, Parquet writing, and ingest orchestration.
 - Append-only Parquet run audits for download, ingest, and dbt invocations.
@@ -217,7 +224,7 @@ flowchart LR
   snapshots --> bronze
   bronze --> silver[dbt Silver Models]
   silver --> review[Review Queues]
-  review --> gold[Future Gold Models]
+  silver --> gold[dbt Gold Models]
   gold --> dashboards[Future Dashboards]
 ```
 
@@ -281,6 +288,7 @@ Start with:
 - `docs/architecture/storage-layout.md`
 - `docs/architecture/bronze-schema.md`
 - `docs/architecture/silver-schema.md`
+- `docs/architecture/gold-schema.md`
 - `docs/architecture/external-data-enrichment.md`
 - `docs/domain/hpt-glossary.md`
 - `docs/domain/cms-mrf-schema-notes.md`
@@ -297,7 +305,10 @@ runtime documentation.
   complete national hospital registry.
 - Publisher MRF URLs can change or disappear; failed downloads should be
   investigated against the registry and source hospital pages.
-- Gold analytics models are planned but not implemented.
+- Gold cross-hospital percentile and benchmark output is only as broad as the
+  loaded corpus: cohorts below the 3-hospital denominator publish no percentiles
+  (the rows remain, flagged `below_min_hospital_denominator`). See
+  `docs/planning/gold-phase0-profiling.md`.
 - The shipped analytics goal is comparing *current* prices across hospitals.
   Price-change-over-time analysis is a deliberate extension point, not a v1
   deliverable: there is no longitudinal corpus to build or validate it against

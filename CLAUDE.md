@@ -47,37 +47,18 @@ make ingest                      # hpt ingest   (NOT `hpt parse` — see gotchas
 # Registry seed export (does not invoke dbt)
 make export-hospitals-seed
 
-# dbt validation: one pinned snapshot, scoped to exactly the changed models
-hpt run-dbt --snapshot-ids 97e28644-a4fc-4b3c-9c5c-8e9cf650500e --command build --select slv_core__payer_rates+
-# ...or a named selector when a tag group is the right unit:
-hpt run-dbt --snapshot-ids 97e28644-a4fc-4b3c-9c5c-8e9cf650500e --command build --selector validation
+# dbt build: scope to changed models (or use a named selector)
+hpt run-dbt --command build --select slv_core__payer_rates+
+hpt run-dbt --command build --selector validation
+hpt run-dbt --command build --select gld_+
 ```
 
-For agent-run dbt validation, never invoke `dbt` directly or use the full-corpus
-`make dbt-*` targets. Always call `hpt run-dbt` with exactly one explicit
-`--snapshot-ids` value and one node-scoping flag: prefer `--select <changed
-models>` (or `<model>+` for the downstream you touched) over `--selector`, since
-it rebuilds exactly what changed; `--select` and `--selector` are mutually
-exclusive. Never omit both and build the whole dbt graph. Never use
-`--hospital-ids`, `--all-hospitals`, `--per-snapshot`, `--full-refresh`,
-`--full-rebuild`, or `--defer-tests`; do not pass `--seeds` unless the change
-specifically requires seed validation. Memory is bounded by the single pinned
-snapshot, not by model count, so keep the snapshot pinned to a small one. The
-canonical rules and pinned CSV Wide, CSV Tall, and JSON snapshot IDs are in
-`AGENTS.md`, including larger CSV Tall and JSON options for cases that need more
-representative row volume.
-
-If verification truly needs a full refresh or full rebuild, do not run dbt.
-Report that full-refresh verification is still needed, why the scoped snapshot
-run is insufficient, and the exact verification command or scope the user should
-run outside the agent workflow.
-
-`hpt run-dbt` passes the explicit snapshot as the `snapshot_ids` dbt var, which
-prunes Bronze hive partitions and bounds memory. A partial selector can leave
-out-of-selector models stale, so broaden the selector only when the smallest
-targeted run cannot validate the change. See
-`docs/development/snapshot-scoped-runs.md` for implementation details, not for
-permission to use its unscoped/full-refresh examples.
+Never invoke `dbt` directly or use `make dbt-*` targets. Always use `hpt run-dbt`
+with one node-scoping flag (`--select` or `--selector`; mutually exclusive).
+Never pass `--all-hospitals`, `--per-snapshot`, `--full-refresh`, `--full-rebuild`,
+or `--defer-tests`; do not pass `--seeds` unless the change specifically requires
+seed validation. The dataset is small enough that full builds across all snapshots
+are fast — no snapshot-pinning is needed.
 
 dbt selectors available (`--selector`): `staging`, `silver_base`, `silver_core`,
 `silver_review_queue`, `silver_audit`, `silver`, `validation`,
@@ -106,10 +87,9 @@ to target arbitrary models — mutually exclusive with `--selector`.
 
 - **CLI is `hpt ingest`, never `hpt parse`.** Stale docs/prompts may reference
   `hpt parse`; it does not exist. Do not introduce it.
-- **Agents invoke dbt only through `hpt run-dbt`.** Pin exactly one approved
-  snapshot UUID and scope the node graph with the smallest `--select <model>[+]`
-  (preferred) or a named `--selector`; never run direct, unscoped,
-  per-snapshot-all, full-refresh, or `--defer-tests` dbt commands.
+- **Agents invoke dbt only through `hpt run-dbt`.** Scope the node graph with
+  `--select <model>[+]` (preferred) or a named `--selector`; never run direct,
+  full-refresh, or `--defer-tests` dbt commands.
 - **`--select` leaves out-of-graph models stale.** A bare `--select model`
   rebuilds only that node; use `model+` to also rebuild the downstream you
   changed, or the validation/test against stale children will mislead you.
@@ -122,8 +102,11 @@ to target arbitrary models — mutually exclusive with `--selector`.
   filename, ingest timestamps) through every downstream layer.
 - **`fsspec` is intentional.** Don't hard-code local-only paths in
   ingest/download code.
-- **Distinguish implemented from planned.** Gold models, Airflow, Docker, and
-  Terraform are placeholders. Don't describe them as production-ready.
+- **Distinguish implemented from planned.** Airflow, Docker, and Terraform are
+  placeholders — don't describe them as production-ready. Gold is implemented
+  (`docs/architecture/gold-schema.md`, decisions 0017/0018), but its
+  cross-hospital percentile/benchmark output is bounded by the loaded corpus
+  (3-hospital denominator floor).
 - **`docs/notes/` and `docs/planning/` are history, not authoritative.** Record
   known mismatches you don't fix in `docs/cleanup.md`.
 

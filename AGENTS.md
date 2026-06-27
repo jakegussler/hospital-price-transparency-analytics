@@ -27,8 +27,11 @@ for dbt/DuckDB normalization and analysis.
   invocations, and `DbtOrchestrator` sequences the run modes (scoped,
   all-current, per-snapshot, full-rebuild) and iterates selectors.
 - `src/hpt/registry/` owns the active bundled hospital registry schema.
-- `transform/` is a dbt project targeting DuckDB. It defines Bronze sources and
-  Silver foundation models; Gold models are planned.
+- `transform/` is a dbt project targeting DuckDB. It defines Bronze sources,
+  Silver foundation models, and the implemented Gold layer (conformed dimensions,
+  the atomic rate-observation fact + code bridge, comparison/benchmark marts, and
+  coverage/transparency scorecards in `main_gold`). See
+  `docs/architecture/gold-schema.md` and decisions 0017/0018.
 - `infra/`, `orchestration/`, and `scripts/` are placeholders unless files are
   added later.
 
@@ -41,75 +44,47 @@ make lint
 make format
 hpt download --help
 hpt ingest --help
-hpt run-dbt --snapshot-ids <one-snapshot-id> --command build --selector <smallest-relevant-selector>
+hpt run-dbt --command build --select slv_core__payer_rates+
 ```
 
 Use `hpt ingest` for parsing. Do not document or call `hpt parse` unless the CLI
 is changed to provide it.
 
-## dbt Agent Safety Rules
-
-Agents must validate dbt changes with the smallest possible snapshot-scoped run.
+## dbt Agent Rules
 
 - Never invoke `dbt` directly, including `cd transform && dbt ...`.
-- Never use unscoped/full-corpus Make targets such as `make dbt-run`,
-  `make dbt-test`, `make dbt-build`, or `make dbt-rebuild`.
-- Always use the `hpt run-dbt` CLI layer and pass exactly one explicit
-  `--snapshot-ids` value. Pin the snapshot UUID rather than using
-  `--hospital-ids`, whose current snapshot can change.
+- Never use Make targets such as `make dbt-run`, `make dbt-test`, `make dbt-build`,
+  or `make dbt-rebuild`.
+- Always use the `hpt run-dbt` CLI layer.
 - Never pass `--all-hospitals`, `--per-snapshot`, `--full-refresh`,
-  `--full-rebuild`, or `--defer-tests`. These are human-developer, multi-snapshot
-  workflows; they are unbounded in memory and not for agent verification.
-- If correctness requires a full refresh or full rebuild to verify, do not run
-  dbt. State that full-refresh verification is still needed, explain why the
-  scoped validation is insufficient, and tell the user exactly which verification
-  command or scope should be run outside the agent workflow.
-- Scope the node graph with **either** `--select` **or** `--selector` (never
-  both; they are mutually exclusive). Prefer `--select <changed models>` (or
-  `<model>+` to include the downstream you affected) over a named selector: it
-  rebuilds exactly what you touched, which is faster and leaves fewer models
-  stale. Fall back to a named `--selector` when a coherent tag group is the right
-  unit. Never omit both and build the whole graph.
-- Peak memory ≈ snapshot breadth × the heaviest selected model's working set. The
-  pinned single (small) snapshot is what bounds memory — **not** the number of
-  models. So pin one of the small snapshots below; do not assume "few models"
-  makes an all-snapshots or large-snapshot run safe. You may run `--select
-  <model>[+]` against more than one *small* pinned snapshot for format coverage,
-  but never the larger snapshots.
-- Single-snapshot `--select` proves the change *runs*; for incremental models it
-  is a smoke test, not proof of cross-snapshot correctness. If the change needs
-  all snapshots to validate, report that rather than running it.
+  `--full-rebuild`, or `--defer-tests`.
+- Scope the node graph with **either** `--select` **or** `--selector` (mutually
+  exclusive). Prefer `--select <changed models>` (or `<model>+` to include
+  downstream) over a named selector; it rebuilds exactly what you touched. Fall
+  back to `--selector` when a coherent tag group is the right unit.
 - Do not pass `--seeds` unless the change affects seed data or seed-dependent
   behavior.
 
-Use these pinned local snapshots consistently. Prefer the small snapshots for
-simple logic validation; choose the larger snapshots only when the change needs
-more representative row volume or source complexity.
-
-| Size | Format | Hospital | Snapshot ID | Approximate local size |
-|---|---|---|---|---|
-| Small | CSV Wide | Lincoln Health System | `cd725773-f575-45dd-a796-adf9c9805a14` | 8.6 MB raw; 0.8 MB Bronze |
-| Small | CSV Tall | Ballad Sycamore | `209991a1-5cfa-42b8-a2bf-9e40595898db` | 4.8 MB raw ZIP; 8.5 MB Bronze |
-| Small | JSON | NGMC Gainesville | `97e28644-a4fc-4b3c-9c5c-8e9cf650500e` | 2.0 MB raw; 3.2 MB Bronze |
-| Larger | CSV Tall | Ballad JCMC | `7ca24003-a8af-4e11-8f29-4587ffb22506` | 5.6 MB raw ZIP; 9.7 MB Bronze |
-| Larger | JSON | UC Davis Medical Center | `4be7d274-1532-4a4c-b6f7-8173abeee11c` | 108 MB raw; 3.8 MB Bronze |
+The dataset is small (six hospitals across CSV Wide, CSV Tall, and JSON formats).
+Full builds across all snapshots are fast and acceptable — no need to scope runs
+to a single snapshot. Run the full graph for the layer you changed.
 
 Example (named selector):
 
 ```bash
-hpt run-dbt \
-  --snapshot-ids 97e28644-a4fc-4b3c-9c5c-8e9cf650500e \
-  --command build \
-  --selector validation
+hpt run-dbt --command build --selector validation
 ```
 
-Example (just the changed model and its downstream):
+Example (changed model and its downstream):
 
 ```bash
-hpt run-dbt \
-  --snapshot-ids 97e28644-a4fc-4b3c-9c5c-8e9cf650500e \
-  --command build \
-  --select slv_core__payer_rates+
+hpt run-dbt --command build --select slv_core__payer_rates+
+```
+
+Example (full Gold build):
+
+```bash
+hpt run-dbt --command build --select gld_+
 ```
 
 ## Data And Storage Rules
@@ -205,5 +180,7 @@ specification files cloned from the official CMS repository. Consult this when:
 - Do not commit local data, DuckDB files, logs, or downloaded MRFs.
 - Do not treat `docs/notes/` as authoritative. It contains planning history and
   research notes.
-- Be explicit when describing planned components such as Airflow, Docker,
-  Terraform, Silver, or Gold. Do not imply they are production-ready.
+- Be explicit when describing planned components such as Airflow, Docker, and
+  Terraform. Do not imply they are production-ready. Silver and Gold are
+  implemented; Gold cross-hospital percentile/benchmark output is only as broad
+  as the loaded corpus (3-hospital denominator floor).

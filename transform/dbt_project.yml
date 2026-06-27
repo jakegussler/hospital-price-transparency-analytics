@@ -163,6 +163,12 @@ models:
         # Marts read the completed fact + dimensions unscoped and are built once
         # at the end of the per-snapshot full-refresh workflow.
         +tags: ["gold_marts", "gold"]
+      scorecards:
+        +materialized: table
+        +incremental_strategy: null
+        # Scorecards read the completed fact + bridge (+ coverage scorecard)
+        # unscoped and are built once after the marts.
+        +tags: ["gold_scorecards", "gold"]
 
 seeds:
   hospital_price_transparency:
