@@ -29,5 +29,5 @@ left join expected_modifier_rates
 where
     (expected_modifier_rates.silver_payer_rate_id is not null and core_rates.modifier_count = 0)
     or (expected_modifier_rates.silver_payer_rate_id is null and core_rates.modifier_count > 0)
-    or (core_rates.modifier_count = 0 and core_rates.modifier_signature <> md5('<no_modifiers>'))
-    or (core_rates.modifier_count > 0 and core_rates.modifier_signature = md5('<no_modifiers>'))
+    or (core_rates.modifier_count = 0 and core_rates.modifier_signature <> {{ hpt_no_modifier_signature() }})
+    or (core_rates.modifier_count > 0 and core_rates.modifier_signature = {{ hpt_no_modifier_signature() }})

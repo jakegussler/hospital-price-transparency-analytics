@@ -27,12 +27,7 @@
 with modifier_rollup as (
     select
         silver_standard_charge_id,
-        md5(
-            string_agg(
-                distinct match_modifier_code,
-                '|' order by match_modifier_code
-            )
-        ) as modifier_signature,
+        {{ hpt_modifier_signature('match_modifier_code') }} as modifier_signature,
         count(distinct match_modifier_code) as modifier_count,
         bool_or(affects_pro_tech_split) as has_pro_tech_split_modifier
     from {{ hpt_scoped_ref('slv_core__charge_modifiers') }}
@@ -88,7 +83,7 @@ standard_charge_base as (
         cast(null as integer) as count_max,
         sc.clean_setting,
         sc.clean_billing_class,
-        coalesce(mods.modifier_signature, md5('<no_modifiers>')) as modifier_signature,
+        coalesce(mods.modifier_signature, {{ hpt_no_modifier_signature() }}) as modifier_signature,
         coalesce(mods.modifier_count, 0) as modifier_count,
         coalesce(mods.has_pro_tech_split_modifier, false) as has_pro_tech_split_modifier,
         cast(null as varchar) as canonical_payer_id,

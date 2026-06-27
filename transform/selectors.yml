@@ -68,7 +68,8 @@ selectors:
   - name: gold_dimension
     description: >
       Conformed Gold dimensions only (gld_dim__hospital, gld_dim__snapshot,
-      gld_dim__payer, gld_dim__service_code). Full-refresh tables read unscoped
+      gld_dim__payer, gld_dim__service_code, gld_dim__modifier_signature).
+      Full-refresh tables read unscoped
       from Silver so they span every snapshot. Built once after the per-snapshot
       Silver pass completes and before the per-snapshot Gold fact so the fact's
       relationships tests against the dimensions can pass.

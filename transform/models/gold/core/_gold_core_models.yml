@@ -160,6 +160,49 @@ models:
       - name: code_cross_hospital_comparable
         description: "Always true here (membership filter); kept for explicit downstream filtering and readability."
 
+  - name: gld_dim__modifier_signature
+    description: >
+      Conformed modifier-group dimension. Grain: one row per modifier_signature =
+      one distinct SET of modifier codes that attaches to a standard charge, plus
+      the synthetic md5('<no_modifiers>') member for charges with none. Decodes the
+      opaque modifier_signature hash carried on gld_core__rate_observations and the
+      marts into member codes, meanings, and a display label, so BI can join on the
+      key without widening the fact or risking a price double-count from a
+      many-to-many modifier bridge. Full-refresh table read UNscoped from
+      slv_core__charge_modifiers; the signature expression is byte-identical to the
+      fact's.
+    columns:
+      - name: modifier_signature
+        description: >
+          md5 of the sorted distinct modifier codes on the charge (or
+          md5('<no_modifiers>') for the sentinel). Primary key; the join key from
+          the fact and marts.
+        tests:
+          - not_null
+          - unique
+      - name: modifier_count
+        description: "Distinct modifier codes in the set; 0 for the no-modifier member."
+        tests:
+          - not_null
+      - name: modifier_codes
+        description: "Sorted '|'-delimited member codes (e.g. '26|TC'); null for the no-modifier member. This is exactly the string hashed into modifier_signature."
+      - name: modifier_label
+        description: "BI display label, e.g. '26 (Professional component) + TC (Technical component)', or 'No modifiers' for the sentinel."
+      - name: modifier_meanings
+        description: "Member meanings in code order, '|'-delimited; null for the no-modifier member. 'Unknown modifier' stands in where a code has no reference match."
+      - name: has_pro_tech_split_modifier
+        description: "Any 26/TC professional-technical split modifier in the set; mirrors the fact flag and must isolate, never aggregate across."
+        tests:
+          - not_null
+      - name: has_unreferenced_modifier
+        description: "True when any member code is missing from the modifier_reference seed (its label/meaning falls back to 'Unknown modifier')."
+        tests:
+          - not_null
+      - name: is_no_modifier_member
+        description: "True only for the synthetic md5('<no_modifiers>') sentinel member."
+        tests:
+          - not_null
+
   - name: gld_core__rate_observations
     description: >
       Atomic rate-observation fact. Grain: one row per reported amount cell =
@@ -295,9 +338,13 @@ models:
       - name: clean_billing_class
         description: "Comparison context (degenerate dimension)."
       - name: modifier_signature
-        description: "Sorted-set modifier signature for the charge; never aggregate across it."
+        description: "Sorted-set modifier signature for the charge; never aggregate across it. Foreign key to gld_dim__modifier_signature, which decodes it for BI."
         tests:
           - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__modifier_signature')
+                field: modifier_signature
       - name: modifier_count
         description: "Distinct modifier codes on the charge."
         tests:

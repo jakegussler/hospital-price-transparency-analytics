@@ -3,7 +3,7 @@ with joined as (
         pr.*,
         standard_charges.clean_setting,
         standard_charges.clean_billing_class,
-        coalesce(rate_modifiers.modifier_signature, md5('<no_modifiers>')) as modifier_signature,
+        coalesce(rate_modifiers.modifier_signature, {{ hpt_no_modifier_signature() }}) as modifier_signature,
         coalesce(rate_modifiers.modifier_count, 0) as modifier_count,
         alias_matches.canonical_payer_id,
         canonical_payers.canonical_payer_name,

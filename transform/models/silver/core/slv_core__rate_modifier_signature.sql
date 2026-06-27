@@ -15,12 +15,7 @@ with rate_modifiers as (
 
 select
     silver_payer_rate_id,
-    md5(
-        string_agg(
-            distinct upper(clean_modifier_code),
-            '|' order by upper(clean_modifier_code)
-        )
-    ) as modifier_signature,
+    {{ hpt_modifier_signature('upper(clean_modifier_code)') }} as modifier_signature,
     count(distinct upper(clean_modifier_code)) as modifier_count
 from rate_modifiers
 group by silver_payer_rate_id

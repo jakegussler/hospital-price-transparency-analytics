@@ -155,6 +155,7 @@ models:
         gld_dim__snapshot: { +materialized: table, +incremental_strategy: null, +tags: ["gold_dimension"] }
         gld_dim__payer: { +materialized: table, +incremental_strategy: null, +tags: ["gold_dimension"] }
         gld_dim__service_code: { +materialized: table, +incremental_strategy: null, +tags: ["gold_dimension"] }
+        gld_dim__modifier_signature: { +materialized: table, +incremental_strategy: null, +tags: ["gold_dimension"] }
       marts:
         +materialized: table
         +incremental_strategy: null
