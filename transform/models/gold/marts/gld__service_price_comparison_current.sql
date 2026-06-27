@@ -20,78 +20,29 @@
 -- negotiated dollars. Guarded gross/cash and cash/negotiated ratios are carried per
 -- charge-item context.
 --
--- Cross-snapshot aggregate → full-refresh table reading the fact/bridge through
--- plain ref(). The comparison_tier + blocker columns come from the gold_comparison_framework
+-- Cross-snapshot aggregate → full-refresh table. The code-expanded, classified
+-- "expanded spine" (fact ⋈ bridge + the §6 comparison_tier / blocker columns) is
+-- materialized once in gld_int__service_comparison_spine and read back here; this
+-- mart references it five times (rankable, peer_stats, payer_rankable,
+-- payer_peer_stats, scored), so persisting it as a table — rather than an inline
+-- CTE DuckDB rebuilds per reference — is what keeps the cross-hospital build
+-- inside memory. The classification comes from the gold_comparison_framework
 -- macros (hpt_comparison_tier / hpt_comparison_blocker_flags) so this mart and the
 -- coverage scorecard classify identically.
 
 
-with fact as (
+with classified as (
+    select *
+    from {{ ref('gld_int__service_comparison_spine') }}
+),
+
+-- The un-expanded fact, kept only for item_amounts below: the gross/cash/
+-- negotiated charge-item aggregates must be computed at the observation grain,
+-- not the code-expanded spine grain (the cohort fan-out would skew median()).
+fact as (
     select *
     from {{ ref('gld_core__rate_observations') }}
     where is_current_snapshot = true
-),
-
--- One row per observation × comparable code cohort. Non-comparable / null-keyed
--- bridge rows carry a null service_code_key and are excluded here, so observations
--- with no comparable code collapse to a single tier_0 row per observation via the
--- left join below (keeping the (observation, service_code_key) grain clean).
-obs_cohorts as (
-    select distinct
-        gold_rate_observation_id,
-        service_code_key,
-        canonical_code_system,
-        match_code,
-        code_is_specific
-    from {{ ref('gld_bridge__rate_observation_code') }}
-    where service_code_key is not null
-),
-
-assembled as (
-    select
-        f.gold_rate_observation_id,
-        oc.service_code_key,
-        f.snapshot_id,
-        f.hospital_id,
-        f.observation_scope,
-        f.silver_standard_charge_id,
-        f.silver_charge_item_id,
-        f.silver_payer_rate_id,
-        f.amount_kind,
-        f.amount_role,
-        f.amount_unit,
-        f.amount_value,
-        f.is_price_rankable,
-        f.methodology,
-        f.amount_comparability_tier,
-        f.clean_setting,
-        f.clean_billing_class,
-        f.modifier_signature,
-        f.has_pro_tech_split_modifier,
-        f.canonical_payer_id,
-        f.market_segment,
-        f.benefit_line,
-        f.plan_type,
-        f.is_drug_observation,
-        f.canonical_drug_unit_type,
-        f.drug_unit_status,
-        f.is_current_snapshot,
-        oc.canonical_code_system,
-        oc.match_code,
-        coalesce(oc.code_is_specific, false) as code_is_specific,
-        (oc.service_code_key is not null) as code_cross_hospital_comparable
-    from fact as f
-    left join obs_cohorts as oc
-        on f.gold_rate_observation_id = oc.gold_rate_observation_id
-),
-
--- Comparison classification (plan §6): tier + the row-level blocker flags.
-classified as (
-    select
-        *,
-        {{ hpt_comparison_tier() }} as comparison_tier,
-        {{ hpt_comparison_blocker_flags() }}
-    from assembled
 ),
 
 -- Market price-ranking subset: tier_2 + dollar-rankable rows only.

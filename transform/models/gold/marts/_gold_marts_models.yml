@@ -1,6 +1,44 @@
 version: 2
 
 models:
+  - name: gld_int__service_comparison_spine
+    description: >
+      Intermediate for gld__service_price_comparison_current: the code-expanded,
+      classified "expanded spine" (fact ⋈ bridge + the §6 comparison_tier /
+      blocker columns) materialized once as a table so the consuming mart's five
+      peer cuts read it back via narrow columnar scans instead of rebuilding the
+      fact ⋈ bridge join per reference (the prior single-model CTE form OOM'd on
+      the full cross-snapshot corpus). Grain and classification are identical to
+      the rows the mart used to build inline; only the materialization boundary
+      moved. Grain: one row per (gold_rate_observation_id, service_code_key) over
+      current snapshots (service_code_key null for observations with no
+      cross-hospital-comparable code).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - gold_rate_observation_id
+              - service_code_key
+    columns:
+      - name: gold_rate_observation_id
+        description: "Foreign key to the rate-observation fact; grain component."
+        tests:
+          - not_null
+      - name: service_code_key
+        description: >
+          Conformed code-cohort key; null on tier_0 rows (observations with no
+          cross-hospital-comparable code). Grain component.
+      - name: snapshot_id
+        description: "Owning snapshot."
+        tests:
+          - not_null
+      - name: comparison_tier
+        description: >
+          §6 comparability tier from hpt_comparison_tier(); consumed unchanged by
+          the mart.
+        tests:
+          - not_null
+
   - name: gld__service_price_comparison_current
     description: >
       User question: "For this service (code cohort + context), which hospitals
