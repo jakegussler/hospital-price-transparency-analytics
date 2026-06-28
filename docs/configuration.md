@@ -5,6 +5,7 @@ HPT keeps runtime configuration as small immutable dataclasses in
 
 - `ClientConfig`: HTTP timeout, retry, and user-agent settings.
 - `StorageConfig`: raw source, Bronze, quarantine, and audit roots.
+- `ReferenceStorageConfig`: raw and Bronze roots for external reference data.
 - `DownloadConfig`: download target, registry path, storage, client, and run flags.
 - `IngestConfig`: ingest target, registry path, and storage roots.
 - `HPT_REGISTRY_PATH` is also used by the hospitals seed export command.
@@ -17,6 +18,8 @@ HPT keeps runtime configuration as small immutable dataclasses in
 | `HPT_BRONZE_ROOT` | `StorageConfig.bronze_root` and dbt Bronze source definitions | `<project_root>/data/bronze` for Python, `../data/bronze` from `transform/` for dbt | Parsed Bronze Parquet root written by ingest and read by dbt external sources. |
 | `HPT_QUARANTINE_ROOT` | `StorageConfig.quarantine_root` | `<project_root>/data/quarantine` | Parser validation failure output root. |
 | `HPT_AUDIT_ROOT` | `StorageConfig.audit_root` | `<project_root>/data/audit` | Append-only Parquet records for audited command invocations and attempts. |
+| `HPT_REFERENCE_ROOT` | `ReferenceStorageConfig.reference_root` | `<project_root>/data/reference/bronze` | Bronze Parquet root written by `hpt load-reference` and read by dbt reference sources. |
+| `HPT_REFERENCE_RAW_ROOT` | `ReferenceStorageConfig.raw_root` | `<project_root>/data/reference/raw` | Cached raw archives and extracted members for external reference data. |
 | `HPT_REGISTRY_PATH` | `DownloadConfig.registry_path`, `IngestConfig.registry_path`, hospitals seed export | bundled registry | Optional registry file override. |
 | `HPT_HTTP_CONNECT_TIMEOUT` | `ClientConfig.connect_timeout_s` | `10` | HTTP connect timeout in seconds. |
 | `HPT_HTTP_READ_TIMEOUT` | `ClientConfig.read_timeout_s` | `300` | HTTP read timeout in seconds. |
@@ -39,7 +42,8 @@ this precedence:
 
 1. Explicit function argument (for example CLI `--raw-base-uri`).
 2. Environment variable (`HPT_RAW_STORAGE_BASE_URI`, `HPT_BRONZE_ROOT`,
-   `HPT_QUARANTINE_ROOT`, `HPT_AUDIT_ROOT`).
+   `HPT_QUARANTINE_ROOT`, `HPT_AUDIT_ROOT`, `HPT_REFERENCE_ROOT`, or
+   `HPT_REFERENCE_RAW_ROOT`).
 3. Canonical project defaults rooted at `<project_root>/data`.
 
 `HPT_RAW_STORAGE_BASE_URI` accepts any fsspec-compatible URI

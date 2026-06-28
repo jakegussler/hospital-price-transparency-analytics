@@ -34,6 +34,108 @@ pipeline: it captures source snapshots, preserves lineage, parses multiple MRF
 formats, quarantines invalid records, applies quality checks, and builds
 analytics-ready Silver models for downstream analysis.
 
+## Findings — Nashville Metro Sample (Illustrative)
+
+The pipeline is built for **national scale**, but running it nationwide is a
+breadth-and-infrastructure effort still in progress. To demonstrate the analytical
+output the Gold layer produces *today*, the active corpus is deliberately scoped
+to a **single comparable market — the Nashville, TN metro** — as a **small-sample
+placeholder, not the project's end goal** (decision 0019). Concentrating on one
+market is intentional: cross-hospital price comparison only works when hospitals
+share code systems and service lines, so a geographic grab-bag maximizes *N* while
+minimizing *comparability*.
+
+> **Read these as transparency, comparability, and data-quality findings — not a
+> market price study.** Every cross-hospital figure is captioned with its
+> denominator; Gold suppresses any cross-hospital statistic whose cohort has fewer
+> than three reporting hospitals (the decision 0017 floor). Scores measure
+> *published-data readiness, not legal compliance*. The sample is one metro, one
+> snapshot per hospital.
+
+### Corpus
+
+**12 active hospitals** — the nine-hospital HCA TriStar division, both Vanderbilt
+(VUMC) hospitals, and Metro Nashville General — across JSON and CSV MRF formats.
+Two further metro hospitals (Williamson Medical Center, Maury Regional) are
+registry entries deactivated for this run: their CSV-wide validation join exceeds
+the 8 GiB development machine's memory (a hardware limit, not a data limit — see
+`docs/cleanup.md`).
+
+| Metric | Value |
+|---|---|
+| Hospitals (active) | 12 |
+| Charge items | 2.19M |
+| Payer rates | 27.7M |
+| Atomic rate observations | 43.4M |
+| Distinct cross-hospital-comparable code cohorts | 30,054 |
+
+### Published ≠ comparable
+
+- **97.8%** of classified observations are **code-backed** (carry a
+  cross-hospital-comparable code).
+- **57.2%** are **cross-hospital comparable** (tier 2: code-backed, item-specific,
+  context-aligned) — after the one deliberate adjustment below.
+
+**A concrete data-quality finding: none of the 12 hospitals publish
+`billing_class`.** The CMS schema defines it (professional vs. facility) and the
+parser maps it, but it is absent from every source file in this corpus. The
+comparability framework originally required it for context-alignment, so the strict
+reading is **0% cross-hospital comparable**. Because the field is *uniformly* absent
+(not selectively), this run treats its absence as an explicit `'unspecified'`
+context — a documented relaxation of the decision 0017 tier rule (see
+`docs/cleanup.md`) — which yields the 57.2% above. Either way the headline is the
+same: a field needed for clean apples-to-apples comparison simply is not published.
+
+### How negotiated rates are expressed
+
+Only dollar amounts are directly price-rankable; percentages and contract
+algorithms are not. Across 35.3M negotiated observations:
+
+| Expression | Share |
+|---|---|
+| Negotiated dollar | 78.2% |
+| Negotiated algorithm (contract text) | 21.4% |
+| Negotiated percentage | 0.4% |
+
+### Per-hospital readiness (coverage, not compliance)
+
+Overall readiness ranges **0.74–0.84** (mean of five 0–1 component scores). Every
+hospital publishes high code and amount coverage; they differ most on
+**payer-mapping** — HCA TriStar 0.64–0.93, VUMC 1.00, Metro Nashville General 0.57.
+VUMC's lower amount-coverage (0.66) reflects fewer dollar-valued cells per rate.
+
+### Code-description legibility (MS-DRG enrichment)
+
+Reference data makes a subset of codes human-readable:
+
+| Code system | Comparable cohorts | Described |
+|---|---|---|
+| MS-DRG | 791 | **97.7%** (FY2025, public-domain) |
+| CPT / HCPCS / CDT / NDC / … | 27,000+ | 0% (licensed or not yet loaded) |
+
+### A few legible example services
+
+With MS-DRG descriptions joined in, here are high-acuity inpatient DRGs reported by
+**11 of 12 hospitals** (well above the 3-hospital floor) — each hospital's median
+negotiated dollar, then the cross-hospital spread:
+
+| DRG | Service (abbrev.) | Hospitals | Median | P10 | P90 |
+|---|---|---|---|---|---|
+| 003 | ECMO or tracheostomy, MV >96h | 11 | $159,933 | $155,862 | $303,329 |
+| 927 | Extensive / full-thickness burns | 11 | $153,203 | $148,562 | $281,466 |
+| 231 | Coronary bypass w/ PTCA + MCC | 11 | $64,960 | $62,791 | $120,219 |
+| 020 | Intracranial vascular procedures | 11 | $60,216 | $58,613 | $112,217 |
+
+Even within one metro and a system-heavy cohort, negotiated prices for the same DRG
+vary roughly **2× from the 10th to the 90th percentile** across hospitals.
+
+> **Scope honesty.** The atomic fact, code bridge, conformed dimensions, and both
+> coverage/transparency scorecards are built over the 12 hospitals. The Phase-2
+> comparison/benchmark *marts* (`gld__service_price_*`) are not materialized in this
+> run — their peer-window functions exceed the 8 GiB machine's temp budget — so the
+> figures above are computed directly from the rate-observation fact and the
+> coverage scorecard. See `docs/cleanup.md`.
+
 ## Current Implementation
 
 The current implementation includes:
@@ -114,15 +216,20 @@ Parse the current downloaded snapshots into Bronze Parquet:
 hpt ingest
 ```
 
-Build the DuckDB warehouse with dbt:
+Build the DuckDB warehouse with dbt. `hpt run-dbt` is the canonical interface:
+it resolves each hospital to its current snapshot, scopes the run, and wraps
+`dbt` (do not call `dbt` or the `make dbt-*` targets directly).
 
 ```bash
-make export-hospitals-seed
-make dbt-seed
-make dbt-rebuild
-make dbt-incremental HOSPITAL_IDS=ballad-jcmc
-make dbt-test
+make dbt-deps                                                # install dbt packages (once)
+make export-hospitals-seed                                   # active-hospital seed
+hpt run-dbt --command build --seeds --hospital-ids vumc      # first build (seed once)
+hpt run-dbt --command test --hospital-ids vumc
 ```
+
+The active corpus (Nashville metro, 14 hospitals) is large enough that a
+single-pass 14-hospital build can exhaust DuckDB's temp directory; at
+full-corpus scale, build in `--hospital-ids` batches of ~4. See `AGENTS.md`.
 
 By default, raw files, snapshot metadata, Bronze Parquet, quarantine records,
 DuckDB files, and logs are written under local ignored paths.
@@ -151,22 +258,22 @@ hpt export-hospitals-seed --help
 hpt clear-snapshot --help
 hpt show-run --run-id <run-uuid>
 
-# dbt
-make dbt-seed
-make dbt-run HOSPITAL_IDS=ballad-jcmc
-make dbt-test
-make dbt-unit-test
-make dbt-build HOSPITAL_IDS=ballad-jcmc
-make dbt-rebuild
-make dbt-incremental HOSPITAL_IDS=ballad-jcmc
-make dbt-build-selector HOSPITAL_IDS=ballad-jcmc DBT_SELECTOR=silver
-make dbt-build-selector HOSPITAL_IDS=ballad-jcmc DBT_SELECTOR=pipeline_charge_data
+# dbt — always through hpt run-dbt (never call dbt directly or make dbt-* targets)
+hpt run-dbt --command build --seeds --hospital-ids vumc          # first build / seed change
+hpt run-dbt --command build --hospital-ids vumc,nashville-general
+hpt run-dbt --command build --select slv_core__payer_rates+      # a model and its downstream
+hpt run-dbt --command build --selector silver                    # a named selector group
+hpt run-dbt --command build --select gld_+                       # the full Gold layer
+hpt run-dbt --command test --hospital-ids vumc
 ```
 
-The dbt project defines selectors for `staging`, `silver_base`, `silver_core`,
-`silver_review_queue`, `silver`, `pipeline_snapshot_metadata`, and
-`pipeline_charge_data`, plus the operational `audit`, `audit_staging`, and
-`audit_marts` selectors.
+The dbt project defines layer selectors — `staging`; `silver_base`,
+`silver_core`, `silver_review_queue`, `silver_audit`, `silver`; `validation`;
+and `gold_core`, `gold_dimension`, `gold_marts`, `gold_scorecards`, `gold` —
+plus the pipeline selectors `pipeline_snapshot_metadata` and
+`pipeline_charge_data` and the operational `audit`, `audit_staging`, and
+`audit_marts` selectors. Pass one with `--selector`, or use `--select` with dbt
+node syntax (`model`, `model+`, `+model`) for arbitrary targets.
 
 `hpt run-dbt` defaults to the complete dbt graph so snapshot-grained
 consumers, Silver tables, and cross-model tests stay coherent. Pass `--selector`
@@ -181,8 +288,9 @@ Snapshot-grained incremental models use the custom `snapshot_replace` strategy.
 It deletes rows for the explicitly requested `snapshot_ids` before inserting
 the new model result, so a successful rebuild that produces zero rows still
 removes the snapshot's prior rows. Repeat incremental runs require a non-empty
-snapshot scope; use `hpt run-dbt` or the scoped Make targets above. Use
-`make dbt-rebuild` for an unscoped full refresh.
+snapshot scope; pass `--hospital-ids` (or `--snapshot-ids`) to `hpt run-dbt`.
+Use `hpt run-dbt --full-rebuild` for an unscoped full refresh, or build in
+`--hospital-ids` batches at full-corpus scale to bound memory.
 
 When a build fails partway it can leave a snapshot partially materialized across
 the Silver and validation tables. `hpt clear-snapshot --snapshot-ids <id>`
@@ -204,6 +312,8 @@ Most local runs work with defaults. The main overrides are:
 | `HPT_BRONZE_ROOT` | Parsed Bronze Parquet root | `data/bronze` |
 | `HPT_QUARANTINE_ROOT` | Parser validation failures | `data/quarantine` |
 | `HPT_AUDIT_ROOT` | Queryable command run and attempt audits | `data/audit` |
+| `HPT_REFERENCE_ROOT` | External reference Bronze Parquet root | `data/reference/bronze` |
+| `HPT_REFERENCE_RAW_ROOT` | External reference raw cache | `data/reference/raw` |
 | `HPT_REGISTRY_PATH` | Optional hospital registry override | bundled registry |
 | `HPT_DUCKDB_PATH` | dbt DuckDB database path | `data/hpt.duckdb` |
 | `HPT_SILVER_RETENTION_MODE` | Silver/validation retention, `current_only` or `all_snapshots` | `current_only` |
@@ -289,7 +399,7 @@ Start with:
 - `docs/architecture/bronze-schema.md`
 - `docs/architecture/silver-schema.md`
 - `docs/architecture/gold-schema.md`
-- `docs/architecture/external-data-enrichment.md`
+- `docs/local/external-data-enrichment.md`
 - `docs/domain/hpt-glossary.md`
 - `docs/domain/cms-mrf-schema-notes.md`
 - `docs/domain/hospital-registry-rules.md`

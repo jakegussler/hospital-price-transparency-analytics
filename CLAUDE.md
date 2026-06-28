@@ -47,18 +47,26 @@ make ingest                      # hpt ingest   (NOT `hpt parse` — see gotchas
 # Registry seed export (does not invoke dbt)
 make export-hospitals-seed
 
+# External code-description reference data (writes data/reference/, not dbt)
+hpt load-reference --source ms-drg     # or --source all
+
 # dbt build: scope to changed models (or use a named selector)
 hpt run-dbt --command build --select slv_core__payer_rates+
 hpt run-dbt --command build --selector validation
 hpt run-dbt --command build --select gld_+
 ```
 
-Never invoke `dbt` directly or use `make dbt-*` targets. Always use `hpt run-dbt`
-with one node-scoping flag (`--select` or `--selector`; mutually exclusive).
-Never pass `--all-hospitals`, `--per-snapshot`, `--full-refresh`, `--full-rebuild`,
-or `--defer-tests`; do not pass `--seeds` unless the change specifically requires
-seed validation. The dataset is small enough that full builds across all snapshots
-are fast — no snapshot-pinning is needed.
+Never invoke `dbt` directly or use `make dbt-*` targets. Always use `hpt run-dbt`.
+For day-to-day work, scope with one node flag (`--select` or `--selector`;
+mutually exclusive). A fresh warehouse needs `--seeds`; otherwise omit it unless
+the change touches seed data.
+
+Corpus-scale memory: the active corpus is the Nashville metro (14 hospitals), big
+enough that a **single-pass full build can OOM** DuckDB's temp dir on the
+validation violation models. Bound memory by building hospitals in `--hospital-ids`
+batches of ~4 (the proven path), or use `--per-snapshot`/`--full-refresh` (the
+orchestrator's memory-bounding modes — allowed when a full rebuild would OOM). See
+AGENTS.md "Memory at full-corpus scale" and `docs/cleanup.md`.
 
 dbt selectors available (`--selector`): `staging`, `silver_base`, `silver_core`,
 `silver_review_queue`, `silver_audit`, `silver`, `validation`,
@@ -69,7 +77,10 @@ to target arbitrary models — mutually exclusive with `--selector`.
 ## Code map
 
 - `src/hpt/cli.py` — Typer CLI (`download`, `ingest`, `export-hospitals-seed`,
-  `run-dbt`, `clear-snapshot`). Thin: builds config objects and runs a process.
+  `load-reference`, `run-dbt`, `clear-snapshot`). Thin: builds config objects and
+  runs a process.
+- `src/hpt/reference/` — green-light code-description reference loader (MS-DRG
+  today) writing `data/reference/` Parquet for the dbt `reference` source.
 - `src/hpt/ingest/` — config, HTTP download, raw storage, compression, snapshot
   metadata, format detection, schema sniffing.
 - `src/hpt/parsers/` — JSON, CSV Tall, CSV Wide, and header parsing.
@@ -88,8 +99,10 @@ to target arbitrary models — mutually exclusive with `--selector`.
 - **CLI is `hpt ingest`, never `hpt parse`.** Stale docs/prompts may reference
   `hpt parse`; it does not exist. Do not introduce it.
 - **Agents invoke dbt only through `hpt run-dbt`.** Scope the node graph with
-  `--select <model>[+]` (preferred) or a named `--selector`; never run direct,
-  full-refresh, or `--defer-tests` dbt commands.
+  `--select <model>[+]` (preferred) or a named `--selector` for iteration. Never
+  invoke `dbt` directly. `--per-snapshot`/`--full-refresh` are allowed only to
+  bound memory on a full-corpus rebuild that would otherwise OOM (see the dbt
+  command notes above).
 - **`--select` leaves out-of-graph models stale.** A bare `--select model`
   rebuilds only that node; use `model+` to also rebuild the downstream you
   changed, or the validation/test against stale children will mislead you.

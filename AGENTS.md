@@ -56,18 +56,33 @@ is changed to provide it.
 - Never use Make targets such as `make dbt-run`, `make dbt-test`, `make dbt-build`,
   or `make dbt-rebuild`.
 - Always use the `hpt run-dbt` CLI layer.
-- Never pass `--all-hospitals`, `--per-snapshot`, `--full-refresh`,
-  `--full-rebuild`, or `--defer-tests`.
-- Scope the node graph with **either** `--select` **or** `--selector` (mutually
-  exclusive). Prefer `--select <changed models>` (or `<model>+` to include
-  downstream) over a named selector; it rebuilds exactly what you touched. Fall
-  back to `--selector` when a coherent tag group is the right unit.
-- Do not pass `--seeds` unless the change affects seed data or seed-dependent
-  behavior.
+- For day-to-day iteration, scope the node graph with **either** `--select`
+  **or** `--selector` (mutually exclusive). Prefer `--select <changed models>`
+  (or `<model>+` to include downstream) over a named selector; it rebuilds
+  exactly what you touched. Fall back to `--selector` when a coherent tag group
+  is the right unit.
+- A fresh warehouse needs `--seeds`; otherwise do not pass `--seeds` unless the
+  change affects seed data or seed-dependent behavior.
 
-The dataset is small (six hospitals across CSV Wide, CSV Tall, and JSON formats).
-Full builds across all snapshots are fast and acceptable — no need to scope runs
-to a single snapshot. Run the full graph for the layer you changed.
+### Memory at full-corpus scale
+
+The active corpus is the Nashville metro (14 hospitals across CSV Wide, CSV
+Tall, and JSON; decision 0019), large enough that a **single-pass full build can
+exhaust DuckDB's temp-spill directory and OOM** — the validation violation models
+(`val__code_violations`, `val__standard_charge_violations`) join every charge
+row against the rule set and spill hardest, and they are transitive ancestors of
+Silver/Gold (rejections), so they cannot be excluded. Bound peak memory with one
+of:
+
+- **Hospital-batched single-pass builds** — `--hospital-ids <subset>` in batches
+  of ~4; `snapshot_replace` accumulates and the final batch's unscoped marts
+  cover every loaded snapshot. Uses only scoping flags.
+- **`--per-snapshot` / `--full-refresh`** — the orchestrator's purpose-built
+  memory-bounding modes (one snapshot at a time). Previously discouraged for
+  agents; allowed when a full-corpus rebuild would otherwise OOM.
+
+`preserve_insertion_order: false` is set in `transform/profiles.yml` to reduce
+spill but is not sufficient alone at this scale. See `docs/cleanup.md`.
 
 Example (named selector):
 

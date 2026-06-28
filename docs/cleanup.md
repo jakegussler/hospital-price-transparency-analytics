@@ -68,6 +68,53 @@ to the relevant docs and delete resolved items from here.
   pass on a fresh build (confirmed by the offline e2e fixture run) and on rebuilt
   snapshots; an unscoped rebuild backfills the rest.
 
+## Validation + Gold marts spill on an 8 GiB box
+
+- The development machine has **8 GiB RAM** (DuckDB memory_limit ~6 GiB), so the
+  heavy models spill almost everything to the temp dir, which DuckDB caps at ~90%
+  of free disk (~24-30 GiB here). `transform/profiles.yml` now sets **`threads: 1`**
+  (so the two validation violation models do not spill concurrently into the same
+  budget) and an explicit `max_temp_directory_size` (so an oversized model fails
+  gracefully instead of filling the disk).
+- **`val__code_violations` / `val__standard_charge_violations`** join every charge
+  row against the rule set. Scoping the build to **one hospital at a time**
+  (`--hospital-ids <one>` with `--select tag:staging,tag:silver,tag:validation,tag:gold_per_snapshot`,
+  `--command run`) keeps them in budget for all but the two largest **CSV-wide**
+  hospitals — **Williamson Medical Center** and **Maury Regional** — whose
+  single-hospital `val__code_violations` alone exceeds ~30 GiB temp. Both are
+  deactivated in the registry (`active: false`); reactivate on a larger machine or
+  after the rule-join is pre-aggregated. NOTE: these violation models are transitive
+  ancestors of Silver Core and Gold, so they **cannot** be excluded with
+  `--select +tag:gold` — an earlier version of this note claimed otherwise and was
+  wrong (`+tag:gold` pulls the ancestors in).
+- The Phase-2 Gold **comparison/benchmark marts** (`gld__service_price_comparison_current`,
+  `gld__service_price_summary`, `gld__hospital_service_benchmarks`,
+  `gld__payer_service_benchmarks`) and the `gld_int__service_comparison_spine` also
+  exceed the temp budget over the full corpus — their peer-window functions sort the
+  whole observation×code surface (>28 GiB temp). They are **not materialized** in the
+  current run; the fact, bridge, dimensions, and both scorecards build fine, and the
+  README findings are computed from those plus the rate-observation fact directly.
+  Durable fix: a larger machine, or pre-aggregating/partitioning the window inputs.
+
+## billing_class is absent corpus-wide (comparability framework relaxed)
+
+- No hospital in the active Nashville corpus publishes `billing_class` (confirmed:
+  zero occurrences of `"billing_class"` in the source MRFs; `raw_billing_class` is
+  null at the bronze layer for all 12 hospitals, JSON and CSV). The parser maps the
+  column but publishers never populate it; `clean_setting` publishes fine.
+- The decision 0017 tier rule (`hpt_comparison_tier`) required
+  `clean_billing_class is not null` for `tier_2_context_aligned`, so under the strict
+  rule **0%** of observations are cross-hospital comparable and the entire
+  comparison/summary/benchmark output is empty — which passed tests **vacuously**
+  (empty marts satisfy `not_null`/`unique`), so it went unnoticed.
+- v1 workaround (in `gld_core__rate_observations`): coalesce `clean_billing_class`
+  to `'unspecified'` so its *uniform* absence is treated as an explicit context
+  rather than collapsing tier_2. This yields ~57% tier_2. Durable options: make
+  `billing_class` optional in the tier definition (an explicit decision 0017
+  amendment) or require it only when a corpus actually publishes it. The relaxed
+  comparisons mix professional/facility where hospitals would otherwise distinguish
+  them — acceptable here only because *no* hospital in the corpus distinguishes them.
+
 ## Service-Item Continuity And Validation Corpus
 
 - Service-item supersession links are an extension point, not v1 work.

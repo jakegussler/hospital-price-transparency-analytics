@@ -103,12 +103,19 @@ Grain: one row per `canonical_payer_id`, plus one explicit `<unmatched>` sentine
 attributes; observation-level context (`market_segment`, `benefit_line`,
 `plan_type`) stays on the fact.
 
-### `gld_dim__service_code` (thin)
+### `gld_dim__service_code`
 Grain: one row per `(canonical_code_system, match_code)` among
 cross-hospital-comparable codes. `service_code_key` (PK = `md5(system||code)`),
 `canonical_code_system`, `match_code`, `code_is_specific`,
-`code_cross_hospital_comparable`. The conformed cohort key + the seam where
-external code descriptions later attach.
+`code_cross_hospital_comparable`. This is the realized enrichment seam (decision
+0019): green-light, public-domain descriptions and grouper context join from
+`slv_core__billing_code_descriptions` — `code_description`,
+`code_description_edition`, `code_description_source`, `code_description_license`,
+`relative_weight`, `ms_drg_mdc`, `ms_drg_type`, and `has_code_description`. MS-DRG
+is loaded today (HCPCS/APC next); licensed systems (CPT/CDT) stay
+`code_description`-null with a license marker. The conformed dimension carries the
+latest loaded edition's description per code (a v1 simplification; per-snapshot
+as-of joins are the future step).
 
 ### `gld_dim__modifier_signature`
 Grain: one row per `modifier_signature` (a distinct *set* of modifier codes),
