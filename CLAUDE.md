@@ -21,8 +21,9 @@ file limited to Claude Code workflow specifics.
 
 A local-first data pipeline for CMS hospital machine-readable files (MRFs):
 `registry → hpt download → raw files + snapshot metadata → hpt ingest → Bronze
-Parquet → dbt/DuckDB Silver models`. Python owns structural parsing; dbt owns
-semantic normalization. Requires Python 3.11+.
+Parquet → dbt/DuckDB Silver and Gold models`. Python owns structural parsing;
+dbt owns semantic normalization and analytics-ready models. Requires Python
+3.11+.
 
 ## Command cheat sheet
 
@@ -91,7 +92,8 @@ to target arbitrary models — mutually exclusive with `--selector`.
   wrapper, and run-mode orchestration (scoped / all-current / per-snapshot /
   full-rebuild, selector iteration).
 - `src/hpt/registry/` — bundled hospital registry loader and models.
-- `transform/` — dbt project targeting DuckDB (Bronze sources + Silver models).
+- `transform/` — dbt project targeting DuckDB (Bronze sources, Silver models,
+  validation models, and Gold models).
 - `tests/` — pytest suite mirroring `src/hpt/` layout.
 
 ## Gotchas (Claude-specific)
@@ -120,13 +122,13 @@ to target arbitrary models — mutually exclusive with `--selector`.
   (`docs/architecture/gold-schema.md`, decisions 0017/0018), but its
   cross-hospital percentile/benchmark output is bounded by the loaded corpus
   (3-hospital denominator floor).
-- **`docs/notes/` and `docs/planning/` are history, not authoritative.** Record
-  known mismatches you don't fix in `docs/cleanup.md`.
+- **Historical notes are not authoritative.** Record known mismatches you don't
+  fix in `docs/cleanup.md`.
 
 ## When you need domain meaning vs. structure
 
-For *what the data means* (charge types, methodologies, CMS schema intent), see
-`docs/local/industry_guide.md`, `docs/local/methodologies_algorithms.md`, and
-`docs/cms_reference/`. For *how it's stored/parsed* (tooling, storage, tests),
-use the architecture and development docs listed in `docs/ai/context.md`.
+For *what the data means* (charge types, methodologies, CMS schema intent), use
+the tracked domain docs and decisions listed in `AGENTS.md`. For *how it's
+stored/parsed* (tooling, storage, tests), use the architecture and development
+docs listed in `docs/ai/context.md`.
 Task-specific prompt patterns live in `docs/ai/prompting-guide.md`.

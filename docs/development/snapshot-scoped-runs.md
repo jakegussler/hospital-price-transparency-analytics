@@ -31,14 +31,8 @@ replacement.
 ## Running it
 
 ```bash
-# Seed once (charge/validation models depend on seeds).
-make dbt-seed
-
 # Resolve hospitals to their current snapshots and build the coherent dbt graph.
-hpt run-dbt --hospital-ids ballad-jcmc --command build
-# or:
-make dbt-run-hospitals HOSPITAL_IDS=ballad-jcmc
-make dbt-incremental HOSPITAL_IDS=ballad-jcmc
+hpt run-dbt --hospital-ids ballad-jcmc --command build --seeds
 
 # Pin explicit historical snapshots, or mix both. Inputs are merged + deduped.
 hpt run-dbt --snapshot-ids 7ca24003-...,209991a1-... --command build
@@ -87,8 +81,6 @@ runner rejects that combination because dbt would rebuild incremental tables
 from only the scoped rows. Use the full rebuild path instead:
 
 ```bash
-make dbt-rebuild
-# or:
 hpt run-dbt --full-rebuild
 ```
 
@@ -209,8 +201,8 @@ not leave a half-written snapshot.
 ### Verify the scope landed
 
 ```bash
-cd transform && dbt show --profiles-dir . --inline \
-  "select snapshot_id, count(*) from {{ ref('slv_base__payer_rates') }} group by 1"
+duckdb "$HPT_DUCKDB_PATH" \
+  "select snapshot_id, count(*) from main.slv_base__payer_rates group by 1"
 ```
 
 In `current_only` mode, you should see the retained current snapshot rows. In
@@ -220,8 +212,9 @@ In `current_only` mode, you should see the retained current snapshot rows. In
 
 - **Unit tests are excluded.** `hpt run-dbt` adds
   `--exclude-resource-type unit_test` for `build`/`test`. Unit-test fixtures pin
-  their own `snapshot_id`s, which the filter would strip. Run the full unit-test
-  suite unscoped via `make dbt-unit-test` / CI.
+  their own `snapshot_id`s, which the filter would strip. Run the unit-test
+  suite through the dedicated CI/maintainer path, not as part of a scoped agent
+  validation run.
 - **Cross-snapshot history requires `all_snapshots`.** Default `current_only`
   mode prunes non-current snapshot rows after materializing runs. To compare
   historical snapshots in Silver, set `HPT_SILVER_RETENTION_MODE=all_snapshots`
@@ -235,5 +228,5 @@ In `current_only` mode, you should see the retained current snapshot rows. In
   `payer_aliases`, `payer_context_rules`, or `canonical_payers` does not
   retro-apply to already materialized `slv_core__payer_rates` rows. Reprocess
   affected snapshots explicitly, or run a full rebuild.
-- See `docs/cleanup.md` for the known `reconcile_csv_rows_to_standard_charges`
-  data gap that scoping surfaces.
+- See `docs/cleanup.md` for unresolved scoping or storage risks that are not
+  fixed in the same change.

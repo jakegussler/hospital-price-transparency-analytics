@@ -51,14 +51,14 @@ values with minimal interpretation.
 
 ## Silver
 
-The planned normalized data layer. Silver will resolve entities and semantics:
-hospitals, charge items, codes, payers, plans, modifiers, dates, and source
-quirks.
+The normalized data layer. Silver resolves entities and semantics: hospitals,
+charge items, codes, payers, plans, modifiers, dates, and source quirks.
 
 ## Gold
 
-The planned analytics layer. Gold will expose analysis-ready datasets for price
-variation, payer comparison, hospital comparison, and compliance questions.
+The analytics-ready data layer. Gold exposes conformed dimensions, an atomic
+rate-observation fact, a code bridge, comparison/benchmark marts, and
+coverage/readiness scorecards.
 
 ## Standard Charge
 

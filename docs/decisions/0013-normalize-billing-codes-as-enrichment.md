@@ -59,5 +59,5 @@ per-rate building blocks.
   they are only excluded from cross-hospital cohorts via the comparability
   flag.
 
-See `docs/planning/billing-code-normalization.md` for the data profile and
-value analysis behind these choices.
+The data profile behind these choices is intentionally summarized here so the
+decision remains reviewable without local planning notes.

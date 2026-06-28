@@ -4,14 +4,9 @@ This document describes the implemented Bronze schema. It is grounded in
 `src/hpt/parsers/schemas.py`, `docs/bronze_layer.md`, and the current dbt Bronze
 source declarations in `transform/models/staging/_bronze_sources.yml`.
 
-Local reference image:
-
-![Bronze schema reference](../local/diagrams/hps_bronze_2026-05-20.png)
-
-The image is a useful visual reference, but the Mermaid diagram below reflects
-what currently exists in the parser schemas. Bronze does not currently include a
-canonical `hospital` dimension, and most leaf tables do not have Silver-style
-surrogate primary keys.
+The Mermaid diagram below reflects what currently exists in the parser schemas.
+Bronze does not include a canonical `hospital` dimension, and most leaf tables
+do not have Silver-style surrogate primary keys.
 
 ```mermaid
 erDiagram

@@ -43,9 +43,9 @@ single-metro product.
    contrast, and spans all three MRF formats (JSON, CSV wide, CSV tall). MRF URLs
    were discovered from each system's CMS-mandated `cms-hpt.txt`.
 
-3. **Green-light code-description enrichment.** Build the reference-loader pattern
-   from `docs/local/external-data-enrichment.md`, starting with the smallest,
-   highest-signal public-domain source: **CMS MS-DRG** (IPPS Final Rule Table 5).
+3. **Green-light code-description enrichment.** Build the reference-loader
+   pattern starting with the smallest, highest-signal public-domain source:
+   **CMS MS-DRG** (IPPS Final Rule Table 5).
    `hpt load-reference` downloads, parses, and writes the release to
    `{HPT_REFERENCE_ROOT}/{table}/release_date=.../*.parquet` with full provenance
    (`code_edition`, `source_url`, `retrieved_at`). dbt exposes it via the
@@ -66,11 +66,10 @@ single-metro product.
 - The conformed dimension carries the **latest** loaded edition's description per
   code rather than a per-snapshot as-of join — a documented v1 simplification,
   acceptable while every active MRF is the same vintage. Per-snapshot as-of
-  alignment remains the future step (enrichment doc Phase 3).
+  alignment remains the future step.
 - Reference data is **not** committed: it is downloaded on demand by
   `hpt load-reference` and written under git-ignored `data/reference/`.
 - Reactivating or adding hospitals is now a one-line `active:` flip / new entry;
   the deactivated multi-state research is preserved for later expansion.
 
-See `docs/local/external-data-enrichment.md` (source backlog) and
-`src/hpt/reference/` (loader).
+See `src/hpt/reference/` for the implemented loader.

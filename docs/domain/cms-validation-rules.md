@@ -11,8 +11,7 @@ This document inventories the validation rules currently enforced by
 conformance checks from Python/Pydantic into dbt while keeping Pydantic as a
 structural gatekeeper.
 
-The companion machine-facing registry is
-`docs/refactor/json-validation-to-dbt/rule-registry.md`.
+The companion machine-facing registry is `transform/seeds/cms_validation_rules.csv`.
 
 ## Boundary
 
@@ -34,24 +33,14 @@ Whether Silver excludes the failing entity is determined separately by
 
 ## Citation Shortcuts
 
-- JSON v3 dictionary:
-  `docs/cms_reference/hospital-price-transparency/documentation/JSON/README.md`
-- JSON v3 schema:
-  `docs/cms_reference/hospital-price-transparency/documentation/JSON/schemas/V3.0.0_Hospital_price_transparency_schema.json`
-- JSON v2.2 dictionary:
-  `docs/cms_reference/hospital-price-transparency/archive/documentation/JSON/v2.2_README.md`
-- JSON v2.2 schema:
-  `docs/cms_reference/hospital-price-transparency/archive/documentation/JSON/schemas/V2.2.1_Hospital_price_transparency_schema.json`
-- JSON v2.1 dictionary:
-  `docs/cms_reference/hospital-price-transparency/archive/documentation/JSON/v2.1_README.md`
-- JSON v2.1 schema:
-  `docs/cms_reference/hospital-price-transparency/archive/documentation/JSON/schemas/V2.1.0_Hospital_price_transparency_schema.json`
-- CSV v3 dictionary:
-  `docs/cms_reference/hospital-price-transparency/documentation/CSV/README.md`
-- CSV state codes:
-  `docs/cms_reference/hospital-price-transparency/documentation/CSV/state_codes.md`
-- CSV templates:
-  `docs/cms_reference/hospital-price-transparency/documentation/CSV/templates/`
+Rules below cite CMS-published hospital price transparency dictionaries,
+schemas, state-code guidance, and CSV templates by document family and section
+instead of by local mirror path:
+
+- JSON v3 dictionary and JSON v3 schema.
+- JSON v2.2 dictionary and JSON v2.2 schema.
+- JSON v2.1 dictionary and JSON v2.1 schema.
+- CSV v3 dictionary, CSV state-code guidance, and CSV templates.
 
 ## Structural Rules That Stay In Pydantic
 

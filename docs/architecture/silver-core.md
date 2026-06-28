@@ -608,5 +608,3 @@ Supporting decisions and domain references:
 - `docs/decisions/0014-derive-service-item-identity-deterministically.md`
 - `docs/decisions/0015-classify-methodology-and-amount-semantics.md`
 - `docs/decisions/0017-gold-comparability-framework.md`
-- `docs/local/industry_guide.md`
-- `docs/local/methodologies_algorithms.md`

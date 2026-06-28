@@ -7,14 +7,10 @@ Bronze) and applies Kimball dimensional modeling: an atomic fact at the smallest
 grain, conformed dimensions, a bridge for the multi-code many-to-many, and
 aggregate marts/scorecards built *from* the fact — never blended into it.
 
-The implementation-ready specification is
-[../planning/gold-implementation.md](../planning/gold-implementation.md). The
-comparability rules come from decision
+The comparability rules come from decision
 [0017](../decisions/0017-gold-comparability-framework.md); the atomic-fact +
 bridge split is decision
 [0018](../decisions/0018-gold-fact-is-atomic-code-expansion-is-a-bridge.md).
-Phase 0 denominator profiling is
-[../planning/gold-phase0-profiling.md](../planning/gold-phase0-profiling.md).
 
 All Gold models land in the `main_gold` DuckDB schema.
 
@@ -74,11 +70,11 @@ flowchart LR
 | `gld_int__service_comparison_spine`, `gld__*` marts | `table` | full refresh | `ref()` | `gold_marts` |
 | `gld__*` scorecards | `table` | full refresh | `ref()` | `gold_scorecards` |
 
-The per-snapshot workflow (`make dbt-per-snapshot[-full-refresh]`) runs four
-ordered Gold passes: `gold_dimension` (unscoped, once) → `gold_per_snapshot`
-(scoped fact + bridge) → `gold_marts` (unscoped, once) → `gold_scorecards`
-(unscoped, once). Selectors: `gold_core`, `gold_dimension`, `gold_per_snapshot`,
-`gold_marts`, `gold_scorecards`, and `gold` (everything).
+The per-snapshot workflow (`hpt run-dbt --per-snapshot`) runs four ordered Gold
+passes: `gold_dimension` (unscoped, once) → `gold_per_snapshot` (scoped fact +
+bridge) → `gold_marts` (unscoped, once) → `gold_scorecards` (unscoped, once).
+Selectors: `gold_core`, `gold_dimension`, `gold_per_snapshot`, `gold_marts`,
+`gold_scorecards`, and `gold` (everything).
 
 ## Conformed dimensions
 

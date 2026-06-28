@@ -50,9 +50,9 @@ Important modules:
 - `src/hpt/loaders/parquet.py`
 
 `transform/` is the dbt project. It defines external Bronze Parquet sources for
-DuckDB, staging views, validation models, Silver Base/Core models, and review
-queue models. Snapshot-grained Silver and validation tables are incremental;
-Gold models are still planned.
+DuckDB, staging views, validation models, Silver Base/Core models, review queue
+models, and the implemented Gold dimensional/analytics layer. Snapshot-grained
+Silver, validation, and Gold fact/bridge tables are incremental.
 
 ## Download Flow
 
@@ -126,8 +126,9 @@ Implemented behavior:
 - Review queue models and cross-snapshot validation summaries remain
   full-refresh tables because their distinct counts span all retained Silver
   rows.
-- Gold tables will answer analysis questions such as price variation, hospital
-  comparisons, payer comparisons, and compliance reporting.
+- Gold tables support current price comparison, hospital and payer benchmark
+  views, and coverage/readiness scorecards. They are analytical outputs, not
+  legal compliance determinations.
 
 ## Boundaries
 

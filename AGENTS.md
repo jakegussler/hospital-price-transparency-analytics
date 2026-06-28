@@ -155,40 +155,20 @@ hpt run-dbt --command build --select gld_+
 
 ## Domain Reference Documents
 
-These documents exist to orient agents working with HPT data semantics. Do not
+These tracked documents orient agents working with HPT data semantics. Do not
 pull them in for structural or tooling tasks (parser changes, CLI work, storage
 layout, test setup). Use them when you need to understand what the data means,
 not how it is stored.
 
-**`docs/local/industry_guide.md`** — HPT industry concepts: charge types (gross,
-discounted cash, payer-negotiated, min/max), CMS MRF schema intent, code systems,
-and how hospital pricing works in practice. Consult this when:
-- Building or reviewing Silver/Gold dbt models that interpret charge semantics
-  (e.g., `slv_base__standard_charges`, charge-item grain, price normalization).
-- Writing dbt tests or accepted-value constraints for charge type or code type
-  fields and you are unsure what values are valid or meaningful.
-- Analyzing data and a field's purpose or expected range is unclear from the
-  column name alone.
-
-**`docs/local/methodologies_algorithms.md`** — How each `methodology` value works,
-why `standard_charge_dollar` is sometimes populated on percentage-based contracts,
-and how compound `other`-methodology algorithm text encodes multi-component contracts.
-Consult this when:
-- Modeling or filtering the `methodology`, `negotiated_dollar`,
-  `negotiated_percentage`, or `negotiated_algorithm` fields in
-  `slv_base__payer_rates` or downstream Gold models.
-- Writing logic that classifies, aggregates, or compares payer rates across
-  methodology types (e.g., joining fee-schedule rows against percent-of-charges
-  rows requires knowing they are not the same measurement).
-- Parsing or extracting sub-rules from `standard_charge_algorithm` text for the
-  `other` methodology.
-
-**`docs/cms_reference/`** — The CMS-published hospital price transparency
-specification files cloned from the official CMS repository. Consult this when:
-- The exact CMS-defined field names, allowed values, or schema version behavior
-  matters for a Bronze source definition or Silver staging model.
-- A question about what CMS requires vs. what hospitals actually provide needs
-  a ground-truth reference.
+- `docs/domain/hpt-glossary.md` defines the project vocabulary.
+- `docs/domain/cms-mrf-schema-notes.md` summarizes CMS schema behavior and the
+  parser boundary.
+- `docs/domain/cms-validation-rules.md` inventories CMS conformance checks and
+  how they route through parser quarantine, validation, and Silver exclusion.
+- `docs/decisions/0015-classify-methodology-and-amount-semantics.md` explains
+  methodology and amount comparability semantics.
+- `docs/decisions/0017-gold-comparability-framework.md` explains the Gold
+  comparison tiers and denominator rules.
 
 ## Cautions
 

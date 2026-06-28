@@ -200,8 +200,8 @@ Retention is a dbt/runtime choice:
 - `HPT_SILVER_RETENTION_MODE=all_snapshots` keeps accumulated Silver and
   validation history.
 
-Use `make dbt-rebuild` for a true full-refresh rebuild from all Bronze Parquet.
-That path runs dbt `--full-refresh` without a `snapshot_ids` var.
+Use `hpt run-dbt --full-rebuild` for a true full-refresh rebuild from all Bronze
+Parquet. That path runs dbt `--full-refresh` without a `snapshot_ids` var.
 
 ## Local vs Future Object Storage
 

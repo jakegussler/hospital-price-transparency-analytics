@@ -1,10 +1,7 @@
 # Silver Base Schema — dbt Pipeline Reference
 
 This document traces how each model in `transform/models/silver/base/` is built,
-including source dependencies, key transformations, and column schemas. It is
-intended as a companion to the reference image captured on 2026-05-20.
-
-Reference image: `docs/local/diagrams/hps_silver_2026-5-20.png`
+including source dependencies, key transformations, and column schemas.
 
 ---
 

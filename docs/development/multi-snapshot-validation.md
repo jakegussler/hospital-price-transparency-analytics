@@ -6,8 +6,7 @@ exists to give the *same charge item the same id across successive MRF
 publications of one hospital*, so Gold can track price-over-time. Under the
 default `current_only` retention every hospital holds exactly one snapshot, so
 `snapshot_count = 1` everywhere and that cross-snapshot key is never exercised
-against real-shaped data — the "latent key" problem in
-[remaining-steps.md §2.4](../planning/remaining-steps.md).
+against real-shaped data.
 
 You cannot get a second snapshot organically: `hpt download` dedupes by file
 hash, so re-downloading an unchanged file writes no new snapshot, and real
@@ -108,16 +107,16 @@ rewrite and the v2-only item are the two mints; the old id of the rewrite is the
 retirement. `slv_audit__service_item_overmerge` flags exactly the shared-code pair
 (`max_snapshot_source_items = 2`), and the hospital-scope guard returns zero rows.
 
-All Silver Core / audit data tests pass (referential `service_items → hospitals`
-included), and all unit tests pass (run them directly with
-`dbt test --select test_type:unit`, since tag selectors and snapshot-scoped runs
-exclude unit tests).
+All Silver Core / audit data tests pass, including the
+`service_items → hospitals` referential check. Unit tests are excluded from
+snapshot-scoped `hpt run-dbt` invocations and are covered by the dedicated
+CI/maintainer path.
 
 ## Caveats and cleanup
 
 - **Unit tests need `test_type:unit`.** `hpt run-dbt --selector silver_core` runs
-  the data tests but not the unit tests; run unit tests with
-  `dbt test --select test_type:unit` against the throwaway DuckDB.
+  the data tests but not the unit tests; keep unit-test validation separate from
+  this snapshot-scoped workflow.
 - **`current_only` keeps it latent.** Re-run under `HPT_SILVER_RETENTION_MODE=all_snapshots`;
   otherwise the prune drops the older snapshot and `snapshot_count` collapses to 1.
 - **Remove the corpus** with

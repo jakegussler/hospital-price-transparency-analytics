@@ -1,6 +1,7 @@
 # 0006: Model All Snapshots In Silver
 
-Status: amended by `docs/planning/incremental-implementation-plan.md`
+Status: accepted, amended by the implemented `snapshot_replace` incremental
+strategy and configurable Silver retention.
 
 ## Amendment
 

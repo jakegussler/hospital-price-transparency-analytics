@@ -114,14 +114,12 @@ From the repository root:
 
 ```bash
 make export-hospitals-seed
-make dbt-seed
-make dbt-run HOSPITAL_IDS=ballad-jcmc
-make dbt-test
-make dbt-unit-test
-make dbt-build-selector HOSPITAL_IDS=ballad-jcmc DBT_SELECTOR=silver
-make dbt-build-selector HOSPITAL_IDS=ballad-jcmc DBT_SELECTOR=pipeline_charge_data
-make dbt-incremental HOSPITAL_IDS=ballad-jcmc
-make dbt-rebuild
+make dbt-deps
+hpt run-dbt --command build --seeds --hospital-ids ballad-jcmc
+hpt run-dbt --command test --hospital-ids ballad-jcmc
+hpt run-dbt --command build --hospital-ids ballad-jcmc --selector silver
+hpt run-dbt --command build --hospital-ids ballad-jcmc --selector pipeline_charge_data
+hpt run-dbt --full-rebuild --command build
 ```
 
 The profile reads:
@@ -130,20 +128,19 @@ The profile reads:
 - `HPT_BRONZE_ROOT`, defaulting to `../data/bronze`.
 - `HPT_AUDIT_ROOT`, defaulting to `../data/audit`.
 
-The Makefile exposes a registry-to-seed export plus dbt commands for dependency
-install, seed, run, test, build, list, compile, and clean. Selector targets take
-`DBT_SELECTOR`; the dbt project currently defines layer selectors for
-`staging`, `silver_base`, `silver_core`, and `silver`, plus pipeline selectors for
-`pipeline_snapshot_metadata` and `pipeline_charge_data`, and operational selectors
-for `audit`, `audit_staging`, and `audit_marts` in `transform/selectors.yml`.
+The dbt project currently defines layer selectors for `staging`, `silver_base`,
+`silver_core`, `silver_review_queue`, `silver_audit`, `silver`, and
+`validation`; Gold selectors for `gold_core`, `gold_dimension`,
+`gold_per_snapshot`, `gold_marts`, `gold_scorecards`, and `gold`; pipeline
+selectors for `pipeline_snapshot_metadata` and `pipeline_charge_data`; and
+operational selectors for `audit`, `audit_staging`, and `audit_marts` in
+`transform/selectors.yml`.
 
-Materializing Make targets require `HOSPITAL_IDS` or `SNAPSHOT_IDS` and delegate
-to `hpt run-dbt`. Snapshot-grained models use `snapshot_replace`, so repeat
-incremental materialization without an explicit snapshot scope is rejected.
-`make dbt-unit-test` remains intentionally unscoped because it does not
-materialize incremental tables.
-`make dbt-rebuild` is the canonical full rebuild from all Bronze: it runs
-without `snapshot_ids` and passes dbt `--full-refresh`.
+Use `hpt run-dbt` for dbt execution. Snapshot-grained models use
+`snapshot_replace`, so repeat incremental materialization without an explicit
+snapshot scope is rejected. `hpt run-dbt --full-rebuild` is the canonical full
+rebuild from all Bronze: it runs without `snapshot_ids` and passes dbt
+`--full-refresh`.
 
 `HPT_SILVER_RETENTION_MODE=current_only` is the default. It prunes non-current
 snapshot rows from snapshot-grained Silver and validation tables after

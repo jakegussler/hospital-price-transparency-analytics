@@ -130,9 +130,9 @@ Even within one metro and a system-heavy cohort, negotiated prices for the same 
 vary roughly **2× from the 10th to the 90th percentile** across hospitals.
 
 > **Scope honesty.** The atomic fact, code bridge, conformed dimensions, and both
-> coverage/transparency scorecards are built over the 12 hospitals. The Phase-2
-> comparison/benchmark *marts* (`gld__service_price_*`) are not materialized in this
-> run — their peer-window functions exceed the 8 GiB machine's temp budget — so the
+> coverage/transparency scorecards are built over the 12 hospitals. The illustrative
+> sample build omits the Phase-2 comparison/benchmark marts (`gld__service_price_*`)
+> because their peer-window functions exceed the small-machine temp budget, so the
 > figures above are computed directly from the rate-observation fact and the
 > coverage scorecard. See `docs/cleanup.md`.
 
@@ -218,7 +218,7 @@ hpt ingest
 
 Build the DuckDB warehouse with dbt. `hpt run-dbt` is the canonical interface:
 it resolves each hospital to its current snapshot, scopes the run, and wraps
-`dbt` (do not call `dbt` or the `make dbt-*` targets directly).
+`dbt` (do not call `dbt` directly or use materializing `make dbt-*` shortcuts).
 
 ```bash
 make dbt-deps                                                # install dbt packages (once)
@@ -258,7 +258,7 @@ hpt export-hospitals-seed --help
 hpt clear-snapshot --help
 hpt show-run --run-id <run-uuid>
 
-# dbt — always through hpt run-dbt (never call dbt directly or make dbt-* targets)
+# dbt — always through hpt run-dbt for dbt execution
 hpt run-dbt --command build --seeds --hospital-ids vumc          # first build / seed change
 hpt run-dbt --command build --hospital-ids vumc,nashville-general
 hpt run-dbt --command build --select slv_core__payer_rates+      # a model and its downstream
@@ -399,15 +399,14 @@ Start with:
 - `docs/architecture/bronze-schema.md`
 - `docs/architecture/silver-schema.md`
 - `docs/architecture/gold-schema.md`
-- `docs/local/external-data-enrichment.md`
 - `docs/domain/hpt-glossary.md`
 - `docs/domain/cms-mrf-schema-notes.md`
 - `docs/domain/hospital-registry-rules.md`
 - `docs/development/getting-started.md`
 - `docs/development/testing-strategy.md`
 
-`docs/notes/` and `docs/planning/` are planning history, not authoritative
-runtime documentation.
+Tracked docs are the authoritative reviewer-facing documentation. Historical
+notes and local research material are intentionally kept out of the tracked docs.
 
 ## Current Limitations
 
@@ -418,7 +417,7 @@ runtime documentation.
 - Gold cross-hospital percentile and benchmark output is only as broad as the
   loaded corpus: cohorts below the 3-hospital denominator publish no percentiles
   (the rows remain, flagged `below_min_hospital_denominator`). See
-  `docs/planning/gold-phase0-profiling.md`.
+  `docs/architecture/gold-schema.md`.
 - The shipped analytics goal is comparing *current* prices across hospitals.
   Price-change-over-time analysis is a deliberate extension point, not a v1
   deliverable: there is no longitudinal corpus to build or validate it against

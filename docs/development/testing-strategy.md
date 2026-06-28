@@ -103,9 +103,9 @@ dbt changes:
   recommended) must be **warn** so source-faithful out-of-enum values are not
   failed.
 - `dbt_utils` is a project dependency (`transform/packages.yml`). Run
-  `make dbt-deps` (or `dbt deps`) once after cloning or changing packages so the
-  package is installed before any `hpt run-dbt` build; CI runs `dbt deps` in both
-  jobs.
+  `make dbt-deps` once after cloning or changing packages so the package is
+  installed before any `hpt run-dbt` build; CI installs dbt packages in its
+  transform jobs.
 - Keep source definitions aligned with actual Bronze table output.
 - Validate changes with the smallest relevant snapshot-scoped run, preferring
   node selection over a named selector:
@@ -162,10 +162,10 @@ with the real `snapshot_replace` macros and verifies nonzero replacement,
 zero-row replacement, multi-snapshot deletion, output-scope validation and
 rollback, rejection of unscoped incremental runs, and unscoped full refresh.
 
-For model-level integration validation, use one pinned local snapshot and the
-smallest relevant selector. Full-refresh or full-rebuild parity must be verified
-outside the agent workflow when required; record that limitation rather than
-running an unscoped corpus build.
+For model-level integration validation, use a small snapshot scope and the
+smallest relevant selector or `--select` graph. Full-refresh or full-rebuild
+parity must be verified outside the agent workflow when required; record that
+limitation rather than running an unscoped corpus build.
 
 ## Fixture Guidance
 
@@ -187,7 +187,8 @@ Known gaps as of this documentation pass:
   validates DuckDB output.
 - No automated fixture-warehouse test runs the complete snapshot-scoped dbt
   graph against two snapshots and verifies materialized-table isolation.
-- Gold model tests are not present because Gold models are not implemented yet.
+- No automated fixture-warehouse test runs the full Gold comparison/benchmark
+  graph across a multi-hospital corpus large enough to publish percentile output.
   Silver and validation models have dbt tests; add or update focused tests when
   changing model grain, rejection behavior, or cross-model relationships.
 

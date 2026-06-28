@@ -81,6 +81,6 @@ quantity math, and large abbreviation dictionaries.
 - Cross-hospital comparison stays a Gold code-cohort join, never item
   identity.
 
-See `docs/planning/charge-item-normalization.md` for the data profile and the
-option analysis behind these choices, and decision 0013 for the billing-code
-enrichment this builds on.
+Decision 0013 covers the billing-code enrichment this identity design builds on.
+The profiling rationale is summarized in this decision so the trade-off remains
+reviewable without local planning notes.

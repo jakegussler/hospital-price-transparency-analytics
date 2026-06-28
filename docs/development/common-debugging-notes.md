@@ -84,8 +84,8 @@ Check:
 - `HPT_SILVER_RETENTION_MODE`. The default `current_only` keeps only current
   snapshots; set `all_snapshots` before running if you need historical Silver
   rows retained.
-- Whether the run used `hpt run-dbt --full-rebuild` or `make dbt-rebuild` for a
-  true full-refresh. Scoped runs intentionally reject `--full-refresh`.
+- Whether the run used `hpt run-dbt --full-rebuild` for a true full-refresh.
+  Scoped runs intentionally reject `--full-refresh`.
 - Whether a repeat incremental materializing command omitted `snapshot_ids`.
   `snapshot_replace` rejects unscoped incremental execution; use `hpt run-dbt`
   with a scope or the explicit full-rebuild path.
@@ -99,7 +99,7 @@ A true full rebuild from all Bronze needs no `snapshot_ids` and dbt
 `--full-refresh`. Use:
 
 ```bash
-make dbt-rebuild
+hpt run-dbt --full-rebuild --command build
 ```
 
 ## Registry Override Is Ignored
