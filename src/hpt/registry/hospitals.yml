@@ -4,49 +4,29 @@
 # mrf_source.url is fetched, and mrf_source.expected_format tells
 # downstream parsers which layout to expect.
 #
-# Add real hospitals here as you research their MRF URLs.
-# See docs/local/req_docs/source_registry_downloader.md for the
-# current registry shape and supported expected_format values.
+# `active` controls the working pipeline set. Only active hospitals are
+# downloaded/ingested in bulk, exported to the dbt hospitals seed, and resolved
+# by the all-hospitals dbt run; inactive hospitals are retained here (URL
+# research preserved) and can still be targeted explicitly by id. The active
+# set is currently scoped to the Nashville, TN metro (see README / decision
+# 0019). Reactivate or add hospitals by flipping `active` / adding entries.
+#
+# See docs/local/req_docs/source_registry_downloader.md for the registry shape.
 
 hospitals:
 
-  # --- Tennessee ---------------------------------------------------------------
+  # ===========================================================================
+  # ACTIVE — Nashville, TN metro corpus
+  # ===========================================================================
 
-  - hospital_id: ballad-jcmc
-    canonical_hospital_name: Johnson City Medical Center
-    canonical_state: TN
-    hospital_type: community
-    health_system: Ballad Health
-    mrf_source:
-      url: https://www.balladhealth.org/sites/default/files/2026-03/620476282_johnson-city-medical-center_standardcharges.zip
-      expected_format: csv_tall
-      notes: Ballad publishes one CSV per facility under /transparent-pricing/
-
-  - hospital_id: ballad-sycamore
-    canonical_hospital_name: Sycamore Shoals Hospital
-    canonical_state: TN
-    hospital_type: community
-    health_system: Ballad Health
-    mrf_source:
-      url: https://www.balladhealth.org/sites/default/files/2026-03/620476282_sycamore-shoals-hospital_standardcharges.zip
-      expected_format: csv_tall
-
-  - hospital_id: erlanger-baroness
-    canonical_hospital_name: Erlanger Baroness Hospital
-    canonical_state: TN
-    hospital_type: nonprofit
-    health_system: Erlanger Health System
-    mrf_source:
-      url: https://erlanger.pt.panaceainc.com/MRFDownload/erlanger/baroness
-      expected_format: csv_wide
-
+  # --- Vanderbilt (VUMC) -------------------------------------------------------
   - hospital_id: vumc
     canonical_hospital_name: Vanderbilt University Medical Center
     canonical_state: TN
     hospital_type: academic_medical_center
     health_system: VUMC
     mrf_source:
-      url: https://finance.vumc.org/assets/pub/pt/352528741_vanderbilt-university-medical-center_standardcharges.json
+      url: "https://finance.vumc.org/assets/pub/pt/352528741_vanderbilt-university-medical-center_standardcharges.json"
       expected_format: json
 
   - hospital_id: vanderbilt-wilson-county
@@ -55,17 +35,189 @@ hospitals:
     hospital_type: community
     health_system: VUMC
     mrf_source:
-      url: https://finance.vumc.org/assets/pub/pt/352528741_vanderbilt-wilson-county-hospital_standardcharges.json
+      url: "https://finance.vumc.org/assets/pub/pt/352528741_vanderbilt-wilson-county-hospital_standardcharges.json"
       expected_format: json
       notes: Vanderbilt transparency page notes JSON MRF files can exceed 1GB.
+
+  # --- HCA TriStar (Nashville division) ---------------------------------------
+  - hospital_id: tristar-centennial
+    canonical_hospital_name: TriStar Centennial Medical Center
+    canonical_state: TN
+    hospital_type: for_profit
+    health_system: HCA Healthcare
+    mrf_source:
+      url: "https://stctrprodsnsvc00455826e6.blob.core.windows.net/pt-final-posting-files/62-1113737_TRISTAR-CENTENNIAL-MEDICAL-CENTER_standardcharges.json?si=dpx-pt-json-access-policy&spr=https&sv=2024-11-04&sr=c&sig=vdmkLz8lCE1qb%2BnsaFfL8tcI7Gg6B%2B3s%2Fny3TPZ1kqs%3D"
+      expected_format: json
+      notes: Discovered from TriStar (HCA) cms-hpt.txt.
+
+  - hospital_id: tristar-ashland-city
+    canonical_hospital_name: TriStar Ashland City Medical Center
+    canonical_state: TN
+    hospital_type: for_profit
+    health_system: HCA Healthcare
+    mrf_source:
+      url: "https://stctrprodsnsvc00455826e6.blob.core.windows.net/pt-final-posting-files/62-1113737_TRISTAR-ASHLAND-CITY-MEDICAL-CENTER_standardcharges.json?si=pt-json-access-policy&spr=https&sv=2024-11-04&sr=c&sig=o5IofreS%2F7ETlsnhPakPWCwHVVUZRobywQ5wUKGjVuQ%3D"
+      expected_format: json
+      notes: Discovered from TriStar (HCA) cms-hpt.txt.
+
+  - hospital_id: tristar-hendersonville
+    canonical_hospital_name: TriStar Hendersonville Medical Center
+    canonical_state: TN
+    hospital_type: for_profit
+    health_system: HCA Healthcare
+    mrf_source:
+      url: "https://stctrprodsnsvc00455826e6.blob.core.windows.net/pt-final-posting-files/62-1321255_TRISTAR-HENDERSONVILLE-MEDICAL-CENTER_standardcharges.json?si=pt-json-access-policy&spr=https&sv=2024-11-04&sr=c&sig=o5IofreS%2F7ETlsnhPakPWCwHVVUZRobywQ5wUKGjVuQ%3D"
+      expected_format: json
+      notes: Discovered from TriStar (HCA) cms-hpt.txt.
+
+  - hospital_id: tristar-horizon
+    canonical_hospital_name: TriStar Horizon Medical Center
+    canonical_state: TN
+    hospital_type: for_profit
+    health_system: HCA Healthcare
+    mrf_source:
+      url: "https://stctrprodsnsvc00455826e6.blob.core.windows.net/pt-final-posting-files/62-1620866_TRISTAR-HORIZON-MEDICAL-CENTER_standardcharges.json?si=pt-json-access-policy&spr=https&sv=2024-11-04&sr=c&sig=o5IofreS%2F7ETlsnhPakPWCwHVVUZRobywQ5wUKGjVuQ%3D"
+      expected_format: json
+      notes: Discovered from TriStar (HCA) cms-hpt.txt.
+
+  - hospital_id: tristar-northcrest
+    canonical_hospital_name: TriStar NorthCrest Medical Center
+    canonical_state: TN
+    hospital_type: for_profit
+    health_system: HCA Healthcare
+    mrf_source:
+      url: "https://stctrprodsnsvc00455826e6.blob.core.windows.net/pt-final-posting-files/85-4366763_TRISTAR-NORTHCREST-MEDICAL-CENTER_standardcharges.json?si=pt-json-access-policy&spr=https&sv=2024-11-04&sr=c&sig=o5IofreS%2F7ETlsnhPakPWCwHVVUZRobywQ5wUKGjVuQ%3D"
+      expected_format: json
+      notes: Discovered from TriStar (HCA) cms-hpt.txt.
+
+  - hospital_id: tristar-skyline
+    canonical_hospital_name: TriStar Skyline Medical Center
+    canonical_state: TN
+    hospital_type: for_profit
+    health_system: HCA Healthcare
+    mrf_source:
+      url: "https://stctrprodsnsvc00455826e6.blob.core.windows.net/pt-final-posting-files/62-1560757_TRISTAR-SKYLINE-MEDICAL-CENTER_standardcharges.json?si=pt-json-access-policy&spr=https&sv=2024-11-04&sr=c&sig=o5IofreS%2F7ETlsnhPakPWCwHVVUZRobywQ5wUKGjVuQ%3D"
+      expected_format: json
+      notes: Discovered from TriStar (HCA) cms-hpt.txt.
+
+  - hospital_id: tristar-southern-hills
+    canonical_hospital_name: TriStar Southern Hills Medical Center
+    canonical_state: TN
+    hospital_type: for_profit
+    health_system: HCA Healthcare
+    mrf_source:
+      url: "https://stctrprodsnsvc00455826e6.blob.core.windows.net/pt-final-posting-files/62-1113737_TRISTAR-SOUTHERN-HILLS-MEDICAL-CENTER_standardcharges.json?si=pt-json-access-policy&spr=https&sv=2024-11-04&sr=c&sig=o5IofreS%2F7ETlsnhPakPWCwHVVUZRobywQ5wUKGjVuQ%3D"
+      expected_format: json
+      notes: Discovered from TriStar (HCA) cms-hpt.txt.
+
+  - hospital_id: tristar-stonecrest
+    canonical_hospital_name: TriStar StoneCrest Medical Center
+    canonical_state: TN
+    hospital_type: for_profit
+    health_system: HCA Healthcare
+    mrf_source:
+      url: "https://stctrprodsnsvc00455826e6.blob.core.windows.net/pt-final-posting-files/62-1113737_TRISTAR-STONECREST-MEDICAL-CENTER_standardcharges.json?si=pt-json-access-policy&spr=https&sv=2024-11-04&sr=c&sig=o5IofreS%2F7ETlsnhPakPWCwHVVUZRobywQ5wUKGjVuQ%3D"
+      expected_format: json
+      notes: Discovered from TriStar (HCA) cms-hpt.txt.
+
+  - hospital_id: tristar-summit
+    canonical_hospital_name: TriStar Summit Medical Center
+    canonical_state: TN
+    hospital_type: for_profit
+    health_system: HCA Healthcare
+    mrf_source:
+      url: "https://stctrprodsnsvc00455826e6.blob.core.windows.net/pt-final-posting-files/62-1113737_TRISTAR-SUMMIT-MEDICAL-CENTER_standardcharges.json?si=pt-json-access-policy&spr=https&sv=2024-11-04&sr=c&sig=o5IofreS%2F7ETlsnhPakPWCwHVVUZRobywQ5wUKGjVuQ%3D"
+      expected_format: json
+      notes: Discovered from TriStar (HCA) cms-hpt.txt.
+
+  # --- Independent / other Nashville-metro systems ----------------------------
+  - hospital_id: williamson-medical-center
+    canonical_hospital_name: Williamson Medical Center
+    canonical_state: TN
+    hospital_type: community
+    health_system: Williamson Health
+    active: false
+    mrf_source:
+      url: "https://williamsonhealth.org/content/uploads/2026/04/621501534_williamson-medical-center_standardcharges.csv"
+      expected_format: csv_wide
+      notes: >-
+        Williamson County hospital; discovered from williamsonhealth.org
+        cms-hpt.txt. Deactivated 2026-06-27: its CSV-wide val__code_violations
+        join OOMs on this 8 GiB box (~30 GiB temp spill exceeds free local disk).
+        Reactivate on a larger machine or after the validation rule-join is
+        pre-aggregated (docs/cleanup.md).
+
+  - hospital_id: nashville-general
+    canonical_hospital_name: Metro Nashville General Hospital
+    canonical_state: TN
+    hospital_type: community
+    health_system: Nashville General Hospital
+    mrf_source:
+      url: "https://nashvillegeneral-440111.s3.amazonaws.com/62-1383977_METRO-NASHVILLE-GENERAL-HOSPITAL_standardcharges.csv"
+      expected_format: csv_tall
+      notes: Metro public safety-net hospital; discovered from nashvillegeneral.org cms-hpt.txt.
+
+  - hospital_id: maury-regional
+    canonical_hospital_name: Maury Regional Medical Center
+    canonical_state: TN
+    hospital_type: nonprofit
+    health_system: Maury Regional Health
+    active: false
+    mrf_source:
+      url: "https://www.mauryregional.com/clientfiles/getfile/626002623_maury-regional-medical-center_standardcharges.csv"
+      expected_format: csv_wide
+      notes: >-
+        CMS v3.0 wide format; discovered from mauryregional.com cms-hpt.txt. The
+        getfile endpoint 403s the default UA; download with HPT_USER_AGENT set to
+        a browser string. Deactivated 2026-06-27: its CSV-wide
+        val__code_violations join OOMs on this 8 GiB box (~30 GiB temp spill
+        exceeds free local disk); reactivate on a larger machine or after the
+        validation rule-join is pre-aggregated (docs/cleanup.md).
+
+  # ===========================================================================
+  # INACTIVE — retained for future activation (outside Nashville metro)
+  # ===========================================================================
+
+  # --- Tennessee (non-metro) ---------------------------------------------------
+  - hospital_id: ballad-jcmc
+    canonical_hospital_name: Johnson City Medical Center
+    canonical_state: TN
+    hospital_type: community
+    health_system: Ballad Health
+    active: false
+    mrf_source:
+      url: "https://www.balladhealth.org/sites/default/files/2026-03/620476282_johnson-city-medical-center_standardcharges.zip"
+      expected_format: csv_tall
+      notes: Ballad publishes one CSV per facility under /transparent-pricing/
+
+  - hospital_id: ballad-sycamore
+    canonical_hospital_name: Sycamore Shoals Hospital
+    canonical_state: TN
+    hospital_type: community
+    health_system: Ballad Health
+    active: false
+    mrf_source:
+      url: "https://www.balladhealth.org/sites/default/files/2026-03/620476282_sycamore-shoals-hospital_standardcharges.zip"
+      expected_format: csv_tall
+
+  - hospital_id: erlanger-baroness
+    canonical_hospital_name: Erlanger Baroness Hospital
+    canonical_state: TN
+    hospital_type: nonprofit
+    health_system: Erlanger Health System
+    active: false
+    mrf_source:
+      url: "https://erlanger.pt.panaceainc.com/MRFDownload/erlanger/baroness"
+      expected_format: csv_wide
 
   - hospital_id: vanderbilt-bedford
     canonical_hospital_name: Vanderbilt Bedford Hospital
     canonical_state: TN
     hospital_type: community
     health_system: VUMC
+    active: false
     mrf_source:
-      url: https://finance.vumc.org/assets/pub/pt/853419620_vanderbilt-bedford-hospital_standardcharges.json
+      url: "https://finance.vumc.org/assets/pub/pt/853419620_vanderbilt-bedford-hospital_standardcharges.json"
       expected_format: json
       notes: Vanderbilt transparency page notes JSON MRF files can exceed 1GB.
 
@@ -74,8 +226,9 @@ hospitals:
     canonical_state: TN
     hospital_type: community
     health_system: VUMC
+    active: false
     mrf_source:
-      url: https://finance.vumc.org/assets/pub/pt/853420386_vanderbilt-tullahoma-harton-hospital_standardcharges.json
+      url: "https://finance.vumc.org/assets/pub/pt/853420386_vanderbilt-tullahoma-harton-hospital_standardcharges.json"
       expected_format: json
       notes: Vanderbilt transparency page notes JSON MRF files can exceed 1GB.
 
@@ -84,29 +237,31 @@ hospitals:
     canonical_state: TN
     hospital_type: community
     health_system: VUMC
+    active: false
     mrf_source:
-      url: https://finance.vumc.org/assets/pub/pt/203500835_vanderbilt-clarksville-hospital_standardcharges.json
+      url: "https://finance.vumc.org/assets/pub/pt/203500835_vanderbilt-clarksville-hospital_standardcharges.json"
       expected_format: json
       notes: Vanderbilt transparency page notes JSON MRF files can exceed 1GB.
-  
+
   - hospital_id: lincoln-health-system
     canonical_hospital_name: Lincoln Health System
     canonical_state: TN
     hospital_type: community
     health_system: Lincoln Health System
+    active: false
     mrf_source:
       url: "https://hhlincolnhealth.org/wp-content/uploads/882472117_hh-health-system-lincoln-inc_standardcharges.csv"
       expected_format: csv_wide
 
   # --- California --------------------------------------------------------------
-
   - hospital_id: uc-san-diego-health
     canonical_hospital_name: UC San Diego Health
     canonical_state: CA
     hospital_type: academic_medical_center
     health_system: UC San Diego Health
+    active: false
     mrf_source:
-      url: https://hsfiles.ucsd.edu/patientBilling/UC-San-Diego-Standard-Charges-956006144.json
+      url: "https://hsfiles.ucsd.edu/patientBilling/UC-San-Diego-Standard-Charges-956006144.json"
       expected_format: json
       notes: UC San Diego identifies this as a machine-readable JSON file of about 3GB.
 
@@ -115,8 +270,9 @@ hospitals:
     canonical_state: CA
     hospital_type: academic_medical_center
     health_system: UC Davis Health
+    active: false
     mrf_source:
-      url: https://health.ucdavis.edu/media-resources/news/documents/json/946036494_university-of-california-davis-medical-center_standardcharges.json
+      url: "https://health.ucdavis.edu/media-resources/news/documents/json/946036494_university-of-california-davis-medical-center_standardcharges.json"
       expected_format: json
       notes: UC Davis states the MRF follows CMS v3.0.
 
@@ -125,20 +281,21 @@ hospitals:
     canonical_state: CA
     hospital_type: for_profit
     health_system: HCA Healthcare
+    active: false
     mrf_source:
       url: "https://stctrprodsnsvc00455826e6.blob.core.windows.net/pt-final-posting-files/62-1763090_GOOD-SAMARITAN-HOSPITAL_standardcharges.json?si=pt-json-access-policy&sig=o5IofreS%2F7ETlsnhPakPWCwHVVUZRobywQ5wUKGjVuQ%3D&spr=https&sr=c&sv=2024-11-04"
       expected_format: json
       notes: HCA page states the MRF is JSON and provides this download link.
 
   # --- Georgia -----------------------------------------------------------------
-
   - hospital_id: ngmc-gainesville
     canonical_hospital_name: Northeast Georgia Medical Center Gainesville
     canonical_state: GA
     hospital_type: nonprofit
     health_system: Northeast Georgia Health System
+    active: false
     mrf_source:
-      url: https://www.nghs.com/wp-content/themes/nghs-v2/assets/files/price-transparency/581694098_1427055821_northeast-georgia-medical-center,-inc._standardcharges.json
+      url: "https://www.nghs.com/wp-content/themes/nghs-v2/assets/files/price-transparency/581694098_1427055821_northeast-georgia-medical-center,-inc._standardcharges.json"
       expected_format: json
       notes: Discovered from NGHS cms-hpt.txt.
 
@@ -147,8 +304,9 @@ hospitals:
     canonical_state: GA
     hospital_type: nonprofit
     health_system: Northeast Georgia Health System
+    active: false
     mrf_source:
-      url: https://www.nghs.com/wp-content/themes/nghs-v2/assets/files/price-transparency/581694098_1053777920_northeast-georgia-medical-center,-inc._standardcharges.json
+      url: "https://www.nghs.com/wp-content/themes/nghs-v2/assets/files/price-transparency/581694098_1053777920_northeast-georgia-medical-center,-inc._standardcharges.json"
       expected_format: json
       notes: Discovered from NGHS cms-hpt.txt.
 
@@ -157,8 +315,9 @@ hospitals:
     canonical_state: GA
     hospital_type: nonprofit
     health_system: Northeast Georgia Health System
+    active: false
     mrf_source:
-      url: https://www.nghs.com/wp-content/themes/nghs-v2/assets/files/price-transparency/814015190_ngmc-barrow,-llc_standardcharges.json
+      url: "https://www.nghs.com/wp-content/themes/nghs-v2/assets/files/price-transparency/814015190_ngmc-barrow,-llc_standardcharges.json"
       expected_format: json
       notes: Discovered from NGHS cms-hpt.txt.
 
@@ -167,8 +326,9 @@ hospitals:
     canonical_state: GA
     hospital_type: nonprofit
     health_system: Northeast Georgia Health System
+    active: false
     mrf_source:
-      url: https://www.nghs.com/wp-content/themes/nghs-v2/assets/files/price-transparency/831294232_ngmc-lumpkin,-llc_standardcharges.json
+      url: "https://www.nghs.com/wp-content/themes/nghs-v2/assets/files/price-transparency/831294232_ngmc-lumpkin,-llc_standardcharges.json"
       expected_format: json
       notes: Discovered from NGHS cms-hpt.txt.
 
@@ -177,32 +337,33 @@ hospitals:
     canonical_state: GA
     hospital_type: nonprofit
     health_system: Northeast Georgia Health System
+    active: false
     mrf_source:
-      url: https://www.nghs.com/wp-content/themes/nghs-v2/assets/files/price-transparency/922451946_northeast-georgia-medical-center-habersham,-llc_standardcharges.json
+      url: "https://www.nghs.com/wp-content/themes/nghs-v2/assets/files/price-transparency/922451946_northeast-georgia-medical-center-habersham,-llc_standardcharges.json"
       expected_format: json
       notes: Discovered from NGHS cms-hpt.txt.
 
   # --- Idaho -------------------------------------------------------------------
-
   - hospital_id: gritman-medical-center
     canonical_hospital_name: Gritman Medical Center
     canonical_state: ID
     hospital_type: nonprofit
     health_system: Gritman Medical Center
+    active: false
     mrf_source:
-      url: https://www.gritman.org/wp-content/uploads/820146328_gritman-medical-center_standardcharges.json
+      url: "https://www.gritman.org/wp-content/uploads/820146328_gritman-medical-center_standardcharges.json"
       expected_format: json
       notes: Hospital page explicitly offers JSON and CSV price list downloads.
 
   # --- Illinois ----------------------------------------------------------------
-
   - hospital_id: mercyhealth-crystal-lake
     canonical_hospital_name: Mercyhealth Hospital and Medical Center Crystal Lake
     canonical_state: IL
     hospital_type: nonprofit
     health_system: Mercyhealth
+    active: false
     mrf_source:
-      url: https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/22b5ec1b8a0f4bb28889e34002c492f8/201673011-crystallakehospital-standardcharges.json
+      url: "https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/22b5ec1b8a0f4bb28889e34002c492f8/201673011-crystallakehospital-standardcharges.json"
       expected_format: json
       notes: Discovered from Mercyhealth cms-hpt.txt.
 
@@ -211,20 +372,21 @@ hospitals:
     canonical_state: IL
     hospital_type: nonprofit
     health_system: Mercyhealth
+    active: false
     mrf_source:
-      url: https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/89c915615e854d118f13c565b4bf37a8/311551871-mercyharvardhospital-standardchargers.json
+      url: "https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/89c915615e854d118f13c565b4bf37a8/311551871-mercyharvardhospital-standardchargers.json"
       expected_format: json
       notes: Discovered from Mercyhealth cms-hpt.txt; source filename uses standardchargers.
 
   # --- Michigan ----------------------------------------------------------------
-
   - hospital_id: aspirus-iron-river
     canonical_hospital_name: Aspirus Iron River Hospital
     canonical_state: MI
     hospital_type: nonprofit
     health_system: Aspirus
+    active: false
     mrf_source:
-      url: https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/383236977_aspirus-iron-river-hospital_standardcharges.json
+      url: "https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/383236977_aspirus-iron-river-hospital_standardcharges.json"
       expected_format: json
       notes: Current FY26 Aspirus transparency JSON.
 
@@ -233,32 +395,33 @@ hospitals:
     canonical_state: MI
     hospital_type: community
     health_system: Munising Memorial Hospital
+    active: false
     mrf_source:
-      url: https://munisingmemorial.org/wp-content/uploads/2026/03/2026-standard-charges-json.json
+      url: "https://munisingmemorial.org/wp-content/uploads/2026/03/2026-standard-charges-json.json"
       expected_format: json
       notes: Hospital page lists MMH Standard Charges JSON.
 
   # --- Minnesota ---------------------------------------------------------------
-
   - hospital_id: aspirus-st-lukes
     canonical_hospital_name: Aspirus St. Luke's Hospital
     canonical_state: MN
     hospital_type: nonprofit
     health_system: Aspirus
+    active: false
     mrf_source:
-      url: https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/410714079_aspirus-st-lukes-hospital_standardcharges.json
+      url: "https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/410714079_aspirus-st-lukes-hospital_standardcharges.json"
       expected_format: json
       notes: Current FY26 Aspirus transparency JSON.
 
   # --- Wisconsin ---------------------------------------------------------------
-
   - hospital_id: aspirus-divine-savior
     canonical_hospital_name: Aspirus Divine Savior Hospital
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Aspirus
+    active: false
     mrf_source:
-      url: https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390806250_aspirus-divine-savior-hospital_standardcharges.json
+      url: "https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390806250_aspirus-divine-savior-hospital_standardcharges.json"
       expected_format: json
       notes: Current FY26 Aspirus transparency JSON.
 
@@ -267,8 +430,9 @@ hospitals:
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Aspirus
+    active: false
     mrf_source:
-      url: https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390985690_aspirus-eagle-river-hospital_standardcharges.json
+      url: "https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390985690_aspirus-eagle-river-hospital_standardcharges.json"
       expected_format: json
       notes: Current FY26 Aspirus transparency JSON.
 
@@ -277,8 +441,9 @@ hospitals:
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Aspirus
+    active: false
     mrf_source:
-      url: https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390806429_aspirus-langlade-hospital_standardcharges.json
+      url: "https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390806429_aspirus-langlade-hospital_standardcharges.json"
       expected_format: json
       notes: Current FY26 Aspirus transparency JSON.
 
@@ -287,8 +452,9 @@ hospitals:
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Aspirus
+    active: false
     mrf_source:
-      url: https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390964813_aspirus-medford-hospital-_standardcharges.json
+      url: "https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390964813_aspirus-medford-hospital-_standardcharges.json"
       expected_format: json
       notes: Current FY26 Aspirus transparency JSON.
 
@@ -297,8 +463,9 @@ hospitals:
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Aspirus
+    active: false
     mrf_source:
-      url: https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390808503_aspirus-merrill-hospital_standardcharges.json
+      url: "https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390808503_aspirus-merrill-hospital_standardcharges.json"
       expected_format: json
       notes: Current FY26 Aspirus transparency JSON.
 
@@ -307,8 +474,9 @@ hospitals:
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Aspirus
+    active: false
     mrf_source:
-      url: https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/391138241_aspirus-wausau-hospital_standardcharges.json
+      url: "https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/391138241_aspirus-wausau-hospital_standardcharges.json"
       expected_format: json
       notes: Current FY26 Aspirus transparency JSON.
 
@@ -317,8 +485,9 @@ hospitals:
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Aspirus
+    active: false
     mrf_source:
-      url: https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390868982_aspirus-wisconsin-rapids-hospital_standardcharges.json
+      url: "https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390868982_aspirus-wisconsin-rapids-hospital_standardcharges.json"
       expected_format: json
       notes: Current FY26 Aspirus transparency JSON.
 
@@ -327,8 +496,9 @@ hospitals:
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Aspirus
+    active: false
     mrf_source:
-      url: https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390873606_howard-young-medical-center_standardcharges.json
+      url: "https://www.aspirus.org/Uploads/Public/Documents/PriceEstimate/TransparencyFY26/390873606_howard-young-medical-center_standardcharges.json"
       expected_format: json
       notes: Current FY26 Aspirus transparency JSON.
 
@@ -337,8 +507,9 @@ hospitals:
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Mercyhealth
+    active: false
     mrf_source:
-      url: https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/a078592a382b4bf9b8cf336fac604fd4/362167847-javonbeahospital-standardcharges.json
+      url: "https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/a078592a382b4bf9b8cf336fac604fd4/362167847-javonbeahospital-standardcharges.json"
       expected_format: json
       notes: Discovered from Mercyhealth cms-hpt.txt.
 
@@ -347,8 +518,9 @@ hospitals:
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Mercyhealth
+    active: false
     mrf_source:
-      url: https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/5164272593a44bf7b23c3bb34035a488/390816848-mercywalworthhospital-standardcharges.json
+      url: "https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/5164272593a44bf7b23c3bb34035a488/390816848-mercywalworthhospital-standardcharges.json"
       expected_format: json
       notes: Discovered from Mercyhealth cms-hpt.txt.
 
@@ -357,7 +529,8 @@ hospitals:
     canonical_state: WI
     hospital_type: nonprofit
     health_system: Mercyhealth
+    active: false
     mrf_source:
-      url: https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/87fdddfc55a14d4fbafdf4aefaa2f04e/390816848-mercyjanesvillehospital-standardcharges.json
+      url: "https://res.cloudinary.com/dpmykpsih/raw/upload/fl_attachment/mercyhealth-site-398/media/r/87fdddfc55a14d4fbafdf4aefaa2f04e/390816848-mercyjanesvillehospital-standardcharges.json"
       expected_format: json
       notes: Discovered from Mercyhealth cms-hpt.txt.

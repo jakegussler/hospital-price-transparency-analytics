@@ -90,6 +90,13 @@ class HospitalSource(BaseModel):
         "nonprofit",
     ]
     health_system: str | None = None
+    active: bool = True
+    """Whether this hospital is in the working pipeline set.
+
+    Inactive entries are retained in the registry (URL research is preserved)
+    but excluded from bulk download/ingest, the dbt hospitals seed, and the
+    all-hospitals dbt resolution. They can still be targeted explicitly by id.
+    """
     mrf_source: MrfSource
 
     @field_validator("hospital_id")

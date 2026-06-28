@@ -89,9 +89,74 @@ class TestGetHospital:
             get_hospital("no-such-id", FIXTURES / "valid_registry.yml")
 
 
+class TestActivation:
+    _REGISTRY = (
+        "hospitals:\n"
+        "  - hospital_id: active-hospital\n"
+        "    canonical_hospital_name: Active\n"
+        "    canonical_state: TN\n"
+        "    hospital_type: community\n"
+        "    mrf_source:\n"
+        "      url: https://example.com/active.csv\n"
+        "      expected_format: csv_wide\n"
+        "  - hospital_id: inactive-hospital\n"
+        "    canonical_hospital_name: Inactive\n"
+        "    canonical_state: CA\n"
+        "    hospital_type: community\n"
+        "    active: false\n"
+        "    mrf_source:\n"
+        "      url: https://example.com/inactive.csv\n"
+        "      expected_format: csv_wide\n"
+    )
+
+    def _write(self, tmp_path: Path) -> Path:
+        p = tmp_path / "activation.yml"
+        p.write_text(self._REGISTRY)
+        return p
+
+    def test_active_defaults_true(self, tmp_path):
+        hospitals = load_registry(self._write(tmp_path), include_inactive=True)
+        by_id = {h.hospital_id: h for h in hospitals}
+        assert by_id["active-hospital"].active is True
+        assert by_id["inactive-hospital"].active is False
+
+    def test_default_excludes_inactive(self, tmp_path):
+        hospitals = load_registry(self._write(tmp_path))
+        assert [h.hospital_id for h in hospitals] == ["active-hospital"]
+
+    def test_include_inactive_returns_all(self, tmp_path):
+        hospitals = load_registry(self._write(tmp_path), include_inactive=True)
+        assert {h.hospital_id for h in hospitals} == {
+            "active-hospital",
+            "inactive-hospital",
+        }
+
+    def test_get_hospital_finds_inactive(self, tmp_path):
+        h = get_hospital("inactive-hospital", self._write(tmp_path))
+        assert h.hospital_id == "inactive-hospital"
+
+    def test_duplicate_check_spans_inactive(self, tmp_path):
+        p = tmp_path / "dupe.yml"
+        p.write_text(
+            self._REGISTRY
+            + "  - hospital_id: active-hospital\n"
+            "    canonical_hospital_name: Dupe\n"
+            "    canonical_state: TN\n"
+            "    hospital_type: community\n"
+            "    active: false\n"
+            "    mrf_source:\n"
+            "      url: https://example.com/dupe.csv\n"
+            "      expected_format: csv_wide\n"
+        )
+        with pytest.raises(RegistryError, match="Duplicate hospital_id"):
+            load_registry(p)
+
+
 class TestHospitalIdValidation:
     def test_expanded_state_registry_loads(self):
-        hospitals = load_registry()
+        # States span the full registry (active + inactive); deactivating the
+        # non-Nashville corpus must not drop these CMS state codes from the file.
+        hospitals = load_registry(include_inactive=True)
         states = {h.canonical_state for h in hospitals}
 
         assert {"CA", "GA", "ID", "IL", "MI", "MN", "WI"}.issubset(states)

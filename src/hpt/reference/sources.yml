@@ -1,0 +1,30 @@
+sources:
+  ms-drg:
+    name: ms_drg
+    code_type: ms-drg
+    url: https://www.cms.gov/files/zip/fy-2025-ipps-final-rule-table-5.zip
+    member: FY2025 IPPS Final Rule Table 5.txt
+    parser: ms_drg_table5
+    code_edition: FY2025
+    effective_start: 2024-10-01
+    effective_end: 2025-09-30
+    release_date: 2024-10-01
+    source: CMS
+    license: public-domain
+    extra_fields:
+      - name: mdc
+        type: string
+      - name: drg_type
+        type: string
+      - name: relative_weight
+        type: float64
+      - name: relative_weight_uncapped
+        type: float64
+      - name: geometric_mean_los
+        type: float64
+      - name: arithmetic_mean_los
+        type: float64
+      - name: post_acute_drg
+        type: bool
+      - name: special_pay_drg
+        type: bool

@@ -27,6 +27,7 @@ from hpt.pipeline.dbt_config import (
 from hpt.pipeline.dbt_manager import DbtManager
 from hpt.pipeline.dbt_orchestrator import DbtOrchestrator
 from hpt.pipeline.ingest_snapshot import ingest_snapshot
+from hpt.reference.code_descriptions import REFERENCE_SOURCES, load_reference
 from hpt.registry.loader import RegistryError, get_hospitals, load_registry
 from hpt.registry.models import HospitalSource
 from hpt.registry.seed_export import get_default_hospitals_seed_path, write_hospitals_seed
@@ -240,6 +241,58 @@ def export_hospitals_seed_logic(
 
     typer.echo(f"Wrote hospitals seed: {written_path}")
     return 0
+
+
+@cli.command("load-reference")
+def load_reference_cmd(
+    source: str = typer.Option(
+        "all",
+        "--source",
+        help=(
+            "Reference source to load (for example 'ms-drg'), or 'all' for every "
+            f"registered source. Available: {', '.join(sorted(REFERENCE_SOURCES))}."
+        ),
+    ),
+    reference_root: Path | None = typer.Option(
+        None,
+        "--reference-root",
+        file_okay=False,
+        dir_okay=True,
+        help="Bronze Parquet root for reference data. Defaults to HPT_REFERENCE_ROOT.",
+        show_default=False,
+    ),
+    reference_raw_root: Path | None = typer.Option(
+        None,
+        "--reference-raw-root",
+        file_okay=False,
+        dir_okay=True,
+        help="Raw cache root for reference data. Defaults to HPT_REFERENCE_RAW_ROOT.",
+        show_default=False,
+    ),
+    log_level: str = typer.Option("INFO", "--log-level", help="Set the logging level."),
+) -> None:
+    """Download and persist green-light code-description reference data."""
+    configure_logging(log_level=log_level)
+    log = get_logger("cli.load_reference")
+    names = sorted(REFERENCE_SOURCES) if source == "all" else [source]
+    unknown = [n for n in names if n not in REFERENCE_SOURCES]
+    if unknown:
+        typer.echo(f"Unknown reference source(s): {unknown}", err=True)
+        raise typer.Exit(code=2)
+    failures = 0
+    for name in names:
+        try:
+            path = load_reference(
+                name,
+                reference_root=reference_root,
+                raw_root=reference_raw_root,
+            )
+            typer.echo(f"Wrote reference '{name}': {path}")
+        except Exception as exc:  # noqa: BLE001
+            log.exception("reference_load_failed", extra={"source": name, "error": str(exc)})
+            typer.echo(f"Failed to load reference '{name}': {exc}", err=True)
+            failures += 1
+    raise typer.Exit(code=1 if failures else 0)
 
 
 @cli.command("run-dbt")

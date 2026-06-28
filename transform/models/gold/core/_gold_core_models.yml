@@ -134,13 +134,13 @@ models:
 
   - name: gld_dim__service_code
     description: >
-      Thin conformed service-code (code-cohort) dimension. Grain: one row per
+      Conformed service-code (code-cohort) dimension. Grain: one row per
       (canonical_code_system, match_code) observed among cross-hospital-comparable
       codes with a non-null match_code. service_code_key is the conformed cohort
-      key the bridge and marts join on. Thin by design: v1 ships no external code
-      descriptions or groupers (decision 0017 non-goal); this model is the
-      conformed key plus the seam where enrichment later attaches descriptions and
-      service families.
+      key the bridge and marts join on. This is the enrichment seam (decision
+      0019): green-light, public-domain descriptions and grouper context join from
+      slv_core__billing_code_descriptions (MS-DRG today; HCPCS/APC next). Licensed
+      systems (CPT/CDT) stay description-null until a license is acquired.
     columns:
       - name: service_code_key
         description: "md5(canonical_code_system || match_code). Conformed cohort key. Primary key."
@@ -159,6 +159,24 @@ models:
         description: "True when the code system pins down a single item (whitelist; cdm/local/revenue/icd are not specific)."
       - name: code_cross_hospital_comparable
         description: "Always true here (membership filter); kept for explicit downstream filtering and readability."
+      - name: code_description
+        description: "Human-readable code title from green-light reference data; null where no public description exists (licensed/unmatched)."
+      - name: code_description_edition
+        description: "Edition/vintage of the attached description (e.g. FY2025); latest loaded edition per code."
+      - name: code_description_source
+        description: "Authoritative source of the description (e.g. CMS); null when undescribed."
+      - name: code_description_license
+        description: "License posture of the description (e.g. public-domain); null when undescribed."
+      - name: relative_weight
+        description: "MS-DRG relative weight (10% cap applied) where applicable; null for non-DRG systems."
+      - name: ms_drg_mdc
+        description: "Major Diagnostic Category for MS-DRG codes; null otherwise."
+      - name: ms_drg_type
+        description: "MS-DRG surgical/medical type (SURG/MED); null otherwise."
+      - name: has_code_description
+        description: "True when a code_description is attached. Gates the legible subset for analyses without filtering the dimension."
+        tests:
+          - not_null
 
   - name: gld_dim__modifier_signature
     description: >

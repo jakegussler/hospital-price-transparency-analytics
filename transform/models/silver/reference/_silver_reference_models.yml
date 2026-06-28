@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: slv_core__billing_code_descriptions
+    description: >
+      Conformed code-description dimension from green-light, public-domain
+      reference data (decision 0019). One row per
+      (canonical_code_system, match_code, code_edition), normalized to the same
+      keys slv_core__charge_item_codes produces so Gold's gld_dim__service_code
+      can attach descriptions. MS-DRG today; HCPCS/APC union in later. Grouper
+      columns (relative_weight, mdc, drg_type, *_los) are populated only for the
+      systems that publish them.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - canonical_code_system
+              - match_code
+              - code_edition
+    columns:
+      - name: canonical_code_system
+        description: "Normalized code system, joinable to slv_core__charge_item_codes."
+        tests:
+          - not_null
+      - name: match_code
+        description: "Normalized comparison code value (e.g. 3-digit MS-DRG)."
+        tests:
+          - not_null
+      - name: code_edition
+        description: "Edition/vintage of the source release (e.g. FY2025)."
+        tests:
+          - not_null
+      - name: code_description
+        description: "Human-readable code title."
+        tests:
+          - not_null
+      - name: code_description_license
+        description: "License posture of the description."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["public-domain"]

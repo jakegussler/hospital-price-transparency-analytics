@@ -82,7 +82,8 @@ standard_charge_base as (
         cast(null as integer) as count_min,
         cast(null as integer) as count_max,
         sc.clean_setting,
-        sc.clean_billing_class,
+        -- Billing class is not reliably present, so treat its absence as an explicit 'unspecified' context.
+        coalesce(sc.clean_billing_class, 'unspecified') as clean_billing_class,
         coalesce(mods.modifier_signature, {{ hpt_no_modifier_signature() }}) as modifier_signature,
         coalesce(mods.modifier_count, 0) as modifier_count,
         coalesce(mods.has_pro_tech_split_modifier, false) as has_pro_tech_split_modifier,
@@ -129,7 +130,8 @@ payer_rate_base as (
         pr.count_min,
         pr.count_max,
         pr.clean_setting,
-        pr.clean_billing_class,
+        -- See standard_charge_base: absent billing_class -> explicit 'unspecified'.
+        coalesce(pr.clean_billing_class, 'unspecified') as clean_billing_class,
         pr.modifier_signature,
         pr.modifier_count,
         coalesce(mods.has_pro_tech_split_modifier, false) as has_pro_tech_split_modifier,

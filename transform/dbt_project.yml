@@ -30,6 +30,8 @@ models:
     staging:
       +materialized: view
       +tags: ["staging"]
+      reference:
+        +tags: ["staging", "reference"]
       stg_bronze__hospital_mrf_snapshots:
         +tags: ["pipeline_snapshot_metadata", "pipeline_charge_data"]
       stg_bronze__hospital_locations:
@@ -105,6 +107,11 @@ models:
           +incremental_strategy: null
         slv_core__service_items:
           +incremental_strategy: null
+      reference:
+        # Externally-sourced code descriptions; not snapshot-grained.
+        +materialized: table
+        +incremental_strategy: null
+        +tags: ["silver_core", "silver"]
       review_queue:
         +materialized: table
         +incremental_strategy: null

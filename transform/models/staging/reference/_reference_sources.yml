@@ -1,0 +1,30 @@
+version: 2
+
+# External reference data written by `hpt load-reference` to
+# `{HPT_REFERENCE_ROOT}/{table}/release_date={date}/*.parquet`. Independently
+# snapshotted from the hospital-MRF lineage; `release_date` is a Hive partition
+# column. See src/hpt/reference/ and docs/local/external-data-enrichment.md.
+sources:
+  - name: reference
+    description: "Green-light, public-domain code reference data (descriptions, groupers, weights)."
+    meta:
+      external_location: "read_parquet('{{ env_var('HPT_REFERENCE_ROOT', '../data/reference/bronze') }}/{name}/**/*.parquet', hive_partitioning=true, union_by_name=true)"
+    tables:
+      - name: ms_drg
+        description: >
+          CMS MS-DRG list (IPPS Final Rule Table 5): one row per (MS-DRG code,
+          code_edition) with title, MDC, surgical/medical type, relative weight,
+          and mean length of stay. Public domain (CMS).
+        columns:
+          - name: code
+            description: "MS-DRG number, zero-padded to 3 digits."
+            tests:
+              - not_null
+          - name: code_edition
+            description: "Edition/vintage, e.g. FY2025."
+            tests:
+              - not_null
+          - name: description
+            description: "MS-DRG title."
+            tests:
+              - not_null

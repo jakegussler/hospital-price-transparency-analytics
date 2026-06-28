@@ -19,8 +19,17 @@ class RegistryError(Exception):
     """Raised when the registry file is invalid or inconsistent."""
 
 
-def load_registry(path: Path = _DEFAULT_REGISTRY) -> list[HospitalSource]:
-    """Read *path*, validate every entry, and return a list of HospitalSource."""
+def load_registry(
+    path: Path = _DEFAULT_REGISTRY, *, include_inactive: bool = False
+) -> list[HospitalSource]:
+    """Read *path*, validate every entry, and return a list of HospitalSource.
+
+    By default only ``active`` hospitals are returned: this is the working
+    pipeline set used by bulk download/ingest, the all-hospitals dbt resolution,
+    and the dbt hospitals seed export. Pass ``include_inactive=True`` to return
+    the full registry (validation and duplicate-id checks always span every
+    entry regardless of activation).
+    """
     logger.debug("registry_load_start", extra={"path": str(path)})
     try:
         with open(path) as fh:
@@ -47,21 +56,32 @@ def load_registry(path: Path = _DEFAULT_REGISTRY) -> list[HospitalSource]:
         seen_ids.add(hospital.hospital_id)
         hospitals.append(hospital)
 
+    if not include_inactive:
+        hospitals = [hospital for hospital in hospitals if hospital.active]
+
     log_registry_loaded(logger, path=path, n_hospitals=len(hospitals))
     return hospitals
 
 
 def get_hospital(hospital_id: str, path: Path = _DEFAULT_REGISTRY) -> HospitalSource:
-    """Return a single HospitalSource by *hospital_id*, or raise KeyError."""
-    for h in load_registry(path):
+    """Return a single HospitalSource by *hospital_id*, or raise KeyError.
+
+    Explicit lookups span inactive hospitals too, so a deactivated hospital can
+    still be targeted by id.
+    """
+    for h in load_registry(path, include_inactive=True):
         if h.hospital_id == hospital_id:
             return h
     raise KeyError(f"Hospital not found in registry: {hospital_id!r}")
 
 
 def get_hospitals(hospital_ids: list[str], path: Path = _DEFAULT_REGISTRY) -> list[HospitalSource]:
-    """Return a list of HospitalSource by *hospital_ids*, or raise KeyError."""
-    hospitals_by_id = {h.hospital_id: h for h in load_registry(path)}
+    """Return a list of HospitalSource by *hospital_ids*, or raise KeyError.
+
+    Explicit lookups span inactive hospitals too, so deactivated hospitals can
+    still be targeted by id.
+    """
+    hospitals_by_id = {h.hospital_id: h for h in load_registry(path, include_inactive=True)}
     ordered_ids: list[str] = []
     seen: set[str] = set()
     for hospital_id in hospital_ids:
