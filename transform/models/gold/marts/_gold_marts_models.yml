@@ -3,7 +3,7 @@ version: 2
 models:
   - name: gld_int__service_comparison_spine
     description: >
-      Intermediate for gld__service_price_comparison_current: the code-expanded,
+      Intermediate for gld_mart__service_price_comparison_current: the code-expanded,
       classified "expanded spine" (fact ⋈ bridge + the §6 comparison_tier /
       blocker columns) materialized once as a table so the consuming mart's five
       peer cuts read it back via narrow columnar scans instead of rebuilding the
@@ -39,7 +39,7 @@ models:
         tests:
           - not_null
 
-  - name: gld__service_price_comparison_current
+  - name: gld_mart__service_price_comparison_current
     description: >
       User question: "For this service (code cohort + context), which hospitals
       report comparable current prices, how do they vary, and how much should I
@@ -215,13 +215,13 @@ models:
       - name: freshness_bucket
         description: "Snapshot freshness band from gld_dim__snapshot."
 
-  - name: gld__service_price_summary
+  - name: gld_mart__service_price_summary
     description: >
       User question: "Across hospitals, how does the price for this service +
       context vary?" Aggregate distribution model. Grain: one row per
       (service_code_key, clean_setting, clean_billing_class, modifier_signature,
       amount_kind). Built from the price-ranking subset of
-      gld__service_price_comparison_current (is_price_ranking_row = true), so it
+      gld_mart__service_price_comparison_current (is_price_ranking_row = true), so it
       reconciles to that mart and inherits its current-only, tier_2 + dollar-rankable
       inclusion. Denominator rule (0017): percentile/median/spread/IQR/outlier
       columns are suppressed (null) below the 3-hospital floor, with the
@@ -294,13 +294,13 @@ models:
       - name: outlier_observation_count
         description: "Observations outside the 1.5×IQR fences; null below the floor."
 
-  - name: gld__hospital_service_benchmarks
+  - name: gld_mart__hospital_service_benchmarks
     description: >
       User question: "For a service + context, how does THIS hospital's price
       compare to the market and to its peer groups?" Grain: one row per
       (hospital_id, service_code_key, clean_setting, clean_billing_class,
       modifier_signature, amount_kind). Built from the price-ranking subset of
-      gld__service_price_comparison_current. The hospital's representative amount is
+      gld_mart__service_price_comparison_current. The hospital's representative amount is
       the median of its rankable observations in the context. Market comparison is
       published for four peer groups (all / same state / same hospital_type / same
       health_system), each gated by its own 3-hospital denominator (0017): below the
@@ -400,7 +400,7 @@ models:
       - name: delta_from_market_median_system
         description: "hospital_amount − market_median_system; null below the floor."
 
-  - name: gld__payer_service_benchmarks
+  - name: gld_mart__payer_service_benchmarks
     description: >
       User question: "For a matched payer, how does this hospital's negotiated
       dollar compare to the payer's market and to the hospital's own cash price?"
@@ -409,7 +409,7 @@ models:
       negotiated_dollar. Prerequisite gate (0017): canonical_payer_id is required —
       unmatched/null-payer rows never enter. market_segment is a representative
       (any_value) attribute for segment cuts, not a grain key. Built from the
-      price-ranking negotiated_dollar subset of gld__service_price_comparison_current.
+      price-ranking negotiated_dollar subset of gld_mart__service_price_comparison_current.
       The payer-market median is gated by a 3-hospital floor. Known missingness/bias:
       payer + context groups rarely reach 3 hospitals in a small corpus, so
       payer_market_median_negotiated is often null; the hospital-cash delta is null

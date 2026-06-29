@@ -8,12 +8,12 @@
 
 with scorecard as (
     select *
-    from {{ ref('gld__hospital_transparency_scorecard') }}
+    from {{ ref('gld_score__hospital_transparency_scorecard') }}
 ),
 
 snapshot_coverage as (
     select *
-    from {{ ref('gld__snapshot_coverage_scorecard') }}
+    from {{ ref('gld_score__snapshot_coverage_scorecard') }}
 ),
 
 service_benchmark_counts as (
@@ -24,7 +24,7 @@ service_benchmark_counts as (
         count(distinct case
             when peer_hospital_count_all >= 3 then service_code_key
         end) as benchmark_services_meeting_floor
-    from {{ ref('gld__hospital_service_benchmarks') }}
+    from {{ ref('gld_mart__hospital_service_benchmarks') }}
     group by hospital_id
 ),
 
@@ -34,7 +34,7 @@ payer_benchmark_counts as (
         count(*) as payer_contract_context_count,
         count(distinct canonical_payer_id) as matched_payer_count,
         count(distinct service_code_key) as payer_contract_service_count
-    from {{ ref('gld__payer_service_benchmarks') }}
+    from {{ ref('gld_mart__payer_service_benchmarks') }}
     group by hospital_id
 ),
 

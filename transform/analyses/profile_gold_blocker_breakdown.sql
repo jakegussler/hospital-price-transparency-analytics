@@ -3,7 +3,7 @@
 -- snapshots) into a ranked, tall breakdown with shares of classified cohorts.
 with cov as (
     select *
-    from {{ ref('gld__snapshot_coverage_scorecard') }}
+    from {{ ref('gld_score__snapshot_coverage_scorecard') }}
     where is_current_snapshot = true
 ),
 

@@ -1,11 +1,11 @@
--- gld__hospital_service_benchmarks
+-- gld_mart__hospital_service_benchmarks
 --
 -- User question: "For a given service + context, how does THIS hospital's price
 -- compare to the market and to its peer groups?"
 --
 -- Grain: one row per (hospital_id, service_code_key, clean_setting,
 -- clean_billing_class, modifier_signature, amount_kind). Built from the
--- price-ranking subset of gld__service_price_comparison_current
+-- price-ranking subset of gld_mart__service_price_comparison_current
 -- (is_price_ranking_row = true), so it reconciles to that mart and inherits its
 -- current-only, tier_2 + dollar-rankable inclusion.
 --
@@ -31,7 +31,7 @@ with base as (
         modifier_signature,
         amount_kind,
         amount_value
-    from {{ ref('gld__service_price_comparison_current') }}
+    from {{ ref('gld_mart__service_price_comparison_current') }}
     where is_price_ranking_row = true
 ),
 

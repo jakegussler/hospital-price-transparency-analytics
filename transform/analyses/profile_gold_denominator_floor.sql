@@ -8,6 +8,6 @@ select
     round(sum((hospital_count >= 3)::int) / count(*)::double, 4)
         as pct_cohorts_meeting_floor,
     max(hospital_count) as max_hospitals_in_a_cohort
-from {{ ref('gld__service_price_summary') }}
+from {{ ref('gld_mart__service_price_summary') }}
 group by 1
 order by 1

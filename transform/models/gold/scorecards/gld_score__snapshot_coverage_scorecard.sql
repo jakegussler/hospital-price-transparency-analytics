@@ -1,4 +1,4 @@
--- gld__snapshot_coverage_scorecard (plan §8.1)
+-- gld_score__snapshot_coverage_scorecard (plan §8.1)
 --
 -- Grain: one row per snapshot_id. Purpose: rank TRUST before price, and double as
 -- the Gold-side reconciliation anchor — its atomic observation/charge/rate counts
@@ -60,7 +60,7 @@ with fact_agg as (
 
 -- Re-derive comparison tier + row-level blockers + code-cohort coverage from
 -- fact ⋈ bridge using macros (same classification as
--- gld__service_price_comparison_current, minus the current-only filter and peer
+-- gld_mart__service_price_comparison_current, minus the current-only filter and peer
 -- windows). Grain: observation × comparable cohort, tier_0 collapse via the left
 -- join — identical to the mart and the gld_int spine.
 comparison_cohorts as (

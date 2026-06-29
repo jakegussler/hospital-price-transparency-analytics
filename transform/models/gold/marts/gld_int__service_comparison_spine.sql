@@ -1,6 +1,6 @@
 -- gld_int__service_comparison_spine
 --
--- Intermediate for gld__service_price_comparison_current. Materializes the
+-- Intermediate for gld_mart__service_price_comparison_current. Materializes the
 -- code-expanded, blocker-annotated "expanded spine" (fact ⋈ bridge + the
 -- comparison_tier / blocker classification) as its OWN table so the comparison
 -- mart's many peer cuts read it back instead of rebuilding it.

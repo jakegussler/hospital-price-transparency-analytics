@@ -14,4 +14,4 @@ select
     sum(payer_unmatched::int) as payer_unmatched,
     sum(market_segment_unknown::int) as market_segment_unknown,
     sum(below_min_hospital_denominator::int) as below_min_hospital_denominator
-from {{ ref('gld__service_price_comparison_current') }}
+from {{ ref('gld_mart__service_price_comparison_current') }}

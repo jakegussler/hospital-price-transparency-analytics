@@ -2,11 +2,11 @@
 --
 -- BI presentation surface for hospital-vs-market service rankings.
 -- Grain: one row per hospital/service/context/amount_kind from
--- gld__hospital_service_benchmarks, enriched with labels and position bands.
+-- gld_mart__hospital_service_benchmarks, enriched with labels and position bands.
 
 with benchmarks as (
     select *
-    from {{ ref('gld__hospital_service_benchmarks') }}
+    from {{ ref('gld_mart__hospital_service_benchmarks') }}
 ),
 
 hospitals as (

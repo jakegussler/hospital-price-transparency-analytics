@@ -9,7 +9,7 @@ with fact_counts as (
 
 scorecard_counts as (
     select snapshot_id, observation_count
-    from {{ ref('gld__snapshot_coverage_scorecard') }}
+    from {{ ref('gld_score__snapshot_coverage_scorecard') }}
 )
 
 select

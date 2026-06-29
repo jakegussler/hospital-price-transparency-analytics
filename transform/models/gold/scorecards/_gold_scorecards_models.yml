@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: gld__snapshot_coverage_scorecard
+  - name: gld_score__snapshot_coverage_scorecard
     description: >
       Coverage / trust scorecard. Grain: one row per snapshot_id. Ranks trust
       before price and doubles as the Gold-side reconciliation anchor — its atomic
@@ -114,7 +114,7 @@ models:
       - name: blocker_market_segment_unknown
         description: "Comparison rows blocked: market_segment unknown."
 
-  - name: gld__hospital_transparency_scorecard
+  - name: gld_score__hospital_transparency_scorecard
     description: >
       Transparency / coverage / data-readiness scorecard. Grain: one row per
       hospital_id (its current snapshot). Rolls the per-snapshot coverage scorecard

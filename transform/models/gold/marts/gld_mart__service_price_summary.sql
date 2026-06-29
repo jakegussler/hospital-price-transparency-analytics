@@ -1,9 +1,9 @@
--- gld__service_price_summary (plan §7.2)
+-- gld_mart__service_price_summary (plan §7.2)
 --
 -- Aggregate variation/distribution model. Grain: one row per
 -- (service_code_key, clean_setting, clean_billing_class, modifier_signature,
 -- amount_kind). Built from the price-ranking subset of
--- gld__service_price_comparison_current (is_price_ranking_row = true), so it
+-- gld_mart__service_price_comparison_current (is_price_ranking_row = true), so it
 -- reconciles to that mart by construction and inherits its current-only,
 -- tier_2 + dollar-rankable inclusion.
 --
@@ -26,7 +26,7 @@ with base as (
         hospital_id,
         canonical_payer_id,
         amount_value
-    from {{ ref('gld__service_price_comparison_current') }}
+    from {{ ref('gld_mart__service_price_comparison_current') }}
     where is_price_ranking_row = true
 ),
 

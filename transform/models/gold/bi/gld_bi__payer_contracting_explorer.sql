@@ -2,11 +2,11 @@
 --
 -- BI presentation surface for payer contracting exploration.
 -- Grain: one row per payer/hospital/service/context from
--- gld__payer_service_benchmarks, enriched with labels and contracting bands.
+-- gld_mart__payer_service_benchmarks, enriched with labels and contracting bands.
 
 with benchmarks as (
     select *
-    from {{ ref('gld__payer_service_benchmarks') }}
+    from {{ ref('gld_mart__payer_service_benchmarks') }}
 ),
 
 hospitals as (

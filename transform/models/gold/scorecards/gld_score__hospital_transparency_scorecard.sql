@@ -1,4 +1,4 @@
--- gld__hospital_transparency_scorecard
+-- gld_score__hospital_transparency_scorecard
 --
 -- Grain: one row per hospital_id (its current snapshot). Purpose: separate "large
 -- file" from "usable comparison coverage" by rolling the per-snapshot coverage
@@ -9,13 +9,13 @@
 -- dollar-valued data a hospital published — NOT legal compliance. Do not read a
 -- compliance verdict from these convenience metrics.
 --
--- Reads the per-snapshot gld__snapshot_coverage_scorecard, picks each hospital's
+-- Reads the per-snapshot gld_score__snapshot_coverage_scorecard, picks each hospital's
 -- current snapshot, and joins gld_dim__hospital for descriptive attributes.
 -- Full-refresh table (gold.scorecards config block).
 
 with coverage as (
     select *
-    from {{ ref('gld__snapshot_coverage_scorecard') }}
+    from {{ ref('gld_score__snapshot_coverage_scorecard') }}
 ),
 
 -- One row per hospital: its current snapshot (or, absent one, its freshest).

@@ -1,4 +1,4 @@
--- gld__service_price_comparison_current
+-- gld_mart__service_price_comparison_current
 --
 -- User question: "For this service (code cohort + context), which hospitals report
 -- comparable current prices, how do they vary, and how much should I trust it?"

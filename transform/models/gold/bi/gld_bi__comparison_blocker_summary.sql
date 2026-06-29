@@ -2,12 +2,12 @@
 --
 -- BI presentation surface for explaining why published rows do or do not reach
 -- stricter comparison use cases. Grain: one row per snapshot/blocker_code.
--- Counts come from gld__snapshot_coverage_scorecard, preserving the same blocker
+-- Counts come from gld_score__snapshot_coverage_scorecard, preserving the same blocker
 -- vocabulary as the comparison framework.
 
 with coverage as (
     select *
-    from {{ ref('gld__snapshot_coverage_scorecard') }}
+    from {{ ref('gld_score__snapshot_coverage_scorecard') }}
 ),
 
 blockers as (

@@ -1,13 +1,13 @@
 -- gld_bi__service_market_explorer
 --
 -- BI model for service-market exploration.
--- Grain: one row per service/context/amount_kind from gld__service_price_summary.
+-- Grain: one row per service/context/amount_kind from gld_mart__service_price_summary.
 -- Adds display labels, threshold flags, spread measures, and trust/status fields
 -- so dashboards can select/filter without re-implementing Gold rules.
 
 with summary as (
     select *
-    from {{ ref('gld__service_price_summary') }}
+    from {{ ref('gld_mart__service_price_summary') }}
 ),
 
 service_codes as (

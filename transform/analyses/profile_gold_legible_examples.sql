@@ -16,7 +16,7 @@ select
     round(sps.p10_amount, 2) as p10_amount,
     round(sps.p90_amount, 2) as p90_amount,
     round(sps.spread_ratio_p90_to_p10, 2) as spread_ratio_p90_to_p10
-from {{ ref('gld__service_price_summary') }} as sps
+from {{ ref('gld_mart__service_price_summary') }} as sps
 inner join {{ ref('gld_dim__service_code') }} as scd
     on sps.service_code_key = scd.service_code_key
 where sps.meets_hospital_threshold

@@ -1,4 +1,4 @@
--- gld__payer_service_benchmarks
+-- gld_mart__payer_service_benchmarks
 --
 -- User question: "For a matched payer, how does this hospital's negotiated dollar
 -- compare to the payer's market and to the hospital's own cash price?"
@@ -11,7 +11,7 @@
 -- null-payer rows never enter (payer identity gates; plan never gates). market_segment
 -- is carried for segment cuts (which require market_segment <> 'unknown') but is a
 -- representative value here, not a grain key. Built from the price-ranking subset of
--- gld__service_price_comparison_current (negotiated_dollar only), so it reconciles
+-- gld_mart__service_price_comparison_current (negotiated_dollar only), so it reconciles
 -- to that mart.
 --
 -- Cross-snapshot aggregate → full-refresh table (marts config) reading the
@@ -27,7 +27,7 @@ with negotiated as (
         modifier_signature,
         market_segment,
         amount_value
-    from {{ ref('gld__service_price_comparison_current') }}
+    from {{ ref('gld_mart__service_price_comparison_current') }}
     where is_price_ranking_row = true
         and amount_kind = 'negotiated_dollar'
         and canonical_payer_id is not null
@@ -43,7 +43,7 @@ hosp_cash as (
         clean_billing_class,
         modifier_signature,
         median(amount_value) as hospital_cash_amount
-    from {{ ref('gld__service_price_comparison_current') }}
+    from {{ ref('gld_mart__service_price_comparison_current') }}
     where is_price_ranking_row = true
         and amount_kind = 'discounted_cash'
     group by 1, 2, 3, 4, 5
@@ -58,7 +58,7 @@ context_hospitals as (
         clean_billing_class,
         modifier_signature,
         count(distinct hospital_id) as context_hospital_count
-    from {{ ref('gld__service_price_comparison_current') }}
+    from {{ ref('gld_mart__service_price_comparison_current') }}
     where is_price_ranking_row = true
         and amount_kind = 'negotiated_dollar'
     group by 1, 2, 3, 4

@@ -1,8 +1,8 @@
--- Semantic guard (plan §10.4): gld__service_price_summary must not publish any
+-- Semantic guard (plan §10.4): gld_mart__service_price_summary must not publish any
 -- distribution statistic below the 3-hospital denominator floor (decision 0017).
 -- If any percentile/spread/IQR/outlier column is non-null, hospital_count >= 3.
 select *
-from {{ ref('gld__service_price_summary') }}
+from {{ ref('gld_mart__service_price_summary') }}
 where hospital_count < 3
     and (
         min_amount is not null

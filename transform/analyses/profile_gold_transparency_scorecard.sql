@@ -13,5 +13,5 @@ select
     round(payer_mapping_score, 3) as payer_mapping_score,
     round(comparison_readiness_score, 3) as comparison_readiness_score,
     round(overall_readiness_score, 3) as overall_readiness_score
-from {{ ref('gld__hospital_transparency_scorecard') }}
+from {{ ref('gld_score__hospital_transparency_scorecard') }}
 order by overall_readiness_score desc

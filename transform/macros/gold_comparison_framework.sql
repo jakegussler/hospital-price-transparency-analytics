@@ -12,8 +12,8 @@
         amount_comparability_tier, has_pro_tech_split_modifier, is_drug_observation,
         drug_unit_status, observation_scope, canonical_payer_id, market_segment
 
-    Used today by gld__service_price_comparison_current (plan §7.1) and intended for
-    gld__snapshot_coverage_scorecard (plan §8.1). The one blocker that depends on a
+    Used today by gld_mart__service_price_comparison_current (plan §7.1) and intended for
+    gld_score__snapshot_coverage_scorecard (plan §8.1). The one blocker that depends on a
     cross-hospital window — below_min_hospital_denominator — is NOT emitted here; it
     is computed by the consumer after the peer-count window is known.
 -#}
