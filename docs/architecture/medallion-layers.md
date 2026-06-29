@@ -152,16 +152,21 @@ Implemented models:
 - **Conformed dimensions** (`gld_dim__hospital`, `gld_dim__snapshot`,
   `gld_dim__payer`, `gld_dim__service_code`, `gld_dim__modifier_signature`) —
   full-refresh tables read unscoped so they span every snapshot.
-- **Atomic fact** `gld_core__rate_observations` — one row per reported amount
+- **Atomic fact** `gld_fct__rate_observations` — one row per reported amount
   cell; preserves lineage and exposes amount semantics. Does not fan out on code.
 - **Bridge** `gld_bridge__rate_observation_code` — the multi-code many-to-many,
   keeping the fact additive.
-- **Marts** — `gld__service_price_comparison_current` (current code-cohort price
-  comparison with blocker reasons + peer cuts), `gld__service_price_summary`,
-  `gld__hospital_service_benchmarks`, `gld__payer_service_benchmarks`.
-- **Scorecards** — `gld__snapshot_coverage_scorecard` (trust before price; a
-  reconciliation anchor to the fact) and `gld__hospital_transparency_scorecard`
+- **Marts** — `gld_mart__service_price_comparison_current` (current code-cohort price
+  comparison with blocker reasons + peer cuts), `gld_mart__service_price_summary`,
+  `gld_mart__hospital_service_benchmarks`, `gld_mart__payer_service_benchmarks`.
+- **Scorecards** — `gld_score__snapshot_coverage_scorecard` (trust before price; a
+  reconciliation anchor to the fact) and `gld_score__hospital_transparency_scorecard`
   (coverage/readiness, not compliance).
+- **BI presentation marts** — `gld_bi__hospital_overview`,
+  `gld_bi__service_market_explorer`, `gld_bi__hospital_service_rankings`,
+  `gld_bi__payer_contracting_explorer`, `gld_bi__comparison_blocker_summary`,
+  and `gld_bi__featured_services`. These are wide consumption surfaces over the
+  Gold contract, not new business-rule authorities.
 
 Gold models trade some source detail for usability but retain lineage back to
 Silver and Bronze identifiers. Per decisions 0016/0017 they do **not** build a

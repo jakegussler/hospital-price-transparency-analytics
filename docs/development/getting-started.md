@@ -131,7 +131,7 @@ The profile reads:
 The dbt project currently defines layer selectors for `staging`, `silver_base`,
 `silver_core`, `silver_review_queue`, `silver_audit`, `silver`, and
 `validation`; Gold selectors for `gold_core`, `gold_dimension`,
-`gold_per_snapshot`, `gold_marts`, `gold_scorecards`, and `gold`; pipeline
+`gold_per_snapshot`, `gold_marts`, `gold_scorecards`, `gold_bi`, and `gold`; pipeline
 selectors for `pipeline_snapshot_metadata` and `pipeline_charge_data`; and
 operational selectors for `audit`, `audit_staging`, and `audit_marts` in
 `transform/selectors.yml`.

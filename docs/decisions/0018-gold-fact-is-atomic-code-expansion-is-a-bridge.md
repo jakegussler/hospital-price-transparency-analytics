@@ -6,7 +6,7 @@ Status: accepted
 
 Decision [0017](0017-gold-comparability-framework.md) defines the v1 Gold
 comparability framework and, in its Consequences, describes
-`gld_core__rate_observations` as the single place that exposes "amount
+`gld_fct__rate_observations` as the single place that exposes "amount
 observations, code expansion, comparison context, lineage, and blocker reasons."
 
 Implementing that literally has a structural problem. A charge item can carry
@@ -22,7 +22,7 @@ fact stops being additive — a Kimball anti-pattern.
 
 Split 0017's single "expanded spine" into two models:
 
-1. **`gld_core__rate_observations` is the atomic fact.** Grain: one row per
+1. **`gld_fct__rate_observations` is the atomic fact.** Grain: one row per
    `(source charge/rate row, amount_kind)`. It does **not** fan out on billing
    code. It is the additive, reconcilable source of truth for "how many dollars
    were reported."
@@ -31,7 +31,7 @@ Split 0017's single "expanded spine" into two models:
    exposes (never filters) the comparability flags.
 
 The code-expanded, blocker-annotated surface that 0017 asks for is materialized
-**downstream** by `gld__service_price_comparison_current` (`fact ⋈ bridge ⋈
+**downstream** by `gld_mart__service_price_comparison_current` (`fact ⋈ bridge ⋈
 dims`), with the atomic fact underneath guaranteeing no double count. The
 intermediate `gld_int__service_comparison_spine` persists that join once so the
 mart's several peer cuts read it back instead of rebuilding it.

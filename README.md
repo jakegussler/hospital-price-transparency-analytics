@@ -155,10 +155,11 @@ The current implementation includes:
   tables, with configurable current-only or all-snapshot retention.
 - Review queue models for unmatched payer and payer/plan candidates.
 - Gold dimensional models: five conformed dimensions, the atomic
-  `gld_core__rate_observations` fact and `gld_bridge__rate_observation_code`,
-  the `gld__service_price_comparison_current` mart with comparability tiers and
+  `gld_fct__rate_observations` fact and `gld_bridge__rate_observation_code`,
+  the `gld_mart__service_price_comparison_current` mart with comparability tiers and
   blocker reasons, service/hospital/payer benchmark marts, and snapshot
-  coverage + hospital transparency scorecards (`main_gold` schema).
+  coverage + hospital transparency scorecards, plus `gld_bi__*` presentation
+  marts for dashboard/report consumption (`main_gold` schema).
 - pytest coverage for configuration, registry validation, download, storage,
   snapshots, parser behavior, Parquet writing, and ingest orchestration.
 - Append-only Parquet run audits for download, ingest, and dbt invocations.
@@ -270,7 +271,7 @@ hpt run-dbt --command test --hospital-ids vumc
 The dbt project defines layer selectors — `staging`; `silver_base`,
 `silver_core`, `silver_review_queue`, `silver_audit`, `silver`; `validation`;
 and `gold_core`, `gold_dimension`, `gold_marts`, `gold_scorecards`, `gold` —
-plus the pipeline selectors `pipeline_snapshot_metadata` and
+and `gold_bi`, plus the pipeline selectors `pipeline_snapshot_metadata` and
 `pipeline_charge_data` and the operational `audit`, `audit_staging`, and
 `audit_marts` selectors. Pass one with `--selector`, or use `--select` with dbt
 node syntax (`model`, `model+`, `+model`) for arbitrary targets.

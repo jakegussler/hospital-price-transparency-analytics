@@ -19,7 +19,7 @@ cross-hospital comparison decisions explicitly:
 
 The recent Gold-readiness audit model is the Silver readiness scorecard. This
 decision does not replace it. Instead, it records the row-level comparability
-rules Gold must apply when building `gld_core__rate_observations` and the first
+rules Gold must apply when building `gld_fct__rate_observations` and the first
 current comparison mart.
 
 The main risk is false precision. HPT rows can share a description while
@@ -146,7 +146,7 @@ an extension point by decision 0016.
 
 ## Consequences
 
-- `gld_core__rate_observations` becomes the shared place where amount
+- `gld_fct__rate_observations` becomes the shared place where amount
   observations, code expansion, comparison context, lineage, and blocker
   reasons are exposed.
 - The first current comparison mart can filter to current, dollar-rankable,

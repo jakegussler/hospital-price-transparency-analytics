@@ -36,7 +36,7 @@ flowchart LR
   CIC --> DC[gld_dim__service_code]
   CM --> DM[gld_dim__modifier_signature]
 
-  PR --> F[gld_core__rate_observations]
+  PR --> F[gld_fct__rate_observations]
   SC --> F
   CM --> F
   CI --> F
@@ -47,18 +47,25 @@ flowchart LR
 
   F --> SPINE[gld_int__service_comparison_spine]
   BR --> SPINE
-  SPINE --> MART[gld__service_price_comparison_current]
+  SPINE --> MART[gld_mart__service_price_comparison_current]
   DH --> MART
   DS --> MART
   DP --> MART
 
-  MART --> SUM[gld__service_price_summary]
-  MART --> HB[gld__hospital_service_benchmarks]
-  MART --> PB[gld__payer_service_benchmarks]
+  MART --> SUM[gld_mart__service_price_summary]
+  MART --> HB[gld_mart__hospital_service_benchmarks]
+  MART --> PB[gld_mart__payer_service_benchmarks]
 
-  F --> COV[gld__snapshot_coverage_scorecard]
+  F --> COV[gld_score__snapshot_coverage_scorecard]
   BR --> COV
-  COV --> HSCORE[gld__hospital_transparency_scorecard]
+  COV --> HSCORE[gld_score__hospital_transparency_scorecard]
+
+  SUM --> BI_SERVICE[gld_bi__service_market_explorer]
+  HB --> BI_HOSP_SERVICE[gld_bi__hospital_service_rankings]
+  PB --> BI_PAYER[gld_bi__payer_contracting_explorer]
+  HSCORE --> BI_HOSP[gld_bi__hospital_overview]
+  COV --> BI_BLOCKERS[gld_bi__comparison_blocker_summary]
+  BI_SERVICE --> BI_FEATURED[gld_bi__featured_services]
 ```
 
 ## Materialization & run scoping
@@ -66,15 +73,17 @@ flowchart LR
 | Model(s) | Materialization | Strategy | Reads inputs | Tag |
 |---|---|---|---|---|
 | `gld_dim__*` (5) | `table` | full refresh | **unscoped** `ref()` | `gold_dimension` |
-| `gld_core__rate_observations`, `gld_bridge__rate_observation_code` | `incremental` | `snapshot_replace` on `snapshot_id` | `hpt_scoped_ref()` | `gold_per_snapshot` |
+| `gld_fct__rate_observations`, `gld_bridge__rate_observation_code` | `incremental` | `snapshot_replace` on `snapshot_id` | `hpt_scoped_ref()` | `gold_per_snapshot` |
 | `gld_int__service_comparison_spine`, `gld__*` marts | `table` | full refresh | `ref()` | `gold_marts` |
 | `gld__*` scorecards | `table` | full refresh | `ref()` | `gold_scorecards` |
+| `gld_bi__*` presentation marts | `table` | full refresh | `ref()` | `gold_bi` |
 
-The per-snapshot workflow (`hpt run-dbt --per-snapshot`) runs four ordered Gold
+The per-snapshot workflow (`hpt run-dbt --per-snapshot`) runs five ordered Gold
 passes: `gold_dimension` (unscoped, once) → `gold_per_snapshot` (scoped fact +
-bridge) → `gold_marts` (unscoped, once) → `gold_scorecards` (unscoped, once).
+bridge) → `gold_marts` (unscoped, once) → `gold_scorecards` (unscoped, once) →
+`gold_bi` (unscoped, once).
 Selectors: `gold_core`, `gold_dimension`, `gold_per_snapshot`, `gold_marts`,
-`gold_scorecards`, and `gold` (everything).
+`gold_scorecards`, `gold_bi`, and `gold` (everything).
 
 ## Conformed dimensions
 
@@ -123,7 +132,7 @@ widening the fact or risking a modifier double-count.
 
 ## Core: atomic fact + bridge
 
-### `gld_core__rate_observations` (atomic fact)
+### `gld_fct__rate_observations` (atomic fact)
 Grain: **one row per `(source charge/rate row, amount_kind)`** within one
 snapshot. Does **not** fan out on billing code. A standard charge contributes up
 to four observation rows (gross/cash/min/max); a payer rate up to seven
@@ -150,7 +159,7 @@ Materializes the code-expanded, classified spine (`fact ⋈ bridge` + the §6
 comparison mart's five references read it back instead of rebuilding it
 (memory). Grain: `(gold_rate_observation_id, service_code_key)`.
 
-### `gld__service_price_comparison_current`
+### `gld_mart__service_price_comparison_current`
 User question: which hospitals report comparable current prices, how do they
 vary, how much to trust them. Grain: `(gold_rate_observation_id,
 service_code_key)`, current only. All tiers retained with `comparison_tier`,
@@ -159,20 +168,20 @@ payer-specific peer cuts (median/p10/p90/pct-rank/deltas), each gated by the
 3-hospital floor; guarded `gross_to_cash_ratio` / `cash_to_negotiated_ratio`.
 Dimension attributes joined for hospital, snapshot, and payer.
 
-### `gld__service_price_summary`
+### `gld_mart__service_price_summary`
 Grain: `(service_code_key, clean_setting, clean_billing_class,
 modifier_signature, amount_kind)`. Built from the mart's `is_price_ranking_row`
 subset. Denominators always published; percentiles/IQR/spread/outliers
 suppressed below the 3-hospital floor. Robust 1.5×IQR outlier flag (no
 winsorizing). Reconciles to the mart.
 
-### `gld__hospital_service_benchmarks`
+### `gld_mart__hospital_service_benchmarks`
 Grain: `(hospital_id, service context, amount_kind)`. The hospital's
 representative (median) amount vs market median for four peer groups — all, same
 state, same `hospital_type`, same `health_system` — each gated by its own
 3-hospital floor.
 
-### `gld__payer_service_benchmarks`
+### `gld_mart__payer_service_benchmarks`
 Grain: `(canonical_payer_id, hospital_id, service context)`,
 `amount_kind = negotiated_dollar`. Payer identity is the prerequisite gate
 (unmatched never enters). Negotiated dollar vs the hospital's own cash and vs the
@@ -180,35 +189,74 @@ payer's service-market median; plus `payer_match_coverage_rate`.
 
 ## Scorecards (trust / data quality)
 
-### `gld__snapshot_coverage_scorecard`
+### `gld_score__snapshot_coverage_scorecard`
 Grain: one row per `snapshot_id`. Atomic record/observation/amount-kind counts
 from the fact (reconcile by construction), comparable-code counts, coverage
 rates, comparison-tier counts, and the ten row-level blocker counts re-derived
 from `fact ⋈ bridge` via the §6 macros. Ranks trust before price.
 
-### `gld__hospital_transparency_scorecard`
+### `gld_score__hospital_transparency_scorecard`
 Grain: one row per `hospital_id` (current snapshot). Rolls the coverage
 scorecard up to 0–1 readiness scores: `freshness_score`, `code_coverage_score`,
 `amount_coverage_score`, `payer_mapping_score`, `comparison_readiness_score`, and
 an `overall_readiness_score` composite. **Coverage / readiness, not legal
 compliance.**
 
+## BI presentation marts
+
+These are wide, dashboard-ready surfaces. They do not redefine comparability,
+denominator floors, payer matching, or trust logic; they join labels and derive
+display bands from the Gold facts, marts, scorecards, and dimensions.
+
+### `gld_bi__hospital_overview`
+Grain: one row per `hospital_id` / current scored snapshot. Joins hospital
+display fields, current snapshot freshness, readiness scores, coverage rates,
+rank fields, and benchmark/context counts. Default source for hospital overview
+cards, maps, and ranked tables.
+
+### `gld_bi__service_market_explorer`
+Grain: `(service_code_key, clean_setting, clean_billing_class,
+modifier_signature, amount_kind)`. Adds service display code/name/label,
+modifier label, threshold flags, spread measures, `comparison_status`,
+`trust_band`, and `variation_band` over `gld_mart__service_price_summary`.
+
+### `gld_bi__hospital_service_rankings`
+Grain: `(hospital_id, service context, amount_kind)`. Enriches
+`gld_mart__hospital_service_benchmarks` with hospital and service labels plus
+all-market `price_position_band`, `is_high_outlier`, and `is_low_outlier`.
+
+### `gld_bi__payer_contracting_explorer`
+Grain: `(canonical_payer_id, hospital_id, service context)`. Enriches
+`gld_mart__payer_service_benchmarks` with payer/hospital/service labels,
+`contract_position_band`, and `cash_comparison_band`.
+
+### `gld_bi__comparison_blocker_summary`
+Grain: `(snapshot_id, blocker_code)`. Unpivots the snapshot coverage scorecard's
+blocker counts into BI-friendly rows with blocker labels/categories and blocked
+row shares.
+
+### `gld_bi__featured_services`
+Grain: one selected service/context/amount kind. Rule-selected from
+`gld_bi__service_market_explorer`, capped at 30 rows, and intended only as a
+default shortlist for public reports and dashboard demos.
+
 ## Entity relationship overview
 
 ```text
 gld_dim__hospital   1───* gld_dim__snapshot
-gld_dim__hospital   1───* gld_core__rate_observations
-gld_dim__snapshot   1───* gld_core__rate_observations
-gld_dim__payer      1───* gld_core__rate_observations   (canonical_payer_id; '<unmatched>' sentinel)
-gld_dim__modifier_signature 1───* gld_core__rate_observations  (modifier_signature)
-gld_core__rate_observations 1───* gld_bridge__rate_observation_code
+gld_dim__hospital   1───* gld_fct__rate_observations
+gld_dim__snapshot   1───* gld_fct__rate_observations
+gld_dim__payer      1───* gld_fct__rate_observations   (canonical_payer_id; '<unmatched>' sentinel)
+gld_dim__modifier_signature 1───* gld_fct__rate_observations  (modifier_signature)
+gld_fct__rate_observations 1───* gld_bridge__rate_observation_code
 gld_dim__service_code 1───* gld_bridge__rate_observation_code  (service_code_key; null for non-comparable)
 
-gld_core__rate_observations + gld_bridge ──> gld_int__service_comparison_spine ──> gld__service_price_comparison_current
-gld__service_price_comparison_current ──> gld__service_price_summary
-gld__service_price_comparison_current ──> gld__hospital_service_benchmarks
-gld__service_price_comparison_current ──> gld__payer_service_benchmarks
-gld_core__rate_observations + gld_bridge ──> gld__snapshot_coverage_scorecard ──> gld__hospital_transparency_scorecard
+gld_fct__rate_observations + gld_bridge ──> gld_int__service_comparison_spine ──> gld_mart__service_price_comparison_current
+gld_mart__service_price_comparison_current ──> gld_mart__service_price_summary
+gld_mart__service_price_comparison_current ──> gld_mart__hospital_service_benchmarks
+gld_mart__service_price_comparison_current ──> gld_mart__payer_service_benchmarks
+gld_fct__rate_observations + gld_bridge ──> gld_score__snapshot_coverage_scorecard ──> gld_score__hospital_transparency_scorecard
+gld__* marts + gld__* scorecards + dimensions ──> gld_bi__* presentation marts
 ```
 
 ## Testing
@@ -219,5 +267,5 @@ dimensions and Silver lineage; accepted-values locks on `amount_kind`,
 `amount_role`, `amount_unit`, `observation_scope`, `comparison_tier`, and the
 blocker enums; semantic-guard singular tests in `transform/tests/gld_*`
 (no non-dollar in price ranking, no stale current rows, denominator floors,
-no division-by-zero, payer gate, scores in range); and reconciliation tests
-(coverage scorecard → fact, summary → mart).
+no division-by-zero, payer gate, scores in range, BI band/rate guards); and
+reconciliation tests (coverage scorecard → fact, summary → mart).

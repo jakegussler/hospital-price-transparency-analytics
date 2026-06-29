@@ -50,9 +50,9 @@ to the relevant docs and delete resolved items from here.
   localized change to `val_int__csv_code_pairs` / the macro. These violation
   models are transitive ancestors of Silver Core and Gold, so they **cannot** be
   excluded with `--select +tag:gold` because that selector pulls ancestors in.
-- The Phase-2 Gold **comparison/benchmark marts** (`gld__service_price_comparison_current`,
-  `gld__service_price_summary`, `gld__hospital_service_benchmarks`,
-  `gld__payer_service_benchmarks`) and the `gld_int__service_comparison_spine` also
+- The Phase-2 Gold **comparison/benchmark marts** (`gld_mart__service_price_comparison_current`,
+  `gld_mart__service_price_summary`, `gld_mart__hospital_service_benchmarks`,
+  `gld_mart__payer_service_benchmarks`) and the `gld_int__service_comparison_spine` also
   can exceed the same temp budget over the full corpus because their peer-window
   functions sort the whole observation-by-code surface. Durable fix: a larger
   machine, or pre-aggregating/partitioning the window inputs.
@@ -69,7 +69,7 @@ to the relevant docs and delete resolved items from here.
   comparison/summary/benchmark output is empty. Empty marts still satisfy
   structural `not_null`/`unique` tests, so the semantic problem needs explicit
   coverage.
-- Current behavior (in `gld_core__rate_observations`): coalesce `clean_billing_class`
+- Current behavior (in `gld_fct__rate_observations`): coalesce `clean_billing_class`
   to `'unspecified'` so its *uniform* absence is treated as an explicit context
   rather than collapsing tier_2. This yields ~57% tier_2. Durable options: make
   `billing_class` optional in the tier definition (an explicit decision 0017
@@ -138,7 +138,7 @@ to the relevant docs and delete resolved items from here.
   floor, so published stats stay null and rows carry
   `below_min_hospital_denominator`. Scoped runs smoke-test mechanics only;
   validating published percentiles and deltas needs a multi-hospital corpus.
-- The `gld__service_price_comparison_current` ratio columns
+- The `gld_mart__service_price_comparison_current` ratio columns
   (`gross_to_cash_ratio`, `cash_to_negotiated_ratio`) are computed per charge-item
   context in the mart per open question §14.2 ("a couple of guarded ratio columns
   in the mart now; dedicated model later"). Promote to a dedicated
