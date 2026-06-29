@@ -26,10 +26,15 @@ with json_codes as (
 ),
 
 csv_code_rows as (
+    -- val_int__csv_code_pairs is already at charge x code grain (one row per
+    -- (snapshot, row_ordinal, code_ordinal)). source_format is snapshot-level,
+    -- so it comes from the snapshot dimension; re-joining to
+    -- stg_bronze__csv_charge_rows here only to fetch it would re-introduce the
+    -- per-payer fanout (row_ordinal is not unique there). See docs/cleanup.md.
     select
         p.snapshot_id,
         hs.hospital_id,
-        r.source_format,
+        hs.source_format,
         'csv' as source_format_family,
         '3.0' as reported_schema_family,
         cast(null as varchar) as source_charge_item_id,
@@ -40,9 +45,6 @@ csv_code_rows as (
         p.raw_code_type,
         {{ hpt_clean_text('p.raw_code_type') }} as clean_code_type
     from {{ hpt_scoped_ref('val_int__csv_code_pairs') }} p
-    inner join {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
-        on p.snapshot_id = r.snapshot_id
-        and p.row_ordinal = r.row_ordinal
     inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on p.snapshot_id = hs.snapshot_id
 ),

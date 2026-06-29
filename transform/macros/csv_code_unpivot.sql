@@ -1,6 +1,17 @@
 {% macro hpt_csv_code_unpivot(source_sql) -%}
-    with csv_rows as (
+    with source_rows as (
         {{ source_sql }}
+    ),
+
+    csv_rows as (
+        -- CSV-wide Bronze repeats charge-level code columns once per payer row.
+        -- Collapse to the charge grain before unpivoting so the value/type join
+        -- cannot fan out by payer count.
+        select distinct
+            snapshot_id,
+            row_ordinal,
+            columns('^code_[0-9]+(_type)?$')
+        from source_rows
     ),
 
     code_values as (

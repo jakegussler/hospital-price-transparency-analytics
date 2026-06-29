@@ -48,33 +48,54 @@ json_charges as (
         and sc.standard_charge_id = pr.standard_charge_id
 ),
 
+csv_charge_grain as (
+    -- CSV-wide Bronze is at charge x payer grain (row_ordinal repeats once per
+    -- payer copy). The standard-charge-level fields are identical across those
+    -- copies, and the payer-presence flags are an aggregate OVER them, so
+    -- collapse to one row per (snapshot, row_ordinal) here. This both removes
+    -- the per-payer fanout (the old r x b join keyed on row_ordinal alone was a
+    -- payer x payer Cartesian product) and makes has_payer_* mean "any payer
+    -- copy supplies a value" -- matching json_payer_rollup. See docs/cleanup.md.
+    select
+        snapshot_id,
+        cast(row_ordinal as integer) as row_ordinal,
+        any_value(standard_charge_gross) as raw_gross_charge,
+        any_value(standard_charge_discounted_cash) as raw_discounted_cash,
+        any_value(standard_charge_min) as raw_minimum,
+        any_value(standard_charge_max) as raw_maximum,
+        any_value(setting) as raw_setting,
+        any_value(billing_class) as raw_billing_class,
+        bool_or({{ hpt_clean_display_text('standard_charge_negotiated_dollar') }} is not null) as has_payer_dollar,
+        bool_or({{ hpt_clean_display_text('standard_charge_negotiated_percentage') }} is not null) as has_payer_percentage,
+        bool_or({{ hpt_clean_display_text('standard_charge_negotiated_algorithm') }} is not null) as has_payer_algorithm
+    from {{ hpt_scoped_source('bronze', 'csv_charge_rows') }}
+    group by snapshot_id, cast(row_ordinal as integer)
+),
+
 csv_charges as (
     select
-        r.snapshot_id,
+        cg.snapshot_id,
         hs.hospital_id,
-        r.source_format,
+        hs.source_format,
         'csv' as source_format_family,
         '3.0' as reported_schema_family,
         cast(null as varchar) as source_charge_item_id,
         cast(null as varchar) as source_standard_charge_id,
-        r.row_ordinal,
-        b.standard_charge_gross as raw_gross_charge,
-        b.standard_charge_discounted_cash as raw_discounted_cash,
-        b.standard_charge_min as raw_minimum,
-        b.standard_charge_max as raw_maximum,
-        b.setting as raw_setting,
-        r.clean_setting,
-        b.billing_class as raw_billing_class,
-        r.clean_billing_class,
-        {{ hpt_clean_display_text('b.standard_charge_negotiated_dollar') }} is not null as has_payer_dollar,
-        {{ hpt_clean_display_text('b.standard_charge_negotiated_percentage') }} is not null as has_payer_percentage,
-        {{ hpt_clean_display_text('b.standard_charge_negotiated_algorithm') }} is not null as has_payer_algorithm
-    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
-    inner join {{ hpt_scoped_source('bronze', 'csv_charge_rows') }} b
-        on r.snapshot_id = b.snapshot_id
-        and r.row_ordinal = cast(b.row_ordinal as integer)
+        cg.row_ordinal,
+        cg.raw_gross_charge,
+        cg.raw_discounted_cash,
+        cg.raw_minimum,
+        cg.raw_maximum,
+        cg.raw_setting,
+        {{ hpt_clean_text('cg.raw_setting') }} as clean_setting,
+        cg.raw_billing_class,
+        {{ hpt_clean_text('cg.raw_billing_class') }} as clean_billing_class,
+        cg.has_payer_dollar,
+        cg.has_payer_percentage,
+        cg.has_payer_algorithm
+    from csv_charge_grain cg
     inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
-        on r.snapshot_id = hs.snapshot_id
+        on cg.snapshot_id = hs.snapshot_id
 )
 
 select * from json_charges
