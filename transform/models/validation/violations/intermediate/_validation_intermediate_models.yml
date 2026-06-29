@@ -7,8 +7,10 @@ models:
       code ordinal. Materialized once so the unpivot self-join is not recomputed
       by both the code grain and the missing-code anti-join in
       val__code_violations. Grain: one row per (snapshot_id, row_ordinal,
-      code_ordinal). Warn-only because Bronze is source-faithful and may carry
-      duplicate source rows.
+      code_ordinal). Warn-only (not error) because CSV-wide Bronze is at
+      charge x payer grain, so row_ordinal repeats once per payer and the same
+      code pair appears on every copy; val__code_violations collapses these in
+      its dedup step, so the repeats here are expected, not a defect.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -29,7 +31,9 @@ models:
       pair), joined to the cms_code_types seed for membership and schema-family
       applicability. Consumed once per rule by val__code_violations. Grain: one
       row per (snapshot_id, source_format_family, source_charge_item_id,
-      row_ordinal, code_ordinal). Warn-only because Bronze is source-faithful.
+      row_ordinal, code_ordinal). Warn-only (not error): CSV-wide Bronze is at
+      charge x payer grain, so codes repeat once per payer copy; the downstream
+      violation model dedups, so these repeats are expected.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -52,8 +56,9 @@ models:
       fields the standard-charge validation rules evaluate. Consumed once per
       rule by val__standard_charge_violations. Grain: one row per (snapshot_id,
       source_format_family, source_charge_item_id, source_standard_charge_id,
-      row_ordinal). Warn-only because Bronze is source-faithful and may repeat
-      standard-charge identifiers.
+      row_ordinal). Warn-only (not error): CSV-wide Bronze is at charge x payer
+      grain, so a source row repeats once per payer; val__standard_charge_violations
+      collapses these in its dedup step.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

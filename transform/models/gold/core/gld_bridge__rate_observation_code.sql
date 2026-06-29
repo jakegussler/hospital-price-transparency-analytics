@@ -2,10 +2,10 @@
 -- (gold_rate_observation_id, silver_charge_item_code_id) = one amount observation
 -- × each billing code on its charge item.
 --
--- Built by joining gld_core__rate_observations to slv_core__charge_item_codes on
+-- Built by joining gld_fct__rate_observations to slv_core__charge_item_codes on
 -- (silver_charge_item_id, snapshot_id). An observation whose item carries no codes
 -- produces NO bridge row (detected downstream via a left join / has_any_code on
--- the coverage scorecard). keeping it out of the fact is what lets gld_core__rate_observations
+-- the coverage scorecard). keeping it out of the fact is what lets gld_fct__rate_observations
 -- stay additive and double-count-proof.
 --
 -- The bridge does NOT filter to comparable/specific codes: it EXPOSES the
@@ -26,7 +26,7 @@ with observations as (
         snapshot_id,
         hospital_id,
         silver_charge_item_id
-    from {{ hpt_scoped_ref('gld_core__rate_observations') }}
+    from {{ hpt_scoped_ref('gld_fct__rate_observations') }}
 ),
 
 codes as (

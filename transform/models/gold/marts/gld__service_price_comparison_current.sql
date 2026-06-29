@@ -41,7 +41,7 @@ with classified as (
 -- not the code-expanded spine grain (the cohort fan-out would skew median()).
 fact as (
     select *
-    from {{ ref('gld_core__rate_observations') }}
+    from {{ ref('gld_fct__rate_observations') }}
     where is_current_snapshot = true
 ),
 

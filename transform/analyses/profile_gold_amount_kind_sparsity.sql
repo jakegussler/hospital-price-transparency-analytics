@@ -17,6 +17,6 @@ select
     )::int) as derived_dollar_obs,
     sum((amount_kind = 'negotiated_percentage')::int) as negotiated_percentage_obs,
     sum((amount_kind = 'negotiated_algorithm')::int) as negotiated_algorithm_obs
-from {{ ref('gld_core__rate_observations') }}
+from {{ ref('gld_fct__rate_observations') }}
 group by 1
 order by 1

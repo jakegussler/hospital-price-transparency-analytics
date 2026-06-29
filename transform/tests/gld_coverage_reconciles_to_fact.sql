@@ -3,7 +3,7 @@
 -- the fact must appear in the scorecard (and vice versa). Any mismatch fails.
 with fact_counts as (
     select snapshot_id, count(*) as fact_observation_count
-    from {{ ref('gld_core__rate_observations') }}
+    from {{ ref('gld_fct__rate_observations') }}
     group by snapshot_id
 ),
 

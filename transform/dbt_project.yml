@@ -165,7 +165,7 @@ models:
       +schema: gold
       core:
         +tags: ["gold_core", "gold"]
-        gld_core__rate_observations: { +tags: ["gold_per_snapshot"] }
+        gld_fct__rate_observations: { +tags: ["gold_per_snapshot"] }
         gld_bridge__rate_observation_code: { +tags: ["gold_per_snapshot"] }
         # Conformed dimensions are full-refresh tables read UNscoped (plain ref)
         gld_dim__snapshot: { +materialized: table, +incremental_strategy: null, +tags: ["gold_dimension"] }

@@ -3,7 +3,7 @@
 -- Grain: one row per snapshot_id. Purpose: rank TRUST before price, and double as
 -- the Gold-side reconciliation anchor — its atomic observation/charge/rate counts
 -- are taken straight from the fact (no code fan-out), so they reconcile to
--- gld_core__rate_observations by construction (see tests/gld_coverage_reconciles_to_fact.sql).
+-- gld_fct__rate_observations by construction (see tests/gld_coverage_reconciles_to_fact.sql).
 --
 -- Two count sources, joined per snapshot:
 --   * fact_agg       — atomic counts + amount-kind coverage from the fact.
@@ -54,7 +54,7 @@ with fact_agg as (
         count(distinct case
             when has_modifier then silver_standard_charge_id
         end) as modifier_bearing_charge_count
-    from {{ ref('gld_core__rate_observations') }}
+    from {{ ref('gld_fct__rate_observations') }}
     group by snapshot_id
 ),
 
@@ -93,7 +93,7 @@ comparison_assembled as (
         cc.match_code,
         coalesce(cc.code_is_specific, false) as code_is_specific,
         (cc.service_code_key is not null) as code_cross_hospital_comparable
-    from {{ ref('gld_core__rate_observations') }} as f
+    from {{ ref('gld_fct__rate_observations') }} as f
     left join comparison_cohorts as cc
         on f.gold_rate_observation_id = cc.gold_rate_observation_id
 ),

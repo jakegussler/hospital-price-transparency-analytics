@@ -136,16 +136,16 @@ hospitals:
     canonical_state: TN
     hospital_type: community
     health_system: Williamson Health
-    active: false
     mrf_source:
       url: "https://williamsonhealth.org/content/uploads/2026/04/621501534_williamson-medical-center_standardcharges.csv"
       expected_format: csv_wide
       notes: >-
         Williamson County hospital; discovered from williamsonhealth.org
-        cms-hpt.txt. Deactivated 2026-06-27: its CSV-wide val__code_violations
-        join OOMs on this 8 GiB box (~30 GiB temp spill exceeds free local disk).
-        Reactivate on a larger machine or after the validation rule-join is
-        pre-aggregated (docs/cleanup.md).
+        cms-hpt.txt. Deactivated 2026-06-27 for CSV-wide validation OOM, then
+        reactivated 2026-06-28 as the CSV-wide member of the small verification
+        corpus after the val__code_violations / val__standard_charge_violations
+        single-pass refactor (A+B) materialized the unpivot/grain once
+        (docs/cleanup.md).
 
   - hospital_id: nashville-general
     canonical_hospital_name: Metro Nashville General Hospital

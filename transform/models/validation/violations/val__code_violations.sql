@@ -148,6 +148,27 @@ violations as (
     from csv_rows_without_codes
 ),
 
+deduped as (
+    -- CSV-wide Bronze is at charge x payer grain, so a single source row's codes
+    -- (and its missing-code finding) repeat once per payer. Collapse to one
+    -- violation per source code / row, rule, column, and raw value -- the same
+    -- dedup val__standard_charge_violations applies for the identical reason.
+    select *
+    from violations
+    qualify row_number() over (
+        partition by
+            snapshot_id,
+            source_format_family,
+            coalesce(source_charge_item_id, ''),
+            coalesce(cast(row_ordinal as varchar), ''),
+            coalesce(cast(code_ordinal as varchar), ''),
+            rule_id,
+            column_name,
+            coalesce(raw_value, '')
+        order by 1
+    ) = 1
+),
+
 enriched as (
     select
         {{ hpt_surrogate_key([
@@ -183,7 +204,7 @@ enriched as (
         v.message,
         r.disposition = 'exclude_entity' as excludes_from_silver,
         r.cms_citation
-    from violations v
+    from deduped v
     inner join {{ ref('cms_validation_rules') }} r
         on v.rule_id = r.rule_id
 )

@@ -183,7 +183,7 @@ models:
       Conformed modifier-group dimension. Grain: one row per modifier_signature =
       one distinct SET of modifier codes that attaches to a standard charge, plus
       the synthetic md5('<no_modifiers>') member for charges with none. Decodes the
-      opaque modifier_signature hash carried on gld_core__rate_observations and the
+      opaque modifier_signature hash carried on gld_fct__rate_observations and the
       marts into member codes, meanings, and a display label, so BI can join on the
       key without widening the fact or risking a price double-count from a
       many-to-many modifier bridge. Full-refresh table read UNscoped from
@@ -221,7 +221,7 @@ models:
         tests:
           - not_null
 
-  - name: gld_core__rate_observations
+  - name: gld_fct__rate_observations
     description: >
       Atomic rate-observation fact. Grain: one row per reported amount cell =
       one (source charge/rate row, amount_kind) pair within one snapshot. The
@@ -431,7 +431,7 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref('gld_core__rate_observations')
+                to: ref('gld_fct__rate_observations')
                 field: gold_rate_observation_id
       - name: silver_charge_item_code_id
         description: "Lineage to the item-code row; grain component."

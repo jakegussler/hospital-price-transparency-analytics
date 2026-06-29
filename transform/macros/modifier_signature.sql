@@ -2,7 +2,7 @@
    modifier codes on a standard charge. This is the SINGLE source of truth for the
    signature shape so every producer emits byte-identical keys —
    slv_core__rate_modifier_signature (payer-rate scope, from slv_base), the
-   gld_core__rate_observations rollup (standard-charge scope), and
+   gld_fct__rate_observations rollup (standard-charge scope), and
    gld_dim__modifier_signature (the decode dimension). Change the shape here and
    all three move together.
 

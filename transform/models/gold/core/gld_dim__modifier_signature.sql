@@ -7,7 +7,7 @@
 -- dimension is what decodes that hash for the BI layer: it expands the signature
 -- into its member codes, the human-readable meanings, and the display label,
 -- without ever widening the fact or risking a price double-count from a
--- many-to-many modifier bridge. BI joins gld_core__rate_observations (and the
+-- many-to-many modifier bridge. BI joins gld_fct__rate_observations (and the
 -- marts) to this dimension on modifier_signature.
 --
 -- Full-refresh table read UNscoped (plain ref) from slv_core__charge_modifiers:
@@ -18,7 +18,7 @@
 -- on the fact. Both are produced by the hpt_modifier_signature() macro over the
 -- non-null modifier codes on a standard charge (here match_modifier_code, which is
 -- upper(clean_modifier_code) — the same macro that slv_core__rate_modifier_signature
--- and the gld_core__rate_observations rollup call). The no-modifier sentinel
+-- and the gld_fct__rate_observations rollup call). The no-modifier sentinel
 -- comes from hpt_no_modifier_signature() and matches the fact's coalesce default.
 -- A relationships test on the fact guards that every fact signature resolves here.
 with charge_modifiers as (
