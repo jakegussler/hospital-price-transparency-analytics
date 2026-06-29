@@ -236,7 +236,7 @@ select
     s.benefit_line,
     s.plan_type,
 
-    -- comparability framework (plan §6)
+    -- comparability framework
     s.comparison_tier,
     s.not_current_snapshot,
     s.code_not_cross_hospital_comparable,

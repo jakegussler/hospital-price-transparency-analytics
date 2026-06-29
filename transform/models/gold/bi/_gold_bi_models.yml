@@ -1,0 +1,313 @@
+version: 2
+
+models:
+  - name: gld_bi__hospital_overview
+    description: >
+      BI presentation mart for hospital profile cards, ranked tables, and
+      readiness overview pages. Grain: one row per hospital_id/current scored
+      snapshot. Keeps technical keys for drill-down while adding display labels,
+      ranks, trust bands, and coverage measures.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - hospital_id
+    columns:
+      - name: hospital_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__hospital')
+                field: hospital_id
+      - name: hospital_display_name
+        tests: [not_null]
+      - name: snapshot_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__snapshot')
+                field: snapshot_id
+      - name: trust_band
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["high_trust", "moderate_trust", "limited_trust", "low_trust"]
+      - name: overall_readiness_score
+        tests: [not_null]
+      - name: benchmark_context_count
+        tests: [not_null]
+      - name: payer_contract_context_count
+        tests: [not_null]
+
+  - name: gld_bi__service_market_explorer
+    description: >
+      BI presentation mart for service-market exploration. Grain: one row per
+      service_code_key, setting, billing_class, modifier_signature, and
+      amount_kind from the service summary mart. Adds human-readable service and
+      modifier labels, status fields, threshold flags, and variation bands.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - service_code_key
+              - clean_setting
+              - clean_billing_class
+              - modifier_signature
+              - amount_kind
+    columns:
+      - name: service_code_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__service_code')
+                field: service_code_key
+      - name: service_display_code
+        tests: [not_null]
+      - name: service_display_name
+        tests: [not_null]
+      - name: modifier_signature
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__modifier_signature')
+                field: modifier_signature
+      - name: amount_kind
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["gross_charge", "discounted_cash", "negotiated_dollar"]
+      - name: comparison_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - insufficient_denominator
+                  - described_comparable
+                  - code_only_comparable
+      - name: trust_band
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["high_trust", "moderate_trust", "limited_trust", "low_trust"]
+      - name: variation_band
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - very_high_variation
+                  - high_variation
+                  - moderate_variation
+                  - not_ranked
+
+  - name: gld_bi__hospital_service_rankings
+    description: >
+      BI presentation mart for hospital high/low service comparisons. Grain:
+      one row per hospital_id, service_code_key, setting, billing_class,
+      modifier_signature, and amount_kind. Adds hospital/service labels and
+      all-market price position flags.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - hospital_id
+              - service_code_key
+              - clean_setting
+              - clean_billing_class
+              - modifier_signature
+              - amount_kind
+    columns:
+      - name: hospital_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__hospital')
+                field: hospital_id
+      - name: service_code_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__service_code')
+                field: service_code_key
+      - name: modifier_signature
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__modifier_signature')
+                field: modifier_signature
+      - name: price_position_band
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - insufficient_denominator
+                  - very_low
+                  - low
+                  - near_market
+                  - high
+                  - very_high
+      - name: is_high_outlier
+        tests: [not_null]
+      - name: is_low_outlier
+        tests: [not_null]
+
+  - name: gld_bi__payer_contracting_explorer
+    description: >
+      BI presentation mart for matched-payer contracting exploration. Grain:
+      one row per canonical_payer_id, hospital_id, service_code_key, setting,
+      billing_class, and modifier_signature. Adds payer/hospital/service labels,
+      cash comparison bands, and payer-market position bands.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - canonical_payer_id
+              - hospital_id
+              - service_code_key
+              - clean_setting
+              - clean_billing_class
+              - modifier_signature
+    columns:
+      - name: canonical_payer_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__payer')
+                field: canonical_payer_id
+      - name: hospital_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__hospital')
+                field: hospital_id
+      - name: service_code_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__service_code')
+                field: service_code_key
+      - name: contract_position_band
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - insufficient_denominator
+                  - well_below_payer_market
+                  - below_payer_market
+                  - near_payer_market
+                  - above_payer_market
+                  - well_above_payer_market
+      - name: cash_comparison_band
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - cash_unavailable
+                  - below_cash
+                  - equal_to_cash
+                  - above_cash
+
+  - name: gld_bi__comparison_blocker_summary
+    description: >
+      BI presentation mart for comparison blocker explanations. Grain: one row
+      per snapshot_id and blocker_code. Counts use the same blocker vocabulary as
+      the Gold comparison framework and are joined to hospital/snapshot display
+      context.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - snapshot_id
+              - blocker_code
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__snapshot')
+                field: snapshot_id
+      - name: hospital_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__hospital')
+                field: hospital_id
+      - name: blocker_code
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - not_current_snapshot
+                  - code_not_cross_hospital_comparable
+                  - code_not_specific
+                  - missing_match_code
+                  - non_rankable_amount
+                  - derived_dollar
+                  - modifier_context_required
+                  - drug_unit_context_missing
+                  - payer_unmatched
+                  - market_segment_unknown
+      - name: blocker_category
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - snapshot_freshness
+                  - code_comparability
+                  - amount_semantics
+                  - service_context
+                  - payer_identity
+                  - payer_context
+      - name: blocked_row_count
+        tests: [not_null]
+
+  - name: gld_bi__featured_services
+    description: >
+      Rule-selected BI default list for public reports and dashboards. Grain:
+      one row per selected service/context/amount_kind, capped at 30 rows.
+      Selection favors described services with adequate hospital denominator and
+      higher observed variation.
+    columns:
+      - name: featured_rank
+        tests:
+          - not_null
+          - unique
+      - name: featured_reason
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - wide_price_variation
+                  - broad_hospital_coverage
+                  - described_comparable_service
+      - name: service_code_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__service_code')
+                field: service_code_key
+      - name: service_display_label
+        tests: [not_null]

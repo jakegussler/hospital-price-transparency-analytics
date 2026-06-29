@@ -185,6 +185,12 @@ models:
         # Scorecards read the completed fact + bridge (+ coverage scorecard)
         # unscoped and are built once after the marts.
         +tags: ["gold_scorecards", "gold"]
+      bi:
+        +materialized: table
+        +incremental_strategy: null
+        # BI presentation marts are wide, dashboard-ready tables over the
+        # completed Gold marts, scorecards, and dimensions.
+        +tags: ["gold_bi", "gold"]
 
 seeds:
   hospital_price_transparency:

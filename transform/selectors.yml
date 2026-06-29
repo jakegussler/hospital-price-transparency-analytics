@@ -68,8 +68,17 @@ selectors:
       method: tag
       value: gold_scorecards
 
+  - name: gold_bi
+    description: >
+      Gold BI presentation marts. Full-refresh tables read unscoped from the
+      completed Gold marts, scorecards, and dimensions; built once after marts
+      and scorecards.
+    definition:
+      method: tag
+      value: gold_bi
+
   - name: gold
-    description: "All Gold models: core, marts, and scorecards."
+    description: "All Gold models: core, marts, scorecards, and BI presentation marts."
     definition:
       method: tag
       value: gold
@@ -105,7 +114,8 @@ selectors:
       excluding operational audit models and Gold. Gold models are built in
       their own dedicated passes in the per-snapshot full-refresh workflow: the
       snapshot-grained fact and bridge (selector gold_per_snapshot) and the
-      run-once dimensions and marts (selectors gold_dimension and gold_marts).
+      run-once dimensions, marts, scorecards, and BI presentation tables
+      (selectors gold_dimension, gold_marts, gold_scorecards, and gold_bi).
     definition:
       union:
         - method: path
