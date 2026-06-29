@@ -53,7 +53,7 @@ dbt-incremental: require-dbt-incremental-scope
 dbt-rebuild:
 	hpt run-dbt --full-rebuild --command build
 
-# Per-snapshot (incremental): same five-pass ordering as
+# Per-snapshot (incremental): same six-pass Gold ordering as
 # dbt-per-snapshot-full-refresh but without --full-refresh.
 dbt-per-snapshot:
 	hpt run-dbt \
@@ -83,6 +83,11 @@ dbt-per-snapshot:
 		--command build
 	hpt run-dbt \
 		--all-hospitals \
+		--defer-tests \
+		--selector gold_bi \
+		--command build
+	hpt run-dbt \
+		--all-hospitals \
 		--selector audit \
 		--command build
 
@@ -92,7 +97,7 @@ dbt-per-snapshot:
 # snapshot-scoped Silver). --defer-tests on the per-snapshot pass materializes
 # every snapshot with run, prunes once, then runs one unscoped test pass.
 #
-# Gold is refreshed in three ordered passes around the per-snapshot fact:
+# Gold is refreshed in five ordered passes around the per-snapshot fact:
 #   1. gold_dimension  - run-once full-refresh dimensions, built UNscoped AFTER
 #      the per-snapshot Silver pass completes (dimensions read unscoped Silver,
 #      so they need every snapshot accumulated) and BEFORE the per-snapshot Gold
@@ -107,6 +112,9 @@ dbt-per-snapshot:
 #   4. gold_scorecards - run-once full-refresh coverage/transparency scorecards,
 #      built UNscoped AFTER the marts (they read the completed fact, bridge, and
 #      the snapshot coverage scorecard).
+#   5. gold_bi         - run-once full-refresh BI presentation marts, built
+#      UNscoped AFTER the marts and scorecards (they read the completed Gold
+#      analytics surfaces).
 # Each Gold pass re-runs seeds only where the pass's models depend on them
 # directly: the dimensions read the canonical_payers and states seeds; the
 # per-snapshot fact/bridge and the marts read already-built Silver/Gold models
@@ -139,6 +147,11 @@ dbt-per-snapshot-full-refresh:
 		--all-hospitals \
 		--defer-tests \
 		--selector gold_scorecards \
+		--command build
+	hpt run-dbt \
+		--all-hospitals \
+		--defer-tests \
+		--selector gold_bi \
 		--command build
 	hpt run-dbt \
 		--all-hospitals \
