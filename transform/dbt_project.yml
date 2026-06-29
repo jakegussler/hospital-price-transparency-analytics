@@ -129,6 +129,15 @@ models:
       +tags: ["validation"]
       violations:
         +tags: ["pipeline_charge_data"]
+        # Normalized charge/code grain that the violation models scan once per
+        # rule. Materialized as a plain table (rebuilt to the current run scope)
+        # so the heavy JSON+CSV union/unpivot is computed once instead of being
+        # recomputed per rule branch.
+        intermediate:
+          +materialized: table
+          +incremental_strategy: null
+          +unique_key: null
+          +on_schema_change: ignore
       rejections:
         +tags: ["pipeline_charge_data"]
       stats:

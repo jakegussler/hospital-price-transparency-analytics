@@ -6,10 +6,10 @@ hospital_price_transparency:
       path: "{{ env_var('HPT_DUCKDB_PATH', '../data/hpt.duckdb') }}"
       threads: 1
       settings:
-        # The validation violation models join every charge row against the rule
-        # set and spill heavily at full-corpus scale. Not preserving insertion
-        # order lets DuckDB release intermediates and keeps temp-dir spill within
-        # local disk (see docs/cleanup.md; DuckDB OOM guidance).
+        # The validation violation models scan the full charge/code grain and
+        # spill heavily at full-corpus scale. Not preserving insertion order lets
+        # DuckDB release intermediates and keeps temp-dir spill within local disk
+        # (see docs/cleanup.md; DuckDB OOM guidance).
         preserve_insertion_order: false
         # Cap temp spill below the actual free-disk capacity so an oversized model
         # fails GRACEFULLY at this limit instead of filling the disk.

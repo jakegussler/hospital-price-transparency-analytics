@@ -1,5 +1,8 @@
--- Normalize JSON and CSV standard charges to one grain, then emit value and
--- conditional-rule violations for each charge context.
+-- Emit value and conditional-rule violations for each standard-charge context.
+-- The normalized JSON+CSV charge grain is built once in
+-- val_int__standard_charge_grain; here we scan it a single time and emit one
+-- row per (charge, violated rule) via a struct list + unnest, instead of
+-- re-scanning the grain once per rule. See docs/cleanup.md.
 {% set standard_charge_numeric_columns = [
     ('gross_charge', 'gross_charge'),
     ('discounted_cash', 'discounted_cash'),
@@ -7,230 +10,138 @@
     ('maximum', 'maximum')
 ] %}
 
-with json_payer_rollup as (
-    -- Parent standard-charge rules need to know whether any child payer rate
-    -- supplies a negotiated value.
-    select
-        pi.snapshot_id,
-        pi.standard_charge_id,
-        bool_or({{ hpt_clean_display_text('pi.standard_charge_dollar') }} is not null) as has_payer_dollar,
-        bool_or({{ hpt_clean_display_text('pi.standard_charge_percentage') }} is not null) as has_payer_percentage,
-        bool_or({{ hpt_clean_display_text('pi.standard_charge_algorithm') }} is not null) as has_payer_algorithm
-    from {{ hpt_scoped_source('bronze', 'payers_information') }} pi
-    group by pi.snapshot_id, pi.standard_charge_id
+with charges as (
+    select * from {{ hpt_scoped_ref('val_int__standard_charge_grain') }}
 ),
 
-json_charges as (
+evaluated as (
+    -- One scan of the charge grain. Each rule contributes a struct to the list
+    -- when it fires (and NULL otherwise); list_filter drops the misses.
     select
-        sc.snapshot_id,
-        hs.hospital_id,
-        hs.source_format,
-        {{ hpt_source_format_family('hs.source_format') }} as source_format_family,
-        sci.reported_schema_family,
-        sci.parser_schema_family,
-        coalesce(sci.parser_schema_family, sci.reported_schema_family) as effective_schema_family,
-        sci.charge_item_id as source_charge_item_id,
-        sc.standard_charge_id as source_standard_charge_id,
-        cast(null as integer) as row_ordinal,
-        sc.gross_charge as raw_gross_charge,
-        sc.discounted_cash as raw_discounted_cash,
-        sc.minimum as raw_minimum,
-        sc.maximum as raw_maximum,
-        sc.setting as raw_setting,
-        {{ hpt_clean_text('sc.setting') }} as clean_setting,
-        sc.billing_class as raw_billing_class,
-        {{ hpt_clean_text('sc.billing_class') }} as clean_billing_class,
-        coalesce(pr.has_payer_dollar, false) as has_payer_dollar,
-        coalesce(pr.has_payer_percentage, false) as has_payer_percentage,
-        coalesce(pr.has_payer_algorithm, false) as has_payer_algorithm
-    from {{ hpt_scoped_source('bronze', 'standard_charges') }} sc
-    inner join {{ hpt_scoped_ref('stg_bronze__standard_charge_info') }} sci
-        on sc.snapshot_id = sci.snapshot_id
-        and sc.charge_item_id = sci.charge_item_id
-    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
-        on sc.snapshot_id = hs.snapshot_id
-    left join json_payer_rollup pr
-        on sc.snapshot_id = pr.snapshot_id
-        and sc.standard_charge_id = pr.standard_charge_id
-),
-
-csv_charges as (
-    select
-        r.snapshot_id,
-        hs.hospital_id,
-        r.source_format,
-        'csv' as source_format_family,
-        '3.0' as reported_schema_family,
-        '3.0' as parser_schema_family,
-        '3.0' as effective_schema_family,
-        cast(null as varchar) as source_charge_item_id,
-        cast(null as varchar) as source_standard_charge_id,
-        r.row_ordinal,
-        b.standard_charge_gross as raw_gross_charge,
-        b.standard_charge_discounted_cash as raw_discounted_cash,
-        b.standard_charge_min as raw_minimum,
-        b.standard_charge_max as raw_maximum,
-        b.setting as raw_setting,
-        r.clean_setting,
-        b.billing_class as raw_billing_class,
-        r.clean_billing_class,
-        {{ hpt_clean_display_text('b.standard_charge_negotiated_dollar') }} is not null as has_payer_dollar,
-        {{ hpt_clean_display_text('b.standard_charge_negotiated_percentage') }} is not null as has_payer_percentage,
-        {{ hpt_clean_display_text('b.standard_charge_negotiated_algorithm') }} is not null as has_payer_algorithm
-    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
-    inner join {{ hpt_scoped_source('bronze', 'csv_charge_rows') }} b
-        on r.snapshot_id = b.snapshot_id
-        and r.row_ordinal = cast(b.row_ordinal as integer)
-    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
-        on r.snapshot_id = hs.snapshot_id
-),
-
-charges as (
-    select * from json_charges
-    union all
-    select * from csv_charges
+        c.*,
+        list_filter([
+            {% for raw_column, public_name in standard_charge_numeric_columns %}
+            -- Numeric parseability and positivity for {{ public_name }}.
+            case
+                when {{ hpt_clean_display_text('raw_' ~ raw_column) }} is not null
+                    and {{ hpt_safe_decimal('raw_' ~ raw_column) }} is null
+                then struct_pack(
+                    rule_id := 'standard_charge_numeric_parseable',
+                    column_name := '{{ public_name }}',
+                    raw_value := cast(raw_{{ raw_column }} as varchar),
+                    diagnostic_type := 'numeric_cast_failed',
+                    message := '{{ public_name }} is non-empty but cannot be cast to decimal(18,4).'
+                )
+            end,
+            case
+                when {{ hpt_safe_decimal('raw_' ~ raw_column) }} is not null
+                    and {{ hpt_safe_decimal('raw_' ~ raw_column) }} <= 0
+                then struct_pack(
+                    rule_id := 'standard_charge_numeric_positive',
+                    column_name := '{{ public_name }}',
+                    raw_value := cast(raw_{{ raw_column }} as varchar),
+                    diagnostic_type := 'numeric_not_positive',
+                    message := '{{ public_name }} must be greater than zero.'
+                )
+            end,
+            {% endfor %}
+            -- Required shape and accepted-value rules for setting.
+            case
+                when clean_setting is null
+                then struct_pack(
+                    rule_id := 'standard_charge_required_setting_shape',
+                    column_name := 'setting',
+                    raw_value := cast(raw_setting as varchar),
+                    diagnostic_type := 'required_field_missing',
+                    message := 'Standard charge setting is required.'
+                )
+            end,
+            case
+                when clean_setting is not null
+                    and clean_setting not in ('inpatient', 'outpatient', 'both')
+                then struct_pack(
+                    rule_id := 'setting_allowed_values',
+                    column_name := 'setting',
+                    raw_value := cast(raw_setting as varchar),
+                    diagnostic_type := 'accepted_value_invalid',
+                    message := 'Setting must be inpatient, outpatient, or both.'
+                )
+            end,
+            -- Recommended-value advisory for billing_class.
+            case
+                when clean_billing_class is not null
+                    and clean_billing_class not in ('professional', 'facility', 'both')
+                then struct_pack(
+                    rule_id := 'billing_class_allowed_values',
+                    column_name := 'billing_class',
+                    raw_value := cast(raw_billing_class as varchar),
+                    diagnostic_type := 'accepted_value_warn',
+                    message := 'Billing class is populated outside the documented recommended values.'
+                )
+            end,
+            -- Conditional charge-value and payer-dollar rules.
+            case
+                when {{ hpt_clean_display_text('raw_gross_charge') }} is null
+                    and {{ hpt_clean_display_text('raw_discounted_cash') }} is null
+                    and not has_payer_dollar
+                    and not has_payer_percentage
+                    and not has_payer_algorithm
+                then struct_pack(
+                    rule_id := 'charge_requires_any_standard_charge_value',
+                    column_name := 'standard_charge_values',
+                    raw_value := concat(
+                        'gross=', coalesce(raw_gross_charge, '<null>'),
+                        '; discounted_cash=', coalesce(raw_discounted_cash, '<null>'),
+                        '; payer_dollar=', cast(has_payer_dollar as varchar),
+                        '; payer_percentage=', cast(has_payer_percentage as varchar),
+                        '; payer_algorithm=', cast(has_payer_algorithm as varchar)
+                    ),
+                    diagnostic_type := 'conditional_required_value_missing',
+                    message := 'A standard charge must have gross, discounted cash, or payer-specific negotiated charge data.'
+                )
+            end,
+            case
+                when has_payer_dollar
+                    and (
+                        {{ hpt_clean_display_text('raw_minimum') }} is null
+                        or {{ hpt_clean_display_text('raw_maximum') }} is null
+                    )
+                then struct_pack(
+                    rule_id := 'payer_dollar_requires_minimum_and_maximum',
+                    column_name := case
+                        when {{ hpt_clean_display_text('raw_minimum') }} is null then 'minimum'
+                        else 'maximum'
+                    end,
+                    raw_value := concat('minimum=', coalesce(raw_minimum, '<null>'), '; maximum=', coalesce(raw_maximum, '<null>')),
+                    diagnostic_type := 'conditional_required_field_missing',
+                    message := 'Payer negotiated dollar charge requires parent minimum and maximum.'
+                )
+            end
+        ], x -> x is not null) as rule_hits
+    from charges c
 ),
 
 violations as (
-    -- Numeric parseability and positivity rules.
-    {% for raw_column, public_name in standard_charge_numeric_columns %}
     select
-        snapshot_id,
-        hospital_id,
-        source_format,
-        source_format_family,
-        reported_schema_family,
-        source_charge_item_id,
-        source_standard_charge_id,
+        e.snapshot_id,
+        e.hospital_id,
+        e.source_format,
+        e.source_format_family,
+        e.reported_schema_family,
+        e.source_charge_item_id,
+        e.source_standard_charge_id,
         cast(null as integer) as payer_ordinal,
-        row_ordinal,
+        e.row_ordinal,
         cast(null as integer) as source_rate_ordinal,
         cast(null as integer) as code_ordinal,
         cast(null as varchar) as modifier_code_id,
-        'standard_charge_numeric_parseable' as rule_id,
-        '{{ public_name }}' as column_name,
-        raw_{{ raw_column }} as raw_value,
-        'numeric_cast_failed' as diagnostic_type,
-        '{{ public_name }} is non-empty but cannot be cast to decimal(18,4).' as message
-    from charges
-    where {{ hpt_clean_display_text('raw_' ~ raw_column) }} is not null
-        and {{ hpt_safe_decimal('raw_' ~ raw_column) }} is null
-
-    union all
-
-    select
-        snapshot_id,
-        hospital_id,
-        source_format,
-        source_format_family,
-        reported_schema_family,
-        source_charge_item_id,
-        source_standard_charge_id,
-        cast(null as integer),
-        row_ordinal,
-        cast(null as integer),
-        cast(null as integer),
-        cast(null as varchar),
-        'standard_charge_numeric_positive' as rule_id,
-        '{{ public_name }}' as column_name,
-        raw_{{ raw_column }} as raw_value,
-        'numeric_not_positive' as diagnostic_type,
-        '{{ public_name }} must be greater than zero.' as message
-    from charges
-    where {{ hpt_safe_decimal('raw_' ~ raw_column) }} is not null
-        and {{ hpt_safe_decimal('raw_' ~ raw_column) }} <= 0
-
-    {% if not loop.last %}union all{% endif %}
-    {% endfor %}
-
-    union all
-
-    -- Required shape and accepted-value rules.
-    select
-        snapshot_id, hospital_id, source_format, source_format_family,
-        reported_schema_family, source_charge_item_id, source_standard_charge_id,
-        cast(null as integer), row_ordinal, cast(null as integer),
-        cast(null as integer), cast(null as varchar),
-        'standard_charge_required_setting_shape', 'setting', raw_setting,
-        'required_field_missing',
-        'Standard charge setting is required.'
-    from charges
-    where clean_setting is null
-
-    union all
-
-    select
-        snapshot_id, hospital_id, source_format, source_format_family,
-        reported_schema_family, source_charge_item_id, source_standard_charge_id,
-        cast(null as integer), row_ordinal, cast(null as integer),
-        cast(null as integer), cast(null as varchar),
-        'setting_allowed_values', 'setting', raw_setting,
-        'accepted_value_invalid',
-        'Setting must be inpatient, outpatient, or both.'
-    from charges
-    where clean_setting is not null
-        and clean_setting not in ('inpatient', 'outpatient', 'both')
-
-    union all
-
-    select
-        snapshot_id, hospital_id, source_format, source_format_family,
-        reported_schema_family, source_charge_item_id, source_standard_charge_id,
-        cast(null as integer), row_ordinal, cast(null as integer),
-        cast(null as integer), cast(null as varchar),
-        'billing_class_allowed_values', 'billing_class', raw_billing_class,
-        'accepted_value_warn',
-        'Billing class is populated outside the documented recommended values.'
-    from charges
-    where clean_billing_class is not null
-        and clean_billing_class not in ('professional', 'facility', 'both')
-
-    union all
-
-    -- Conditional charge-value and payer-dollar rules.
-    select
-        snapshot_id, hospital_id, source_format, source_format_family,
-        reported_schema_family, source_charge_item_id, source_standard_charge_id,
-        cast(null as integer), row_ordinal, cast(null as integer),
-        cast(null as integer), cast(null as varchar),
-        'charge_requires_any_standard_charge_value', 'standard_charge_values',
-        concat(
-            'gross=', coalesce(raw_gross_charge, '<null>'),
-            '; discounted_cash=', coalesce(raw_discounted_cash, '<null>'),
-            '; payer_dollar=', cast(has_payer_dollar as varchar),
-            '; payer_percentage=', cast(has_payer_percentage as varchar),
-            '; payer_algorithm=', cast(has_payer_algorithm as varchar)
-        ),
-        'conditional_required_value_missing',
-        'A standard charge must have gross, discounted cash, or payer-specific negotiated charge data.'
-    from charges
-    where {{ hpt_clean_display_text('raw_gross_charge') }} is null
-        and {{ hpt_clean_display_text('raw_discounted_cash') }} is null
-        and not has_payer_dollar
-        and not has_payer_percentage
-        and not has_payer_algorithm
-
-    union all
-
-    select
-        snapshot_id, hospital_id, source_format, source_format_family,
-        reported_schema_family, source_charge_item_id, source_standard_charge_id,
-        cast(null as integer), row_ordinal, cast(null as integer),
-        cast(null as integer), cast(null as varchar),
-        'payer_dollar_requires_minimum_and_maximum',
-        case
-            when {{ hpt_clean_display_text('raw_minimum') }} is null then 'minimum'
-            else 'maximum'
-        end,
-        concat('minimum=', coalesce(raw_minimum, '<null>'), '; maximum=', coalesce(raw_maximum, '<null>')),
-        'conditional_required_field_missing',
-        'Payer negotiated dollar charge requires parent minimum and maximum.'
-    from charges
-    where has_payer_dollar
-        and (
-            {{ hpt_clean_display_text('raw_minimum') }} is null
-            or {{ hpt_clean_display_text('raw_maximum') }} is null
-        )
+        hit.rule_id,
+        hit.column_name,
+        hit.raw_value,
+        hit.diagnostic_type,
+        hit.message
+    from evaluated e
+    cross join unnest(e.rule_hits) as t(hit)
 ),
 
 deduped as (

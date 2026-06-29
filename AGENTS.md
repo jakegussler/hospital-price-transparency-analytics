@@ -69,10 +69,12 @@ is changed to provide it.
 The active corpus is the Nashville metro (14 hospitals across CSV Wide, CSV
 Tall, and JSON; decision 0019), large enough that a **single-pass full build can
 exhaust DuckDB's temp-spill directory and OOM** — the validation violation models
-(`val__code_violations`, `val__standard_charge_violations`) join every charge
-row against the rule set and spill hardest, and they are transitive ancestors of
-Silver/Gold (rejections), so they cannot be excluded. Bound peak memory with one
-of:
+(`val__code_violations`, `val__standard_charge_violations`) scan the full
+charge/code grain and spill hardest, and they are transitive ancestors of
+Silver/Gold (rejections), so they cannot be excluded. Their grain is now built
+once in `val_int__*` table intermediates and evaluated in a single pass (see
+`docs/cleanup.md`, restructure A+B), which removes the per-rule re-scan; the
+remaining spill is the grain build itself. Bound peak memory with one of:
 
 - **Hospital-batched single-pass builds** — `--hospital-ids <subset>` in batches
   of ~4; `snapshot_replace` accumulates and the final batch's unscoped marts

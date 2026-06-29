@@ -21,16 +21,35 @@ to the relevant docs and delete resolved items from here.
   violation models do not spill concurrently, plus an explicit
   `max_temp_directory_size` so an oversized model fails cleanly instead of
   filling the disk.
-- **`val__code_violations` / `val__standard_charge_violations`** join every charge
-  row against the rule set. Scoping the build to **one hospital at a time**
-  (`--hospital-ids <one>` with `--select tag:staging,tag:silver,tag:validation,tag:gold_per_snapshot`,
-  `--command run`) keeps them in budget for all but the two largest **CSV-wide**
-  hospitals — **Williamson Medical Center** and **Maury Regional** — whose
-  single-hospital `val__code_violations` can exceed the same temp budget. Both
-  are deactivated in the registry (`active: false`); reactivate on a larger
-  machine or after the rule join is pre-aggregated. These violation models are
-  transitive ancestors of Silver Core and Gold, so they **cannot** be excluded
-  with `--select +tag:gold` because that selector pulls ancestors into the run.
+- **`val__code_violations` / `val__standard_charge_violations` restructure (A+B,
+  applied).** The dominant spill driver was *not* the `cms_validation_rules` join
+  (that join is on the already-filtered violation rows and is cheap). It was the
+  normalized charge/code grain being **re-scanned once per rule**: each model
+  built a wide JSON+CSV union (and, for code, the CSV unpivot self-join) as a CTE
+  and then scanned it ~13× / ~5× through a per-rule `UNION ALL`, recomputing and
+  re-spilling the whole surface every branch. Two changes removed this:
+  - **A — materialized intermediates.** The grain now lives in
+    `val_int__standard_charge_grain`, `val_int__code_grain`, and
+    `val_int__csv_code_pairs` (all `+materialized: table`, scoped, under
+    `validation.violations.intermediate`). It is computed once and the CSV
+    unpivot runs once (the code grain and the missing-code anti-join both read
+    `val_int__csv_code_pairs`).
+  - **B — single-pass rule evaluation.** Each violation model scans its grain
+    once, emitting a `list_filter([... struct_pack ...])` of violated rules per
+    row and `unnest`-ing it, instead of one `UNION ALL` branch per rule. Output
+    is byte-identical (same surrogate keys / column contract); verified by an
+    old-vs-new equivalence harness over synthetic rows hitting every branch and
+    by the full `--selector validation` graph.
+- Scoping the build to **one hospital at a time** (`--hospital-ids <one>`) keeps
+  these models in budget. **Williamson Medical Center** and **Maury Regional**
+  (the two largest **CSV-wide** hospitals) remain deactivated (`active: false`);
+  re-verify them on the dev box now that the unpivot is materialized once, and
+  reactivate if their single-hospital `val__code_violations` fits. If the unpivot
+  self-join still spills there, the follow-on is restructure **C** (fuse the two
+  per-ordinal unpivots in `hpt_csv_code_unpivot` so there is no self-join) — now a
+  localized change to `val_int__csv_code_pairs` / the macro. These violation
+  models are transitive ancestors of Silver Core and Gold, so they **cannot** be
+  excluded with `--select +tag:gold` because that selector pulls ancestors in.
 - The Phase-2 Gold **comparison/benchmark marts** (`gld__service_price_comparison_current`,
   `gld__service_price_summary`, `gld__hospital_service_benchmarks`,
   `gld__payer_service_benchmarks`) and the `gld_int__service_comparison_spine` also

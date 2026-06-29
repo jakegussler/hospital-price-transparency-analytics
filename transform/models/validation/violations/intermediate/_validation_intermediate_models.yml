@@ -1,0 +1,71 @@
+version: 2
+
+models:
+  - name: val_int__csv_code_pairs
+    description: >
+      CSV code_N / code_N_type columns unpivoted to one row per source row and
+      code ordinal. Materialized once so the unpivot self-join is not recomputed
+      by both the code grain and the missing-code anti-join in
+      val__code_violations. Grain: one row per (snapshot_id, row_ordinal,
+      code_ordinal). Warn-only because Bronze is source-faithful and may carry
+      duplicate source rows.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - snapshot_id
+              - row_ordinal
+              - code_ordinal
+          config:
+            severity: warn
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+
+  - name: val_int__code_grain
+    description: >
+      One row per code (JSON code_information object and CSV code_N/code_N_type
+      pair), joined to the cms_code_types seed for membership and schema-family
+      applicability. Consumed once per rule by val__code_violations. Grain: one
+      row per (snapshot_id, source_format_family, source_charge_item_id,
+      row_ordinal, code_ordinal). Warn-only because Bronze is source-faithful.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - snapshot_id
+              - source_format_family
+              - source_charge_item_id
+              - row_ordinal
+              - code_ordinal
+          config:
+            severity: warn
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
+
+  - name: val_int__standard_charge_grain
+    description: >
+      One row per JSON standard charge and per CSV charge row, projected to the
+      fields the standard-charge validation rules evaluate. Consumed once per
+      rule by val__standard_charge_violations. Grain: one row per (snapshot_id,
+      source_format_family, source_charge_item_id, source_standard_charge_id,
+      row_ordinal). Warn-only because Bronze is source-faithful and may repeat
+      standard-charge identifiers.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - snapshot_id
+              - source_format_family
+              - source_charge_item_id
+              - source_standard_charge_id
+              - row_ordinal
+          config:
+            severity: warn
+    columns:
+      - name: snapshot_id
+        tests:
+          - not_null
