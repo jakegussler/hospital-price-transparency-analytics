@@ -1,38 +1,13 @@
--- Emit code-level and missing-CSV-code violations. The normalized code grain
--- (JSON objects + CSV pairs + code-type seed join) is built once in
--- val_int__code_grain; here we scan it a single time and emit one row per
--- (code, violated rule) via a struct list + unnest, instead of re-scanning the
--- grain once per rule. The missing-code rule is a different (row) grain, so it
--- stays a separate branch. See docs/cleanup.md.
+-- Emit code-level violations. The normalized code grain (JSON objects + CSV
+-- pairs + code-type seed join) is built once in val_int__code_grain; here we
+-- scan it a single time and emit one row per (code, violated rule) via a struct
+-- list + unnest, instead of re-scanning the grain once per rule. The
+-- "CSV charge row with charge data but no code pair" case (csv_code_pair_required)
+-- is a charge-item-grain rejection -- it has no code_ordinal, so it cannot drive
+-- the code-rejection join -- and lives in val__charge_item_violations, where it
+-- routes through the charge-item exclusion path. See docs/cleanup.md.
 with code_rows as (
     select * from {{ hpt_scoped_ref('val_int__code_grain') }}
-),
-
-csv_rows_without_codes as (
-    -- Rows with charge data but no code pair cannot appear in the code-grain
-    -- union, so retain them separately for the CSV conditional rule. The
-    -- anti-join uses the pre-materialized unpivot rather than re-running it.
-    select
-        r.snapshot_id,
-        hs.hospital_id,
-        r.source_format,
-        'csv' as source_format_family,
-        '3.0' as reported_schema_family,
-        r.row_ordinal
-    from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
-    inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
-        on r.snapshot_id = hs.snapshot_id
-    left join {{ hpt_scoped_ref('val_int__csv_code_pairs') }} p
-        on r.snapshot_id = p.snapshot_id
-        and r.row_ordinal = p.row_ordinal
-    where p.row_ordinal is null
-        and (
-            r.gross_charge is not null
-            or r.discounted_cash is not null
-            or r.negotiated_dollar is not null
-            or r.negotiated_percentage is not null
-            or r.negotiated_algorithm is not null
-        )
 ),
 
 evaluated as (
@@ -123,36 +98,13 @@ violations as (
         hit.message
     from evaluated e
     cross join unnest(e.rule_hits) as t(hit)
-
-    union all
-
-    -- CSV charge rows that are missing every code/code-type pair (row grain).
-    select
-        snapshot_id,
-        hospital_id,
-        source_format,
-        source_format_family,
-        reported_schema_family,
-        cast(null as varchar) as source_charge_item_id,
-        cast(null as varchar) as source_standard_charge_id,
-        cast(null as integer) as payer_ordinal,
-        row_ordinal,
-        cast(null as integer) as source_rate_ordinal,
-        cast(null as integer) as code_ordinal,
-        cast(null as varchar) as modifier_code_id,
-        'csv_code_pair_required' as rule_id,
-        'code|[i]' as column_name,
-        cast(null as varchar) as raw_value,
-        'csv_code_pair_missing' as diagnostic_type,
-        'CSV charge row has charge data but no code/code-type pair.' as message
-    from csv_rows_without_codes
 ),
 
 deduped as (
     -- CSV-wide Bronze is at charge x payer grain, so a single source row's codes
-    -- (and its missing-code finding) repeat once per payer. Collapse to one
-    -- violation per source code / row, rule, column, and raw value -- the same
-    -- dedup val__standard_charge_violations applies for the identical reason.
+    -- repeat once per payer. Collapse to one violation per source code / row,
+    -- rule, column, and raw value -- the same dedup
+    -- val__standard_charge_violations applies for the identical reason.
     select *
     from violations
     qualify row_number() over (

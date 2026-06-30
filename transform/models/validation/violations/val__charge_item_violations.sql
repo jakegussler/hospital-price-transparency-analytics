@@ -36,7 +36,8 @@ json_item_rollup as (
         i.*,
         count(c.code_ordinal) as code_count,
         count(sc.standard_charge_id) as standard_charge_count,
-        bool_or(coalesce(ct.requires_drug_information, false)) as has_drug_information_code
+        bool_or(coalesce(ct.requires_drug_information, false)) as has_drug_information_code,
+        cast(null as boolean) as has_charge_data
     from json_items i
     left join {{ hpt_scoped_ref('stg_bronze__code_information') }} c
         on i.snapshot_id = c.snapshot_id
@@ -73,7 +74,14 @@ csv_item_rollup as (
         r.drug_unit,
         r.clean_drug_unit_type,
         count(c.code_ordinal) as code_count,
-        bool_or(coalesce(ct.requires_drug_information, false)) as has_drug_information_code
+        bool_or(coalesce(ct.requires_drug_information, false)) as has_drug_information_code,
+        bool_or(
+            r.gross_charge is not null
+            or r.discounted_cash is not null
+            or r.negotiated_dollar is not null
+            or r.negotiated_percentage is not null
+            or r.negotiated_algorithm is not null
+        ) as has_charge_data
     from {{ hpt_scoped_ref('stg_bronze__csv_charge_rows') }} r
     inner join {{ hpt_scoped_ref('stg_bronze__hospital_mrf_snapshots') }} hs
         on r.snapshot_id = hs.snapshot_id
@@ -106,7 +114,8 @@ items as (
         clean_drug_unit_type,
         code_count,
         cast(null as bigint) as standard_charge_count,
-        has_drug_information_code
+        has_drug_information_code,
+        has_charge_data
     from csv_item_rollup
 ),
 
@@ -207,6 +216,27 @@ violations as (
         'JSON standard_charges array must contain at least one item.'
     from items
     where source_format_family = 'json' and standard_charge_count = 0
+
+    union all
+
+    -- CSV charge rows with charge data but no code/code-type pair. The charge
+    -- item is unattributable to a billing code, so the whole row is rejected.
+    -- This is a charge-item-grain rejection keyed by row_ordinal: a code-grain
+    -- emission would carry no code_ordinal and so could not drive exclusion.
+    -- code_count = 0 means the row produced no unpivoted code pair (equivalent
+    -- to absence from val_int__csv_code_pairs).
+    select
+        snapshot_id, hospital_id, source_format, source_format_family,
+        reported_schema_family, source_charge_item_id, cast(null as varchar),
+        cast(null as integer), row_ordinal, cast(null as integer),
+        cast(null as integer), cast(null as varchar),
+        'csv_code_pair_required', 'code|[i]', cast(null as varchar),
+        'csv_code_pair_missing',
+        'CSV charge row has charge data but no code/code-type pair.'
+    from items
+    where source_format_family = 'csv'
+        and code_count = 0
+        and has_charge_data
 ),
 
 enriched as (
