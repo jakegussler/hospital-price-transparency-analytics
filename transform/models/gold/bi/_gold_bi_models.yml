@@ -252,6 +252,14 @@ models:
                 to: ref('gld_dim__hospital')
                 field: hospital_id
       - name: blocker_code
+        description: >
+          The 10 atomic row-grain blockers from the comparison framework. The
+          11th decision-0017 blocker, below_min_hospital_denominator, is
+          intentionally absent: it is a service-context cohort-grain (window)
+          signal and is surfaced as
+          gld_bi__service_market_explorer.comparison_status =
+          'insufficient_denominator', not here. The accepted_values list below is
+          the contract guard against accidentally adding it at the wrong grain.
         tests:
           - not_null
           - accepted_values:

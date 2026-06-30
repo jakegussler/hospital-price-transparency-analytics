@@ -66,6 +66,11 @@ select
     s.iqr_amount,
     s.outlier_observation_count,
 
+    -- 'insufficient_denominator' is the BI representation of the cohort-grain
+    -- below_min_hospital_denominator blocker (decision 0017): the service context
+    -- has hospital_count < 3, so not meets_hospital_threshold. This is the
+    -- canonical thin-cohort signal; gld_bi__comparison_blocker_summary covers
+    -- only the 10 row-grain blockers and intentionally omits this one.
     case
         when not s.meets_hospital_threshold then 'insufficient_denominator'
         when sc.has_code_description then 'described_comparable'

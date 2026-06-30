@@ -4,6 +4,15 @@
 -- stricter comparison use cases. Grain: one row per snapshot/blocker_code.
 -- Counts come from gld_score__snapshot_coverage_scorecard, preserving the same blocker
 -- vocabulary as the comparison framework.
+--
+-- Grain note: this mart covers the 10 ATOMIC ROW-GRAIN blockers by design (the
+-- ones hpt_comparison_blocker_flags() emits per fact-bridge observation). The
+-- 11th decision-0017 blocker, below_min_hospital_denominator, is intentionally
+-- NOT here: it is a service-context COHORT-GRAIN (window) signal that cannot be
+-- evaluated per atomic row (see the hpt_comparison_blocker_codes/_flags macro
+-- header and the scorecard header). It is surfaced instead as
+-- gld_bi__service_market_explorer.comparison_status = 'insufficient_denominator'.
+-- A UI that lists blocker vocabulary must read BOTH surfaces.
 
 with coverage as (
     select *

@@ -130,6 +130,15 @@ minimum:
 The blocker list may grow as Gold models are implemented, but new blocker codes
 must remain stable, documented values rather than ad hoc text.
 
+These blockers are realized at two grains. The first ten are atomic row-grain
+flags emitted by `hpt_comparison_blocker_flags()` and counted per snapshot in
+`gld_score__snapshot_coverage_scorecard` / `gld_bi__comparison_blocker_summary`.
+`below_min_hospital_denominator` is a service-context cohort (window) property
+that cannot be evaluated per row; it is computed where the peer-hospital count is
+known (`gld_mart__service_price_summary` / `gld_mart__service_price_comparison_current`)
+and surfaced in the BI layer as
+`gld_bi__service_market_explorer.comparison_status = 'insufficient_denominator'`.
+
 ## Explicit v1 Non-Goals
 
 Gold v1 will not build:
