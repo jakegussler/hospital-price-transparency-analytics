@@ -1,3 +1,2 @@
 select *
-from read_parquet('data/comparison_blocker_summary.parquet')
-
+from read_parquet('sources/hpt/data/comparison_blocker_summary.parquet')

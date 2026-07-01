@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "evidence dev --open /",
-    "sources": "evidence sources",
+    "dev": "npm run sources && node scripts/clean-dev-state.mjs && evidence dev --open /",
+    "sources": "evidence sources && node scripts/fix-empty-parquet-sources.mjs",
     "build": "evidence build",
     "preview": "evidence preview"
   },

@@ -1,3 +1,2 @@
 select *
-from read_parquet('data/payer_contracting_explorer.parquet')
-
+from read_parquet('sources/hpt/data/payer_contracting_explorer.parquet')

@@ -1,3 +1,2 @@
 select *
-from read_parquet('data/public_metadata.parquet')
-
+from read_parquet('sources/hpt/data/public_metadata.parquet')

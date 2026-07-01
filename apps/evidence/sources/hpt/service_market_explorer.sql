@@ -1,3 +1,2 @@
 select *
-from read_parquet('data/service_market_explorer.parquet')
-
+from read_parquet('sources/hpt/data/service_market_explorer.parquet')
