@@ -23,7 +23,6 @@ class EvidenceExportSpec:
     public_name: str
     source_schema: str
     source_table: str
-    require_nonzero: bool = False
 
     @property
     def source_relation(self) -> str:
@@ -39,13 +38,11 @@ EVIDENCE_EXPORTS: tuple[EvidenceExportSpec, ...] = (
         public_name="hospital_overview",
         source_schema="main_gold",
         source_table="gld_bi__hospital_overview",
-        require_nonzero=True,
     ),
     EvidenceExportSpec(
         public_name="service_market_explorer",
         source_schema="main_gold",
         source_table="gld_bi__service_market_explorer",
-        require_nonzero=True,
     ),
     EvidenceExportSpec(
         public_name="hospital_service_rankings",
@@ -66,7 +63,6 @@ EVIDENCE_EXPORTS: tuple[EvidenceExportSpec, ...] = (
         public_name="featured_services",
         source_schema="main_gold",
         source_table="gld_bi__featured_services",
-        require_nonzero=True,
     ),
 )
 
@@ -99,6 +95,38 @@ class EvidenceSqlViolation:
     token: str
     line_number: int
     line: str
+
+
+@dataclass(frozen=True)
+class EvidenceReadinessRule:
+    """Minimum row-count expectation for a public-demo Evidence mart."""
+
+    public_name: str
+    min_rows: int = 1
+
+
+@dataclass(frozen=True)
+class EvidenceReadinessIssue:
+    """A BI mart failed an optional public-demo readiness rule."""
+
+    public_name: str
+    source_relation: str
+    row_count: int
+    min_rows: int
+
+    @property
+    def message(self) -> str:
+        return (
+            f"{self.source_relation} has {self.row_count} rows; "
+            f"expected at least {self.min_rows} for Evidence readiness."
+        )
+
+
+DEFAULT_EVIDENCE_READINESS_RULES: tuple[EvidenceReadinessRule, ...] = (
+    EvidenceReadinessRule("hospital_overview"),
+    EvidenceReadinessRule("service_market_explorer"),
+    EvidenceReadinessRule("featured_services"),
+)
 
 
 def export_evidence_artifact(
@@ -205,6 +233,71 @@ def scan_evidence_sql(root: Path) -> list[EvidenceSqlViolation]:
     return violations
 
 
+def check_evidence_readiness(
+    *,
+    source_duckdb: Path,
+    rules: tuple[EvidenceReadinessRule, ...] = DEFAULT_EVIDENCE_READINESS_RULES,
+) -> list[EvidenceReadinessIssue]:
+    """Check optional row-count gates for a public-demo Evidence corpus.
+
+    This is intentionally separate from export_evidence_artifact(): smoke runs
+    with tiny corpora should still be able to export schema-valid empty marts,
+    while publication/demo builds can opt into stricter row-count expectations.
+    """
+
+    try:
+        import duckdb
+    except ImportError as exc:  # pragma: no cover - exercised only without warehouse extra
+        raise EvidenceExportError(
+            "duckdb is required; install with the warehouse extra before checking Evidence data."
+        ) from exc
+
+    source_duckdb = source_duckdb.expanduser()
+    if not source_duckdb.exists():
+        raise EvidenceExportError(f"Source DuckDB does not exist: {source_duckdb}")
+
+    specs_by_public_name = {spec.public_name: spec for spec in EVIDENCE_EXPORTS}
+    issues: list[EvidenceReadinessIssue] = []
+
+    with duckdb.connect(str(source_duckdb), read_only=True) as con:
+        for rule in rules:
+            try:
+                spec = specs_by_public_name[rule.public_name]
+            except KeyError as exc:
+                raise EvidenceExportError(
+                    f"Unknown Evidence public table in readiness rule: {rule.public_name}"
+                ) from exc
+
+            _assert_relation_exists(con, spec)
+            row_count = int(
+                con.execute(f"select count(*) from {_quote_relation(spec)}").fetchone()[0]
+            )
+            if row_count < rule.min_rows:
+                issues.append(
+                    EvidenceReadinessIssue(
+                        public_name=spec.public_name,
+                        source_relation=spec.source_relation,
+                        row_count=row_count,
+                        min_rows=rule.min_rows,
+                    )
+                )
+
+    return issues
+
+
+def assert_evidence_readiness(
+    *,
+    source_duckdb: Path,
+    rules: tuple[EvidenceReadinessRule, ...] = DEFAULT_EVIDENCE_READINESS_RULES,
+) -> None:
+    """Raise EvidenceExportError when optional Evidence readiness checks fail."""
+
+    issues = check_evidence_readiness(source_duckdb=source_duckdb, rules=rules)
+    if issues:
+        messages = "\n".join(f"- {issue.message}" for issue in issues)
+        raise EvidenceExportError(f"Evidence readiness checks failed:\n{messages}")
+
+
 def _export_allowlisted_tables(con: object, temp_dir: Path) -> dict[str, int]:
     row_counts: dict[str, int] = {}
 
@@ -213,10 +306,6 @@ def _export_allowlisted_tables(con: object, temp_dir: Path) -> dict[str, int]:
         row_count = int(
             con.execute(f"select count(*) from {_quote_relation(spec)}").fetchone()[0]
         )
-        if spec.require_nonzero and row_count == 0:
-            raise EvidenceExportError(
-                f"Required BI mart {spec.source_relation} has zero rows."
-            )
         row_counts[spec.public_name] = row_count
 
         output_path = temp_dir / spec.parquet_name

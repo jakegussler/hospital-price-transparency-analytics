@@ -10,7 +10,7 @@ def test_scan_evidence_sql_allows_public_hpt_sources_and_prose(tmp_path: Path) -
     (app / "sources" / "hpt").mkdir(parents=True)
     (app / "src" / "pages").mkdir(parents=True)
     (app / "sources" / "hpt" / "hospital_overview.sql").write_text(
-        "select * from read_parquet('data/hospital_overview.parquet')",
+        "select * from read_parquet('sources/hpt/data/hospital_overview.parquet')",
         encoding="utf-8",
     )
     (app / "src" / "pages" / "methodology.md").write_text(
@@ -49,4 +49,3 @@ def test_checked_in_evidence_app_uses_only_public_sql_sources() -> None:
     violations = scan_evidence_sql(repo_root / "apps" / "evidence")
 
     assert violations == []
-

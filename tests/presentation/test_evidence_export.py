@@ -8,6 +8,8 @@ import pytest
 from hpt.presentation.evidence_export import (
     EVIDENCE_EXPORTS,
     EvidenceExportError,
+    assert_evidence_readiness,
+    check_evidence_readiness,
     export_evidence_artifact,
 )
 
@@ -15,14 +17,15 @@ duckdb = pytest.importorskip("duckdb")
 
 
 def _create_source_database(
-    path: Path, *, omit: str | None = None, empty_required: bool = False
+    path: Path, *, omit: str | None = None, row_counts: dict[str, int] | None = None
 ) -> None:
+    row_counts = row_counts or {}
     with duckdb.connect(str(path)) as con:
         con.execute("create schema main_gold")
         for spec in EVIDENCE_EXPORTS:
             if spec.source_table == omit:
                 continue
-            row_count = 0 if empty_required and spec.require_nonzero else 1
+            row_count = row_counts.get(spec.public_name, 1)
             con.execute(
                 f"""
                 create table main_gold.{spec.source_table} as
@@ -37,6 +40,13 @@ def _create_source_database(
             create table main_gold.gld_fct__rate_observations as
             select 1 as should_not_export
             """
+        )
+
+
+def _read_parquet_row_count(path: Path) -> int:
+    with duckdb.connect() as con:
+        return int(
+            con.execute("select count(*) from read_parquet(?)", [str(path)]).fetchone()[0]
         )
 
 
@@ -67,6 +77,29 @@ def test_export_writes_only_allowlisted_parquet_and_metadata(tmp_path: Path) -> 
             [str(target / "public_metadata.parquet")],
         ).fetchall()
     assert metadata == [(name, 1, "Nashville metro") for name in sorted(expected_names)]
+
+
+def test_export_allows_empty_allowlisted_marts(tmp_path: Path) -> None:
+    source = tmp_path / "warehouse.duckdb"
+    target = tmp_path / "evidence_data"
+    _create_source_database(
+        source,
+        row_counts={
+            "featured_services": 0,
+            "hospital_service_rankings": 0,
+        },
+    )
+
+    row_counts = export_evidence_artifact(
+        source_duckdb=source,
+        target_dir=target,
+        replace=True,
+        compute_source_hash=False,
+    )
+
+    assert row_counts["featured_services"] == 0
+    assert row_counts["hospital_service_rankings"] == 0
+    assert _read_parquet_row_count(target / "featured_services.parquet") == 0
 
 
 def test_export_replace_swaps_generated_data_directory(tmp_path: Path) -> None:
@@ -118,15 +151,29 @@ def test_export_fails_when_required_mart_is_missing(tmp_path: Path) -> None:
         )
 
 
-def test_export_fails_when_required_mart_is_empty(tmp_path: Path) -> None:
+def test_evidence_readiness_reports_empty_demo_marts(tmp_path: Path) -> None:
     source = tmp_path / "warehouse.duckdb"
-    target = tmp_path / "evidence_data"
-    _create_source_database(source, empty_required=True)
+    _create_source_database(
+        source,
+        row_counts={
+            "hospital_overview": 1,
+            "service_market_explorer": 3,
+            "featured_services": 0,
+        },
+    )
 
-    with pytest.raises(EvidenceExportError, match="zero rows"):
-        export_evidence_artifact(
-            source_duckdb=source,
-            target_dir=target,
-            replace=True,
-            compute_source_hash=False,
-        )
+    issues = check_evidence_readiness(source_duckdb=source)
+
+    assert [(issue.public_name, issue.row_count, issue.min_rows) for issue in issues] == [
+        ("featured_services", 0, 1)
+    ]
+    with pytest.raises(EvidenceExportError, match="Evidence readiness checks failed"):
+        assert_evidence_readiness(source_duckdb=source)
+
+
+def test_evidence_readiness_passes_when_demo_marts_have_rows(tmp_path: Path) -> None:
+    source = tmp_path / "warehouse.duckdb"
+    _create_source_database(source)
+
+    assert check_evidence_readiness(source_duckdb=source) == []
+    assert_evidence_readiness(source_duckdb=source)
