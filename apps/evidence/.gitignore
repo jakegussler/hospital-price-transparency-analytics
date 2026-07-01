@@ -1,0 +1,9 @@
+node_modules/
+build/
+.evidence/
+.env
+sources/hpt/data/
+sources/hpt/*.duckdb
+sources/hpt/*.duckdb.*
+sources/hpt/connection.options.yaml
+

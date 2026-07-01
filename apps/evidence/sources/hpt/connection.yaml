@@ -1,0 +1,4 @@
+name: hpt
+type: duckdb
+options:
+  filename: ":memory:"
