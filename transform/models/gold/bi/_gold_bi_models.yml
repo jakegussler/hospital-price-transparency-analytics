@@ -1,12 +1,20 @@
 version: 2
 
+# Column descriptions in this file are the source of the PUBLIC data dictionary:
+# the Evidence artifact exporter parses this yml and publishes table/column
+# descriptions alongside the exported Parquet marts. Write descriptions in
+# plain language a public data user can follow, and keep every selected column
+# listed here.
+
 models:
   - name: gld_bi__hospital_overview
     description: >
       BI presentation mart for hospital profile cards, ranked tables, and
       readiness overview pages. Grain: one row per hospital_id/current scored
       snapshot. Keeps technical keys for drill-down while adding display labels,
-      ranks, trust bands, and coverage measures.
+      ranks, data-confidence bands, and coverage measures. Readiness scores
+      measure how usable the hospital's published file is for price comparison;
+      they are not legal-compliance findings.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -14,6 +22,7 @@ models:
               - hospital_id
     columns:
       - name: hospital_id
+        description: Stable registry identifier for the hospital. Used in public hospital page URLs.
         tests:
           - not_null
           - relationships:
@@ -21,33 +30,116 @@ models:
                 to: ref('gld_dim__hospital')
                 field: hospital_id
       - name: hospital_display_name
+        description: Canonical hospital name for display.
         tests: [not_null]
+      - name: canonical_state
+        description: Two-letter state code of the hospital.
+      - name: hospital_type
+        description: Hospital category from the registry (e.g. short-term acute care).
+      - name: health_system
+        description: Health system the hospital belongs to, from the registry.
+      - name: canonical_state_name
+        description: Full state name.
+      - name: canonical_census_region
+        description: US census region of the hospital's state.
+      - name: canonical_census_division
+        description: US census division of the hospital's state.
+      - name: expected_format
+        description: Machine-readable-file format the registry expects for this hospital (json, csv_tall, csv_wide).
+      - name: mrf_url
+        description: URL of the hospital's own machine-readable standard-charges file. The public source behind every number on this row.
       - name: snapshot_id
+        description: Identifier of the scored source-file snapshot behind this row.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__snapshot')
                 field: snapshot_id
-      - name: trust_band
+      - name: current_snapshot_available
+        description: True when the scored snapshot is the hospital's current one.
+      - name: is_current_snapshot
+        description: Whether the joined snapshot is flagged current in the snapshot dimension.
+      - name: published_last_updated_on
+        description: The last-updated date the hospital printed inside its published file.
+      - name: snapshot_age_days
+        description: Days between the file's published last-updated date and the pipeline's reference date.
+      - name: freshness_bucket
+        description: "Data recency bucket derived from snapshot_age_days: <=90d, <=180d, <=365d, >365d."
+      - name: overall_readiness_score
+        description: "0-1 composite data-usability score: the mean of the freshness, code coverage, amount coverage, payer mapping, and comparison readiness component scores. Not a legal-compliance measure."
+        tests: [not_null]
+      - name: freshness_score
+        description: "0-1 component score from the freshness bucket (1.0 for <=90d down to 0.25 for >365d)."
+      - name: code_coverage_score
+        description: 0-1 component score; share of the hospital's charge items carrying a cross-hospital-comparable billing code.
+      - name: amount_coverage_score
+        description: 0-1 component score; share of the hospital's price observations expressed as dollar amounts (rather than percentages or formulas).
+      - name: payer_mapping_score
+        description: 0-1 component score; share of the hospital's payer rates whose payer name was matched to a canonical insurer.
+      - name: comparison_readiness_score
+        description: 0-1 component score; share of classified rows that are fully context-aligned (tier 2) and therefore eligible for strict comparison.
+      - name: overall_readiness_rank
+        description: Dense rank of hospitals by overall_readiness_score (1 = highest). Convenience sort key; small score differences are not meaningful.
+      - name: comparison_readiness_rank
+        description: Dense rank by comparison_readiness_score (1 = highest).
+      - name: payer_mapping_rank
+        description: Dense rank by payer_mapping_score (1 = highest).
+      - name: data_confidence_band
+        description: >
+          How usable this hospital's published file is, banded from
+          overall_readiness_score (high >= 0.85, moderate >= 0.70,
+          limited >= 0.50, else low). Describes the published data, not care
+          quality and not legal compliance. Distinct from the service-level
+          comparison_confidence_band, which is a cohort-size property.
         tests:
           - not_null
           - accepted_values:
               arguments:
-                values: ["high_trust", "moderate_trust", "limited_trust", "low_trust"]
-      - name: overall_readiness_score
-        tests: [not_null]
+                values: ["high", "moderate", "limited", "low"]
+      - name: charge_item_count
+        description: Distinct charge items in the hospital's file snapshot.
+      - name: standard_charge_count
+        description: Distinct standard-charge records in the snapshot.
+      - name: payer_rate_count
+        description: Distinct payer-specific rate records in the snapshot.
+      - name: observation_count
+        description: Atomic price observations extracted from the snapshot (one per source row and amount kind).
+      - name: distinct_comparable_codes
+        description: Distinct cross-hospital-comparable billing codes observed in the snapshot.
       - name: benchmark_context_count
+        description: Hospital/service-context/amount-kind combinations for this hospital in the service benchmark mart.
         tests: [not_null]
+      - name: benchmark_service_count
+        description: Distinct services for this hospital in the service benchmark mart.
+      - name: benchmark_services_meeting_floor
+        description: Distinct services where this hospital's context has at least 3 reporting hospitals (the comparison floor).
       - name: payer_contract_context_count
+        description: Payer/service-context rows for this hospital in the payer benchmark mart.
         tests: [not_null]
+      - name: matched_payer_count
+        description: Distinct canonical (matched) payers with negotiated-dollar contexts at this hospital.
+      - name: payer_contract_service_count
+        description: Distinct services with matched-payer negotiated contexts at this hospital.
+      - name: coded_item_coverage_rate
+        description: Share (0-1) of charge items carrying a cross-hospital-comparable code.
+      - name: dollar_observation_coverage_rate
+        description: Share (0-1) of price observations expressed in dollars.
+      - name: discounted_cash_coverage_rate
+        description: Share (0-1) of standard charges that include a discounted cash price.
+      - name: negotiated_dollar_coverage_rate
+        description: Share (0-1) of payer rates expressed as negotiated dollar amounts.
+      - name: payer_mapping_coverage_rate
+        description: Share (0-1) of payer rates whose payer name matched a canonical insurer.
 
   - name: gld_bi__service_market_explorer
     description: >
       BI presentation mart for service-market exploration. Grain: one row per
       service_code_key, setting, billing_class, modifier_signature, and
       amount_kind from the service summary mart. Adds human-readable service and
-      modifier labels, status fields, threshold flags, and variation bands.
+      modifier labels, URL slugs, status fields, threshold flags, and variation
+      bands. Percentile and spread statistics are published only where the exact
+      context has at least 3 reporting hospitals.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -59,30 +151,119 @@ models:
               - amount_kind
     columns:
       - name: service_code_key
+        description: Surrogate key for the (code system, code) cohort. Join key to other marts; not human-readable.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__service_code')
                 field: service_code_key
+      - name: canonical_code_system
+        description: Normalized billing code system (e.g. ms-drg, cpt, hcpcs).
+      - name: match_code
+        description: Normalized billing code within the code system.
+      - name: service_url_slug
+        description: URL-safe identifier for public service pages, derived from the code system and code (e.g. ms-drg-470). One slug per service_code_key.
+        tests: [not_null]
       - name: service_display_code
+        description: "Human-readable code label: upper-cased code system plus code (e.g. MS-DRG 470)."
         tests: [not_null]
       - name: service_display_name
+        description: Service description when available; otherwise the literal 'Description not available' (see description_availability for why).
         tests: [not_null]
+      - name: service_display_label
+        description: Combined display label; code plus description when available.
+      - name: code_description
+        description: Loaded public-domain description of the billing code, when available.
+      - name: code_description_edition
+        description: Edition/version of the loaded code description (e.g. MS-DRG fiscal year).
+      - name: code_description_source
+        description: Source of the loaded description reference data.
+      - name: code_description_license
+        description: License of the loaded description reference data.
+      - name: has_code_description
+        description: True when a public-domain description is loaded for this code.
+      - name: description_availability
+        description: >
+          Why the description is or is not shown: available (loaded),
+          license_restricted (CPT/CDT descriptions cannot be republished
+          without a license - not a hospital publishing failure), or not_loaded
+          (public-domain reference data not yet loaded for this code system).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["available", "license_restricted", "not_loaded"]
+      - name: relative_weight
+        description: MS-DRG relative weight (resource intensity) when the code is an MS-DRG.
+      - name: ms_drg_mdc
+        description: MS-DRG major diagnostic category, when applicable.
+      - name: ms_drg_type
+        description: MS-DRG type (medical/surgical), when applicable.
+      - name: clean_setting
+        description: Care setting of the context (inpatient, outpatient, or unspecified as published).
+      - name: clean_billing_class
+        description: Billing class of the context (facility, professional, or unspecified when the hospital did not label it). Contexts are never merged across differing values.
       - name: modifier_signature
+        description: Opaque key for the exact set of billing modifiers in this context. Technical key; display label is modifier_display_label.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__modifier_signature')
                 field: modifier_signature
+      - name: modifier_display_label
+        description: Human-readable label for the modifier set (or 'No modifiers').
+      - name: modifier_count
+        description: Number of modifiers in the set.
+      - name: has_pro_tech_split_modifier
+        description: True when the modifier set includes a professional/technical split modifier (26/TC); such rows are never merged with unmodified rows.
       - name: amount_kind
+        description: >
+          Which kind of price this row summarizes: gross_charge (list price),
+          discounted_cash (self-pay price), or negotiated_dollar
+          (insurer-negotiated rate). Different amount kinds are never ranked
+          against each other.
         tests:
           - not_null
           - accepted_values:
               arguments:
                 values: ["gross_charge", "discounted_cash", "negotiated_dollar"]
+      - name: observation_count
+        description: Price observations in this exact context.
+      - name: hospital_count
+        description: Distinct hospitals reporting this exact context. The comparison denominator (the "n" shown next to every market statistic).
+      - name: payer_count
+        description: Distinct matched payers contributing observations to this context (negotiated rates only).
+      - name: meets_hospital_threshold
+        description: True when hospital_count is at least 3, the minimum denominator for publishing market statistics.
+      - name: market_coverage_rate
+        description: Share (0-1) of corpus hospitals reporting this exact context.
+      - name: min_amount
+        description: Minimum observed amount. Null when below the 3-hospital floor.
+      - name: p10_amount
+        description: 10th-percentile amount. Null when below the 3-hospital floor; at small n this is close to the minimum.
+      - name: median_amount
+        description: Median (typical) amount. Null when below the 3-hospital floor.
+      - name: p90_amount
+        description: 90th-percentile amount. Null when below the 3-hospital floor; at small n this is close to the maximum.
+      - name: max_amount
+        description: Maximum observed amount. Null when below the 3-hospital floor.
+      - name: spread_amount_p90_to_p10
+        description: Dollar gap between the 90th and 10th percentile amounts. Null when below the floor.
+      - name: spread_ratio_p90_to_p10
+        description: Ratio of the 90th to the 10th percentile amount (price spread multiple). Null when below the floor.
+      - name: iqr_amount
+        description: Interquartile range of amounts. Null when below the floor.
+      - name: outlier_observation_count
+        description: Observations flagged as robust (1.5 x IQR) outliers. Null when below the floor.
       - name: comparison_status
+        description: >
+          Whether this context can be compared across hospitals:
+          described_comparable (comparable and a description is available),
+          code_only_comparable (comparable by billing code only), or
+          insufficient_denominator (fewer than 3 hospitals - the cohort-grain
+          below_min_hospital_denominator blocker from decision 0017).
         tests:
           - not_null
           - accepted_values:
@@ -91,13 +272,23 @@ models:
                   - insufficient_denominator
                   - described_comparable
                   - code_only_comparable
-      - name: trust_band
+      - name: comparison_confidence_band
+        description: >
+          How solid this context's cross-hospital comparison is, from cohort
+          size and description availability: high (10+ hospitals and described),
+          moderate (5+), limited (meets the 3-hospital floor), low (below the
+          floor). Distinct from the hospital-level data_confidence_band, which
+          is readiness-score derived.
         tests:
           - not_null
           - accepted_values:
               arguments:
-                values: ["high_trust", "moderate_trust", "limited_trust", "low_trust"]
+                values: ["high", "moderate", "limited", "low"]
       - name: variation_band
+        description: >
+          How spread out prices are across hospitals for this context:
+          very_high_variation (p90/p10 >= 3), high_variation (>= 2),
+          moderate_variation, or not_ranked (below the denominator floor).
         tests:
           - not_null
           - accepted_values:
@@ -110,10 +301,13 @@ models:
 
   - name: gld_bi__hospital_service_rankings
     description: >
-      BI presentation mart for hospital high/low service comparisons. Grain:
+      BI presentation mart for hospital-vs-market service comparisons. Grain:
       one row per hospital_id, service_code_key, setting, billing_class,
-      modifier_signature, and amount_kind. Adds hospital/service labels and
-      all-market price position flags.
+      modifier_signature, and amount_kind. The hospital's representative amount
+      is compared against four peer groups (all corpus hospitals, same state,
+      same hospital type, same health system), each gated by its own 3-hospital
+      floor. Position bands describe one service context, not the hospital
+      overall.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -126,27 +320,119 @@ models:
               - amount_kind
     columns:
       - name: hospital_id
+        description: Stable registry identifier for the hospital.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__hospital')
                 field: hospital_id
+      - name: hospital_display_name
+        description: Canonical hospital name for display.
+      - name: health_system
+        description: Health system the hospital belongs to.
+      - name: hospital_type
+        description: Hospital category from the registry.
+      - name: canonical_state
+        description: Two-letter state code.
+      - name: canonical_state_name
+        description: Full state name.
       - name: service_code_key
+        description: Surrogate key for the (code system, code) cohort.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__service_code')
                 field: service_code_key
+      - name: canonical_code_system
+        description: Normalized billing code system.
+      - name: match_code
+        description: Normalized billing code.
+      - name: service_url_slug
+        description: URL-safe identifier for public service pages (matches gld_bi__service_market_explorer).
+        tests: [not_null]
+      - name: service_display_code
+        description: Human-readable code label.
+      - name: service_display_name
+        description: Service description when available; otherwise 'Description not available'.
+      - name: service_display_label
+        description: Combined display label; code plus description when available.
+      - name: has_code_description
+        description: True when a public-domain description is loaded for this code.
+      - name: description_availability
+        description: Why the description is or is not shown (available, license_restricted, not_loaded).
+      - name: relative_weight
+        description: MS-DRG relative weight, when applicable.
+      - name: ms_drg_mdc
+        description: MS-DRG major diagnostic category, when applicable.
+      - name: ms_drg_type
+        description: MS-DRG type (medical/surgical), when applicable.
+      - name: clean_setting
+        description: Care setting of the context.
+      - name: clean_billing_class
+        description: Billing class of the context (unspecified when the hospital did not label it).
       - name: modifier_signature
+        description: Opaque key for the exact modifier set.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__modifier_signature')
                 field: modifier_signature
+      - name: modifier_display_label
+        description: Human-readable modifier set label.
+      - name: amount_kind
+        description: Which kind of price this row compares (gross_charge, discounted_cash, negotiated_dollar). Never compared across kinds.
+      - name: comparison_tier
+        description: Comparability tier of the underlying rows (tier_2_context_aligned rows feed the ranking subset).
+      - name: hospital_amount
+        description: The hospital's representative (median) amount for this exact context and amount kind.
+      - name: peer_hospital_count_all
+        description: Hospitals in the all-corpus peer group for this context. Market statistics are null below 3.
+      - name: market_median_all
+        description: Median amount across the all-corpus peer group. Null below the floor.
+      - name: market_p10_all
+        description: 10th-percentile amount across the all-corpus peer group. Null below the floor.
+      - name: market_p90_all
+        description: 90th-percentile amount across the all-corpus peer group. Null below the floor.
+      - name: amount_pct_rank_all
+        description: Percentile rank (0-1) of the hospital's amount within the all-corpus peer group. Null below the floor.
+      - name: delta_from_market_median_all
+        description: Dollar difference between the hospital's amount and the all-corpus market median. Null below the floor.
+      - name: pct_delta_from_market_median_all
+        description: Percent difference vs. the all-corpus market median (0.25 = 25% above). Null below the floor.
+      - name: peer_hospital_count_state
+        description: Hospitals in the same-state peer group. Statistics null below 3.
+      - name: market_median_state
+        description: Median amount in the same-state peer group. Null below the floor.
+      - name: amount_pct_rank_state
+        description: Percentile rank within the same-state peer group. Null below the floor.
+      - name: delta_from_market_median_state
+        description: Dollar difference vs. the same-state median. Null below the floor.
+      - name: peer_hospital_count_type
+        description: Hospitals in the same-hospital-type peer group. Statistics null below 3.
+      - name: market_median_type
+        description: Median amount in the same-type peer group. Null below the floor.
+      - name: amount_pct_rank_type
+        description: Percentile rank within the same-type peer group. Null below the floor.
+      - name: delta_from_market_median_type
+        description: Dollar difference vs. the same-type median. Null below the floor.
+      - name: peer_hospital_count_system
+        description: Hospitals in the same-health-system peer group. Statistics null below 3.
+      - name: market_median_system
+        description: Median amount in the same-system peer group. Null below the floor.
+      - name: amount_pct_rank_system
+        description: Percentile rank within the same-system peer group. Null below the floor.
+      - name: delta_from_market_median_system
+        description: Dollar difference vs. the same-system median. Null below the floor.
       - name: price_position_band
+        description: >
+          Where the hospital's amount sits vs. the all-corpus market for this
+          one context: very_low/low/near_market/high/very_high (from percent
+          delta and percentile-rank thresholds of +/-10% and +/-25%), or
+          insufficient_denominator when fewer than 3 peer hospitals report the
+          context.
         tests:
           - not_null
           - accepted_values:
@@ -159,16 +445,21 @@ models:
                   - high
                   - very_high
       - name: is_high_outlier
+        description: True when the amount is notably high vs. the market (>= 50% above median or top decile), with the floor met.
         tests: [not_null]
       - name: is_low_outlier
+        description: True when the amount is notably low vs. the market (<= 50% below median or bottom decile), with the floor met.
         tests: [not_null]
 
   - name: gld_bi__payer_contracting_explorer
     description: >
       BI presentation mart for matched-payer contracting exploration. Grain:
       one row per canonical_payer_id, hospital_id, service_code_key, setting,
-      billing_class, and modifier_signature. Adds payer/hospital/service labels,
-      cash comparison bands, and payer-market position bands.
+      billing_class, and modifier_signature (negotiated dollar rates only).
+      Compares each negotiated rate against the hospital's own cash price and
+      against the same payer's market median across hospitals. Unmatched payer
+      names are excluded by design; they remain countable through the blocker
+      summary.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -181,27 +472,111 @@ models:
               - modifier_signature
     columns:
       - name: canonical_payer_id
+        description: Stable identifier of the matched (canonical) payer. Used in public payer page URLs.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__payer')
                 field: canonical_payer_id
+      - name: payer_display_name
+        description: Canonical payer name for display.
+      - name: payer_parent_name
+        description: Parent organization of the payer, when known.
+      - name: payer_type
+        description: Payer category (e.g. national_payer, marketplace_brand).
       - name: hospital_id
+        description: Stable registry identifier for the hospital.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__hospital')
                 field: hospital_id
+      - name: hospital_display_name
+        description: Canonical hospital name for display.
+      - name: health_system
+        description: Health system the hospital belongs to.
+      - name: hospital_type
+        description: Hospital category from the registry.
+      - name: canonical_state
+        description: Two-letter state code.
+      - name: canonical_state_name
+        description: Full state name.
       - name: service_code_key
+        description: Surrogate key for the (code system, code) cohort.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__service_code')
                 field: service_code_key
+      - name: canonical_code_system
+        description: Normalized billing code system.
+      - name: match_code
+        description: Normalized billing code.
+      - name: service_url_slug
+        description: URL-safe identifier for public service pages (matches gld_bi__service_market_explorer).
+      - name: service_display_code
+        description: Human-readable code label.
+      - name: service_display_name
+        description: Service description when available; otherwise 'Description not available'.
+      - name: service_display_label
+        description: Combined display label.
+      - name: has_code_description
+        description: True when a public-domain description is loaded for this code.
+      - name: description_availability
+        description: Why the description is or is not shown (available, license_restricted, not_loaded).
+      - name: relative_weight
+        description: MS-DRG relative weight, when applicable.
+      - name: ms_drg_mdc
+        description: MS-DRG major diagnostic category, when applicable.
+      - name: ms_drg_type
+        description: MS-DRG type, when applicable.
+      - name: clean_setting
+        description: Care setting of the context.
+      - name: clean_billing_class
+        description: Billing class of the context (unspecified when the hospital did not label it).
+      - name: modifier_signature
+        description: Opaque key for the exact modifier set.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('gld_dim__modifier_signature')
+                field: modifier_signature
+      - name: modifier_display_label
+        description: Human-readable modifier set label.
+      - name: amount_kind
+        description: Always negotiated_dollar in this mart.
+      - name: market_segment
+        description: Insurance market segment context of the rate (e.g. commercial, medicare_advantage), when published.
+      - name: negotiated_dollar
+        description: The negotiated dollar rate for this payer/hospital/service context (hospital-level representative value).
+      - name: hospital_cash_amount
+        description: The same hospital's discounted cash price for the same charge-item context, when published.
+      - name: delta_from_hospital_cash
+        description: Dollar difference between the negotiated rate and the hospital's cash price.
+      - name: pct_delta_from_hospital_cash
+        description: Percent difference vs. the hospital's cash price.
+      - name: payer_hospital_count
+        description: Hospitals where this payer has a comparable negotiated rate for this exact context. Payer-market statistics are null below 3.
+      - name: payer_market_median_negotiated
+        description: Median negotiated rate for this payer across hospitals for this context. Null below the floor.
+      - name: delta_from_payer_market_median
+        description: Dollar difference vs. the payer's market median. Null below the floor.
+      - name: pct_delta_from_payer_market_median
+        description: Percent difference vs. the payer's market median. Null below the floor.
+      - name: context_hospital_count
+        description: Hospitals reporting this service context for any payer (the broader context denominator).
+      - name: payer_match_coverage_rate
+        description: Share (0-1) of the hospital's payer rates whose payer names matched canonical insurers.
       - name: contract_position_band
+        description: >
+          Where this negotiated rate sits vs. the same payer's market median
+          for this context: well_below/below/near/above/well_above payer market
+          (thresholds +/-10% and +/-25%), or insufficient_denominator when the
+          payer has fewer than 3 hospitals for the context.
         tests:
           - not_null
           - accepted_values:
@@ -214,6 +589,12 @@ models:
                   - above_payer_market
                   - well_above_payer_market
       - name: cash_comparison_band
+        description: >
+          How the negotiated rate compares to the hospital's own cash price:
+          below_cash, equal_to_cash, above_cash, or cash_unavailable when the
+          hospital published no cash price for the context. above_cash can
+          reflect differing service bundles or units; it is a signal to
+          investigate, not proof of overpayment.
         tests:
           - not_null
           - accepted_values:
@@ -227,9 +608,12 @@ models:
   - name: gld_bi__comparison_blocker_summary
     description: >
       BI presentation mart for comparison blocker explanations. Grain: one row
-      per snapshot_id and blocker_code. Counts use the same blocker vocabulary as
-      the Gold comparison framework and are joined to hospital/snapshot display
-      context.
+      per snapshot_id and blocker_code. Counts use the same blocker vocabulary
+      as the Gold comparison framework and are joined to hospital/snapshot
+      display context. Covers the 10 atomic row-grain blockers; the 11th
+      decision-0017 blocker (below_min_hospital_denominator) is cohort-grain
+      and is surfaced as gld_bi__service_market_explorer.comparison_status =
+      'insufficient_denominator' instead.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -238,6 +622,7 @@ models:
               - blocker_code
     columns:
       - name: snapshot_id
+        description: Source-file snapshot the counts describe.
         tests:
           - not_null
           - relationships:
@@ -245,12 +630,27 @@ models:
                 to: ref('gld_dim__snapshot')
                 field: snapshot_id
       - name: hospital_id
+        description: Hospital that published the snapshot.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__hospital')
                 field: hospital_id
+      - name: hospital_display_name
+        description: Canonical hospital name for display.
+      - name: health_system
+        description: Health system the hospital belongs to.
+      - name: hospital_type
+        description: Hospital category from the registry.
+      - name: canonical_state
+        description: Two-letter state code.
+      - name: source_format
+        description: Machine-readable-file format of the snapshot (json, csv_tall, csv_wide).
+      - name: is_current_snapshot
+        description: Whether the snapshot is the hospital's current one.
+      - name: freshness_bucket
+        description: Data recency bucket of the snapshot.
       - name: blocker_code
         description: >
           The 10 atomic row-grain blockers from the comparison framework. The
@@ -275,7 +675,10 @@ models:
                   - drug_unit_context_missing
                   - payer_unmatched
                   - market_segment_unknown
+      - name: blocker_label
+        description: Short human-readable label for the blocker code.
       - name: blocker_category
+        description: Blocker grouping used for narrative summaries.
         tests:
           - not_null
           - accepted_values:
@@ -288,20 +691,28 @@ models:
                   - payer_identity
                   - payer_context
       - name: blocked_row_count
+        description: Classified rows in the snapshot carrying this blocker. A row can carry several blockers, so counts do not sum to the blocked total.
         tests: [not_null]
+      - name: classified_row_count
+        description: All classified rows in the snapshot (comparison tiers 0+1+2); the denominator for blocked_row_share.
+      - name: blocked_row_share
+        description: blocked_row_count / classified_row_count (0-1).
 
   - name: gld_bi__featured_services
     description: >
       Rule-selected BI default list for public reports and dashboards. Grain:
       one row per selected service/context/amount_kind, capped at 30 rows.
       Selection favors described services with adequate hospital denominator and
-      higher observed variation.
+      higher observed variation. A starter list for landing pages, not a
+      canonical service master.
     columns:
       - name: featured_rank
+        description: Selection order (1 = first default shown).
         tests:
           - not_null
           - unique
       - name: featured_reason
+        description: Why the row was selected (wide_price_variation, broad_hospital_coverage, or described_comparable_service).
         tests:
           - not_null
           - accepted_values:
@@ -311,11 +722,237 @@ models:
                   - broad_hospital_coverage
                   - described_comparable_service
       - name: service_code_key
+        description: Surrogate key for the (code system, code) cohort.
         tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('gld_dim__service_code')
                 field: service_code_key
-      - name: service_display_label
+      - name: canonical_code_system
+        description: Normalized billing code system.
+      - name: match_code
+        description: Normalized billing code.
+      - name: service_url_slug
+        description: URL-safe identifier for public service pages.
         tests: [not_null]
+      - name: service_display_code
+        description: Human-readable code label.
+      - name: service_display_name
+        description: Service description (featured rows always have one).
+      - name: service_display_label
+        description: Combined display label.
+        tests: [not_null]
+      - name: code_description
+        description: Loaded public-domain description of the billing code.
+      - name: code_description_edition
+        description: Edition/version of the loaded description.
+      - name: clean_setting
+        description: Care setting of the context.
+      - name: clean_billing_class
+        description: Billing class of the context.
+      - name: modifier_signature
+        description: Opaque key for the exact modifier set.
+      - name: modifier_display_label
+        description: Human-readable modifier set label.
+      - name: amount_kind
+        description: Which kind of price the row summarizes.
+      - name: observation_count
+        description: Price observations in the context.
+      - name: hospital_count
+        description: Distinct hospitals reporting the context (always >= 3 here).
+      - name: payer_count
+        description: Distinct matched payers contributing to the context.
+      - name: median_amount
+        description: Median (typical) amount across hospitals.
+      - name: p10_amount
+        description: 10th-percentile amount.
+      - name: p90_amount
+        description: 90th-percentile amount.
+      - name: spread_amount_p90_to_p10
+        description: Dollar gap between the 90th and 10th percentiles.
+      - name: spread_ratio_p90_to_p10
+        description: Ratio of the 90th to the 10th percentile amount.
+      - name: comparison_confidence_band
+        description: Comparison confidence of the context (high/moderate/limited/low).
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["high", "moderate", "limited", "low"]
+      - name: variation_band
+        description: Price-variation band of the context.
+
+  - name: gld_bi__market_summary
+    description: >
+      One-row corpus-level headline summary for public BI landing pages.
+      Grain: exactly one row (summary_id = 'current_corpus'). Uses
+      distinct-count semantics so dashboards do not double-count services or
+      payers by summing per-hospital fields.
+    columns:
+      - name: summary_id
+        description: Constant key 'current_corpus'; the mart always has exactly one row.
+        tests:
+          - not_null
+          - unique
+          - accepted_values:
+              arguments:
+                values: ["current_corpus"]
+      - name: hospital_count
+        description: Hospitals in the loaded corpus with a scored snapshot.
+        tests: [not_null]
+      - name: health_system_count
+        description: Distinct health systems among those hospitals.
+      - name: hospitals_with_current_snapshot
+        description: Hospitals whose scored snapshot is their current file.
+      - name: median_overall_readiness_score
+        description: Median hospital data-usability score (0-1).
+      - name: high_confidence_hospital_count
+        description: Hospitals in the high data-confidence band.
+      - name: moderate_confidence_hospital_count
+        description: Hospitals in the moderate data-confidence band.
+      - name: limited_confidence_hospital_count
+        description: Hospitals in the limited data-confidence band.
+      - name: low_confidence_hospital_count
+        description: Hospitals in the low data-confidence band.
+      - name: earliest_published_last_updated_on
+        description: Earliest file-published date among current hospital snapshots.
+      - name: latest_published_last_updated_on
+        description: Latest file-published date among current hospital snapshots.
+      - name: service_context_count
+        description: Service contexts (service x setting x billing class x modifiers x amount kind) in the explorer mart.
+      - name: comparable_service_context_count
+        description: Service contexts meeting the 3-hospital comparison floor.
+      - name: thin_service_context_count
+        description: Service contexts below the 3-hospital floor (visible but not compared).
+      - name: distinct_service_count
+        description: Distinct services (code system + code) observed.
+      - name: distinct_comparable_service_count
+        description: Distinct services with at least one context meeting the comparison floor.
+      - name: comparable_gross_charge_context_count
+        description: Comparable contexts for list prices (gross charges).
+      - name: comparable_discounted_cash_context_count
+        description: Comparable contexts for cash prices.
+      - name: comparable_negotiated_dollar_context_count
+        description: Comparable contexts for insurer-negotiated rates.
+      - name: matched_payer_count
+        description: Distinct matched payers appearing in payer benchmarks (distinct across the corpus, not summed per hospital).
+      - name: published_row_count
+        description: Classified price rows in current files (comparability funnel stage 1).
+      - name: code_comparable_row_count
+        description: Funnel stage 2 - rows with a cross-hospital-comparable code.
+      - name: context_aligned_row_count
+        description: Funnel stage 3 - rows with full service context.
+      - name: rankable_dollar_row_count
+        description: Funnel stage 4 - rows with a directly rankable dollar price.
+      - name: meets_floor_row_count
+        description: Funnel stage 5 - rows in contexts with at least 3 hospitals.
+      - name: rankable_row_share
+        description: rankable_dollar_row_count / published_row_count (0-1).
+      - name: meets_floor_row_share
+        description: meets_floor_row_count / published_row_count (0-1).
+
+  - name: gld_bi__comparability_funnel
+    description: >
+      BI presentation mart for the published-vs-comparable funnel. Grain: one
+      row per scope_level, hospital_id, and stage_index; scope_level 'corpus'
+      rows use the '<corpus>' hospital_id sentinel. Stages are cumulative
+      decision-0017 gates over current-file classified rows, so each stage is a
+      subset of the previous one.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - scope_level
+              - hospital_id
+              - stage_index
+    columns:
+      - name: scope_level
+        description: Whether the funnel row describes one hospital or the whole corpus.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["hospital", "corpus"]
+      - name: hospital_id
+        description: Hospital identifier, or the '<corpus>' sentinel for corpus rows.
+        tests: [not_null]
+      - name: hospital_display_name
+        description: Hospital display name, or 'All hospitals' for corpus rows.
+      - name: health_system
+        description: Health system of the hospital (null for corpus rows).
+      - name: stage_index
+        description: Funnel stage order, 1 (all published rows) through 5 (meets the denominator floor).
+        tests: [not_null]
+      - name: stage_code
+        description: Stable stage identifier.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - published_rows
+                  - code_comparable_rows
+                  - context_aligned_rows
+                  - rankable_dollar_rows
+                  - meets_floor_rows
+      - name: stage_label
+        description: Plain-language stage label for display.
+      - name: row_count
+        description: Classified rows surviving this stage's cumulative gates.
+        tests: [not_null]
+      - name: published_row_count
+        description: Stage-1 row count for the same scope/hospital (the funnel denominator).
+      - name: share_of_published
+        description: row_count / published_row_count (0-1).
+
+  - name: gld_bi__payer_overview
+    description: >
+      BI presentation mart for payer index cards and payer profile headers.
+      Grain: one row per canonical_payer_id in the matched-payer contracting
+      explorer. Distinct-count aggregates of that mart; only matched payers
+      appear by construction.
+    columns:
+      - name: canonical_payer_id
+        description: Stable identifier of the matched payer. Used in public payer page URLs.
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('gld_dim__payer')
+                field: canonical_payer_id
+      - name: payer_display_name
+        description: Canonical payer name for display.
+        tests: [not_null]
+      - name: payer_parent_name
+        description: Parent organization of the payer, when known.
+      - name: payer_type
+        description: Payer category (e.g. national_payer, marketplace_brand).
+      - name: hospital_count
+        description: Distinct hospitals where this payer has negotiated-rate contexts.
+      - name: service_count
+        description: Distinct services with negotiated-rate contexts for this payer.
+      - name: contract_context_count
+        description: Payer/hospital/service-context rows for this payer.
+      - name: contexts_meeting_payer_floor
+        description: Contexts where the payer has at least 3 hospitals (payer-market statistics published).
+      - name: contexts_well_below_payer_market
+        description: Contexts priced 25%+ below the payer's market median.
+      - name: contexts_below_payer_market
+        description: Contexts priced 10-25% below the payer's market median.
+      - name: contexts_near_payer_market
+        description: Contexts within 10% of the payer's market median.
+      - name: contexts_above_payer_market
+        description: Contexts priced 10-25% above the payer's market median.
+      - name: contexts_well_above_payer_market
+        description: Contexts priced 25%+ above the payer's market median.
+      - name: cash_available_context_count
+        description: Contexts where the hospital also published a cash price.
+      - name: below_cash_context_count
+        description: Contexts where the negotiated rate is below the hospital's cash price.
+      - name: equal_to_cash_context_count
+        description: Contexts where the negotiated rate equals the cash price.
+      - name: above_cash_context_count
+        description: Contexts where the negotiated rate is above the hospital's cash price.
+      - name: share_above_cash
+        description: above_cash_context_count / cash_available_context_count (0-1). A signal to investigate, not proof of overpayment.

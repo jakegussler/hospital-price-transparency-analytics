@@ -34,6 +34,7 @@ select
     service_code_key,
     canonical_code_system,
     match_code,
+    service_url_slug,
     service_display_code,
     service_display_name,
     service_display_label,
@@ -52,7 +53,7 @@ select
     p90_amount,
     spread_amount_p90_to_p10,
     spread_ratio_p90_to_p10,
-    trust_band,
+    comparison_confidence_band,
     variation_band
 from candidates
 where featured_rank <= 30

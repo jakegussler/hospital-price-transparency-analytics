@@ -81,12 +81,16 @@ select
     r.overall_readiness_rank,
     r.comparison_readiness_rank,
     r.payer_mapping_rank,
+    -- data_confidence_band describes how usable this hospital's PUBLISHED FILE
+    -- is (readiness-score derived). It is deliberately named differently from
+    -- gld_bi__service_market_explorer.comparison_confidence_band, which is a
+    -- cohort-size property of a service context;
     case
-        when r.overall_readiness_score >= 0.85 then 'high_trust'
-        when r.overall_readiness_score >= 0.70 then 'moderate_trust'
-        when r.overall_readiness_score >= 0.50 then 'limited_trust'
-        else 'low_trust'
-    end as trust_band,
+        when r.overall_readiness_score >= 0.85 then 'high'
+        when r.overall_readiness_score >= 0.70 then 'moderate'
+        when r.overall_readiness_score >= 0.50 then 'limited'
+        else 'low'
+    end as data_confidence_band,
 
     r.charge_item_count,
     scov.standard_charge_count,

@@ -57,3 +57,38 @@ from {{ ref('gld_bi__comparison_blocker_summary') }}
 where blocked_row_share not between 0 and 1
     or blocked_row_count < 0
     or classified_row_count < 0
+
+union all
+
+select 'comparability_funnel_bounds' as failure_case
+from {{ ref('gld_bi__comparability_funnel') }}
+where row_count < 0
+    or published_row_count < 0
+    or share_of_published not between 0 and 1
+
+union all
+
+select 'market_summary_bounds' as failure_case
+from {{ ref('gld_bi__market_summary') }}
+where hospital_count < 0
+    or hospitals_with_current_snapshot > hospital_count
+    or median_overall_readiness_score not between 0 and 1
+    or comparable_service_context_count + thin_service_context_count
+        <> service_context_count
+    or distinct_comparable_service_count > distinct_service_count
+    or rankable_row_share not between 0 and 1
+    or meets_floor_row_share not between 0 and 1
+    or meets_floor_row_count > rankable_dollar_row_count
+
+union all
+
+select 'payer_overview_bounds' as failure_case
+from {{ ref('gld_bi__payer_overview') }}
+where hospital_count < 0
+    or service_count < 0
+    or contract_context_count < 0
+    or contexts_meeting_payer_floor > contract_context_count
+    or cash_available_context_count > contract_context_count
+    or below_cash_context_count + equal_to_cash_context_count
+        + above_cash_context_count <> cash_available_context_count
+    or share_above_cash not between 0 and 1

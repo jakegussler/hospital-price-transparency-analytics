@@ -24,8 +24,13 @@ select
     s.service_code_key,
     sc.canonical_code_system,
     sc.match_code,
+    {{ hpt_service_url_slug('sc.canonical_code_system', 'sc.match_code') }}
+        as service_url_slug,
     upper(sc.canonical_code_system) || ' ' || sc.match_code as service_display_code,
-    coalesce(sc.code_description, 'Undescribed service') as service_display_name,
+    -- 'Description not available' (not 'Undescribed service'): for licensed
+    -- code systems (CPT/CDT) the description exists but cannot be republished;
+    -- description_availability carries the reason.
+    coalesce(sc.code_description, 'Description not available') as service_display_name,
     upper(sc.canonical_code_system) || ' ' || sc.match_code
         || case
             when sc.code_description is not null then ' - ' || sc.code_description
@@ -36,6 +41,8 @@ select
     sc.code_description_source,
     sc.code_description_license,
     sc.has_code_description,
+    {{ hpt_description_availability('sc.has_code_description', 'sc.canonical_code_system') }}
+        as description_availability,
     sc.relative_weight,
     sc.ms_drg_mdc,
     sc.ms_drg_type,
@@ -76,12 +83,18 @@ select
         when sc.has_code_description then 'described_comparable'
         else 'code_only_comparable'
     end as comparison_status,
+    -- comparison_confidence_band describes how solid THIS SERVICE CONTEXT's
+    -- cross-hospital comparison is (cohort size + description availability).
+    -- Deliberately named differently from
+    -- gld_bi__hospital_overview.data_confidence_band (readiness-score derived);
+    -- the two must never share the ambiguous name "trust_band" in a public
+    -- artifact.
     case
-        when not s.meets_hospital_threshold then 'low_trust'
-        when s.hospital_count >= 10 and sc.has_code_description then 'high_trust'
-        when s.hospital_count >= 5 then 'moderate_trust'
-        else 'limited_trust'
-    end as trust_band,
+        when not s.meets_hospital_threshold then 'low'
+        when s.hospital_count >= 10 and sc.has_code_description then 'high'
+        when s.hospital_count >= 5 then 'moderate'
+        else 'limited'
+    end as comparison_confidence_band,
     case
         when s.meets_hospital_threshold
             and s.spread_ratio_p90_to_p10 >= 3 then 'very_high_variation'

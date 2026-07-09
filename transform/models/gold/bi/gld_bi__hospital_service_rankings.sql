@@ -35,14 +35,18 @@ select
     b.service_code_key,
     sc.canonical_code_system,
     sc.match_code,
+    {{ hpt_service_url_slug('sc.canonical_code_system', 'sc.match_code') }}
+        as service_url_slug,
     upper(sc.canonical_code_system) || ' ' || sc.match_code as service_display_code,
-    coalesce(sc.code_description, 'Undescribed service') as service_display_name,
+    coalesce(sc.code_description, 'Description not available') as service_display_name,
     upper(sc.canonical_code_system) || ' ' || sc.match_code
         || case
             when sc.code_description is not null then ' - ' || sc.code_description
             else ''
         end as service_display_label,
     sc.has_code_description,
+    {{ hpt_description_availability('sc.has_code_description', 'sc.canonical_code_system') }}
+        as description_availability,
     sc.relative_weight,
     sc.ms_drg_mdc,
     sc.ms_drg_type,
