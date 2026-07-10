@@ -1,83 +1,236 @@
+---
+title: Overview
+hide_title: true
+---
+
 # Nashville Hospital Price Transparency
 
-This public report is bounded to the current Nashville-metro corpus. Readiness
-scores summarize published-data usability for comparison work; they are not
-legal compliance scores.
+Hospitals are required to publish the prices they charge. This site reads those
+published files for the Nashville metro area, shows what they contain, and —
+just as importantly — explains exactly when prices **can and cannot be
+compared** across hospitals.
 
 ```sql export_metadata
 select
-  max(exported_at_utc) as exported_at_utc,
-  max(corpus_label) as corpus_label
+  left(max(exported_at_utc), 10) as exported_on,
+  max(corpus_label) as corpus_label,
+  max(build_id) as build_id
 from hpt.public_metadata
 ```
 
-```sql market_summary
+```sql market
 select
-  count(*) as hospital_count,
-  count(distinct snapshot_id) as current_snapshot_count,
-  median(overall_readiness_score) as median_readiness_score,
-  sum(benchmark_services_meeting_floor) as benchmark_services_meeting_floor,
-  sum(matched_payer_count) as matched_payer_count
-from hpt.hospital_overview
+  *,
+  (meets_floor_row_count = 0) as no_floor_met
+from hpt.market_summary
 ```
 
-```sql trust_bands
+<SiteCallout type="scope">
+Covers the <b><Value data={export_metadata} column=corpus_label /></b> corpus:
+<Value data={market} column=hospital_count /> hospitals across
+<Value data={market} column=health_system_count /> health systems, using each
+hospital's current published file (published between
+<Value data={market} column=earliest_published_last_updated_on /> and
+<Value data={market} column=latest_published_last_updated_on />).
+Data exported <Value data={export_metadata} column=exported_on />.
+Results describe this corpus only — they are not regional or national benchmarks.
+</SiteCallout>
+
+## The market at a glance
+
+<Grid cols=4>
+  <BigValue data={market} value=hospital_count title="Hospitals" />
+  <BigValue data={market} value=distinct_service_count title="Services published" fmt=num0 />
+  <BigValue data={market} value=distinct_comparable_service_count title="Services comparable across hospitals" fmt=num0 />
+  <BigValue data={market} value=matched_payer_count title="Insurers identified" />
+</Grid>
+
+<Details title="How to read this site (start here)">
+
+Every price on this site carries three facts: **what kind of price it is**,
+**how many hospitals it is compared against** (the "n"), and **whether it
+qualifies for comparison** under our rules.
+
+Hospitals publish three kinds of prices, and we never rank one kind against
+another:
+
+- **List price** (gross charge) — the chargemaster amount, which almost no one
+  pays directly.
+- **Cash price** (discounted cash) — the self-pay amount.
+- **Negotiated rate** — the amount agreed with a specific insurer.
+
+We only compute market statistics (medians, percentiles, rankings) for a
+service context reported by **at least 3 hospitals**. Anything below that floor
+stays visible but is labeled "too few hospitals to compare" instead of being
+silently dropped. Details are in the [methodology](/methodology).
+
+</Details>
+
+## From published to comparable
+
+Hospitals publish far more price rows than can be fairly compared. Each stage
+below applies one more comparison rule; the drop at each step is data we still
+show, but refuse to rank. This honesty is the point of the site.
+
+```sql corpus_funnel
 select
-  trust_band,
+  stage_index,
+  stage_index::int || '. ' || stage_label as stage,
+  row_count,
+  share_of_published
+from hpt.comparability_funnel
+where scope_level = 'corpus'
+order by stage_index
+```
+
+<BarChart
+  data={corpus_funnel}
+  x=stage
+  y=row_count
+  swapXY=true
+  sort=false
+  yFmt=num0
+  title="Price rows surviving each comparison rule"
+/>
+
+<DataTable data={corpus_funnel}>
+  <Column id=stage title="Stage" />
+  <Column id=row_count title="Price rows" fmt=num0 />
+  <Column id=share_of_published title="Share of published" fmt=pct1 />
+</DataTable>
+
+{#if market.length > 0 && market[0].no_floor_met}
+
+<SiteCallout type="caution" title="No cross-hospital comparisons yet on this corpus">
+No service context in the current corpus is reported by 3 or more hospitals in
+exactly the same form, so no market statistics are published anywhere on this
+site yet. Everything the hospitals published is still browsable, and
+within-hospital comparisons (like negotiated rate vs. cash price) do not need
+the floor. See <a href="/data-quality">why comparisons are limited</a>.
+</SiteCallout>
+
+{/if}
+
+## Hospitals by data confidence
+
+Data confidence describes how usable each hospital's **published file** is for
+price comparison — not care quality, and not legal compliance.
+
+```sql confidence_bands
+select
+  case data_confidence_band
+    when 'high' then 'High'
+    when 'moderate' then 'Moderate'
+    when 'limited' then 'Limited'
+    else 'Low'
+  end as confidence,
   count(*) as hospital_count
 from hpt.hospital_overview
-group by 1
-order by hospital_count desc, trust_band
+group by data_confidence_band
+order by
+  case data_confidence_band
+    when 'high' then 1
+    when 'moderate' then 2
+    when 'limited' then 3
+    else 4
+  end
 ```
 
-```sql featured_services
+<DataTable data={confidence_bands}>
+  <Column id=confidence title="Data confidence" />
+  <Column id=hospital_count title="Hospitals" />
+</DataTable>
+
+See the [hospital scoreboard](/hospitals) for each hospital's score and what it
+is made of.
+
+## Featured price comparisons
+
+```sql featured
 select
   featured_rank,
   service_display_label,
-  amount_kind,
+  '/compare/' || service_url_slug as service_link,
+  case amount_kind
+    when 'gross_charge' then 'List price'
+    when 'discounted_cash' then 'Cash price'
+    when 'negotiated_dollar' then 'Negotiated rate'
+  end as price_type,
   hospital_count,
-  trust_band,
-  variation_band,
   median_amount,
   p10_amount,
-  p90_amount
+  p90_amount,
+  spread_ratio_p90_to_p10
 from hpt.featured_services
 order by featured_rank
 ```
 
+{#if featured.length === 0}
+
+<SiteCallout type="scope" title="Nothing featured yet">
+Featured comparisons appear when a described service is reported by at least 3
+hospitals in the same context. The current corpus has no such context yet, so
+this list is empty rather than filled with numbers we cannot stand behind. You
+can still <a href="/compare">browse everything hospitals published</a>.
+</SiteCallout>
+
+{:else}
+
+Each row shows its hospital count ("n") — the number of hospitals behind the
+statistics. Click a service to see every hospital's price.
+
+<DataTable data={featured} link=service_link search=true>
+  <Column id=service_display_label title="Service" />
+  <Column id=price_type title="Price type" />
+  <Column id=hospital_count title="Hospitals (n)" />
+  <Column id=median_amount title="Typical (median)" fmt=usd0 />
+  <Column id=p10_amount title="Lower (10th pct)" fmt=usd0 />
+  <Column id=p90_amount title="Upper (90th pct)" fmt=usd0 />
+  <Column id=spread_ratio_p90_to_p10 title="Price spread (x)" fmt=num1 />
+</DataTable>
+
+{/if}
+
+## Why many rows can't be compared
+
 ```sql blocker_categories
 select
-  blocker_category,
-  sum(blocked_row_count) as blocked_row_count,
-  sum(classified_row_count) as classified_row_count,
-  sum(blocked_row_count)::double / nullif(sum(classified_row_count), 0) as blocked_row_share
+  case blocker_category
+    when 'snapshot_freshness' then 'Outdated file version'
+    when 'code_comparability' then 'Billing code not comparable'
+    when 'amount_semantics' then 'Not a rankable dollar price'
+    when 'service_context' then 'Service context must stay separate'
+    when 'payer_identity' then 'Insurer name not identified'
+    when 'payer_context' then 'Insurance market type unknown'
+  end as blocker_group,
+  sum(blocked_row_count) as blocked_row_count
 from hpt.comparison_blocker_summary
-group by 1
+group by blocker_category
 order by blocked_row_count desc
 ```
 
-<Grid cols=3>
-  <Value data={market_summary} column=hospital_count title="Hospitals" />
-  <Value data={market_summary} column=current_snapshot_count title="Current snapshots" />
-  <Value data={market_summary} column=median_readiness_score title="Median readiness" fmt=pct1 />
-</Grid>
+A single row can be blocked for several reasons at once, so these counts
+overlap. The full explanation of every blocker lives on the
+[data quality page](/data-quality).
 
-<DataTable data={trust_bands} />
+<BarChart
+  data={blocker_categories}
+  x=blocker_group
+  y=blocked_row_count
+  swapXY=true
+  yFmt=num0
+  title="Price rows blocked from strict comparison, by reason group"
+/>
 
-## Featured Services
+---
 
-Each row carries its hospital denominator and trust band. Percentile statistics
-are shown only where the Gold BI mart says the service context meets the
-comparison floor.
+<SiteCallout type="caution" title="What this site is not">
+These are hospital-published standard charges — not quotes, and not your
+out-of-pocket cost. Scores describe published-data usability, not legal
+compliance and not quality of care. Every claim is bounded to the corpus named
+at the top of this page.
+</SiteCallout>
 
-<DataTable data={featured_services} />
-
-## Comparison Blockers
-
-These categories explain why rows do not qualify for stricter comparison use
-cases. The thin-cohort denominator blocker is a service-context status and is
-shown on service pages as `insufficient_denominator`.
-
-<BarChart data={blocker_categories} x=blocker_category y=blocked_row_count />
-<DataTable data={blocker_categories} />
-
+Questions about how a number is computed? Start with the
+[methodology](/methodology) or the [glossary](/glossary). Want the data
+itself? See [downloads](/downloads).

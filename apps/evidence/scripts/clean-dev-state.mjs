@@ -1,5 +1,5 @@
-import { existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, renameSync, rmSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 
 const appRoot = new URL("..", import.meta.url).pathname;
 
@@ -9,14 +9,54 @@ const generatedPaths = [
 ];
 
 for (const path of generatedPaths) {
-  if (!existsSync(path)) {
-    continue;
+  removeGeneratedPath(path);
+}
+
+function removeGeneratedPath(path) {
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    if (!existsSync(path)) {
+      return;
+    }
+
+    const deletePath = join(
+      dirname(path),
+      `.${basename(path)}.delete-${process.pid}-${Date.now()}-${attempt}`,
+    );
+
+    try {
+      renameSync(path, deletePath);
+      removeTree(deletePath);
+    } catch {
+      removeTree(path);
+    }
+
+    sleep(250);
   }
 
-  rmSync(path, {
-    force: true,
-    maxRetries: 5,
-    recursive: true,
-    retryDelay: 200,
-  });
+  if (existsSync(path)) {
+    console.warn(`Warning: generated Evidence state still exists at ${path}`);
+  }
+}
+
+function removeTree(path) {
+  try {
+    rmSync(path, {
+      force: true,
+      maxRetries: 20,
+      recursive: true,
+      retryDelay: 250,
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return;
+    }
+
+    console.warn(
+      `Warning: could not fully remove generated Evidence state at ${path}: ${error.message}`,
+    );
+  }
+}
+
+function sleep(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }

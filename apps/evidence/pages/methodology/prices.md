@@ -1,0 +1,79 @@
+---
+title: What the price types mean
+hide_title: true
+sidebar_position: 1
+---
+
+# What the Price Types Mean
+
+Hospitals publish several different kinds of "price" for the same service.
+They answer different questions, and ranking one kind against another produces
+nonsense — so this site never does.
+
+## The three rankable price types
+
+### List price (gross charge)
+
+The hospital's full chargemaster amount — the "sticker price." Almost no one
+pays it directly, but it anchors percentage-based contracts and uninsured
+billing. Useful for spotting extreme variation; a poor guide to what anyone
+actually pays.
+
+### Cash price (discounted cash)
+
+The amount for patients paying without insurance. Usually lower than the list
+price, and sometimes lower than insurers' negotiated rates — which is why we
+compare the two directly ([see below](#negotiated-vs-cash)).
+
+### Negotiated rate (negotiated dollar)
+
+The dollar amount a specific insurer agreed to pay the hospital for the
+service. Each insurer-hospital pair can have its own rate, and one hospital
+can publish many rates for one service. On hospital and service pages, a
+hospital's "price" for a context summarizes its negotiated rates as the median
+across its insurer contracts (each insurer's rate is also individually visible
+in the insurer views).
+
+## Published values that are never ranked as prices
+
+Hospitals also publish amounts that are **not** directly rankable dollar
+prices. We show them as context and count them in
+[data quality](/data-quality), but they never enter price rankings:
+
+- **Percentages** — "45% of billed charges" depends on the (unranked) charge.
+- **Algorithms** — a textual formula, not a number.
+- **Estimates** — estimated allowed amounts, not agreed prices.
+- **Derived dollars** — dollar figures we could compute from a percentage or
+  formula. We deliberately do not mix calculated numbers with directly quoted
+  ones.
+- **Statistical fields** — published minimums, maximums, medians, or
+  percentiles of other rates describe distributions, not a specific agreed
+  price.
+
+## Negotiated vs cash
+
+When a hospital publishes both a cash price and an insurer's negotiated rate
+for the same charge-item context, we compare the two. This is a
+**within-hospital** comparison: both numbers come from one hospital's file, so
+it does not need the [3-hospital floor](/methodology/comparability#the-3-hospital-floor).
+
+Sometimes the negotiated rate is **above** the cash price — a finding worth
+attention, since it suggests an insured patient's plan pays more than a
+walk-in would. Read it carefully:
+
+- The two published numbers can cover slightly different bundles or units.
+- Plan context differs — a negotiated rate may include obligations the cash
+  price does not.
+- We compare only directly published dollar amounts (derived dollars are
+  excluded), but hospital files vary in how they define each field.
+
+We publish the comparison with the exact counts and label it a **signal to
+investigate, not proof of overpayment**.
+
+## What none of these numbers are
+
+Published standard charges are not quotes and not your expected bill.
+Deductibles, coinsurance, out-of-network rules, and bundling mean a patient's
+out-of-pocket cost can differ greatly from every number on this site. Use
+these pages to understand price structure and variation — not to predict a
+specific bill.

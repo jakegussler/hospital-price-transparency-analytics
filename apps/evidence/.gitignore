@@ -3,6 +3,7 @@ build/
 .evidence/
 .env
 sources/hpt/data/
+static/downloads/
 sources/hpt/*.duckdb
 sources/hpt/*.duckdb.*
 sources/hpt/connection.options.yaml
