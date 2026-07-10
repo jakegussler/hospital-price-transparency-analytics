@@ -24,8 +24,11 @@ registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
 - `src/hpt/loaders/parquet.py`: Bronze Parquet writer.
 - `src/hpt/pipeline/ingest_snapshot.py`: ingest orchestration.
 - `src/hpt/registry/`: active registry loader, models, and bundled registry.
-- `transform/`: dbt project targeting DuckDB (Bronze sources, Silver models, and
-  the implemented Gold layer in `main_gold`).
+- `transform/`: dbt project targeting DuckDB (Bronze sources, Silver models, the
+  implemented Gold layer in `main_gold`, and the nine `gld_bi__*` presentation
+  marts).
+- `apps/evidence/`: static public reporting app (Evidence.dev) over exported
+  `gld_bi__*` Parquet only (decision 0020).
 - `tests/`: pytest coverage for current Python behavior.
 
 ## Important Constraints
@@ -41,7 +44,9 @@ registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
   files are added. Silver foundation models and the Gold layer (Phase 1
   dimensions/fact/bridge/coverage scorecard + Phase 2 marts/benchmarks) are
   implemented; the Gold contract is decisions 0017/0018 and
-  `docs/architecture/gold-schema.md`.
+  `docs/architecture/gold-schema.md`. The `gld_bi__*` presentation marts and the
+  Evidence public reporting app are implemented; that contract is decision 0020,
+  `docs/development/bi-layer.md`, and `apps/evidence/README.md`.
 
 ## Useful References
 
@@ -59,4 +64,7 @@ registry -> hpt download -> raw files + snapshot metadata -> hpt ingest
 - `docs/development/getting-started.md`
 - `docs/development/testing-strategy.md`
 - `docs/development/common-debugging-notes.md`
+- `docs/development/bi-layer.md`
+- `docs/decisions/0020-use-evidence-for-public-bi.md`
+- `apps/evidence/README.md`
 - `docs/cleanup.md`

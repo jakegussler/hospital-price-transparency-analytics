@@ -28,10 +28,15 @@ for dbt/DuckDB normalization and analysis.
   all-current, per-snapshot, full-rebuild) and iterates selectors.
 - `src/hpt/registry/` owns the active bundled hospital registry schema.
 - `transform/` is a dbt project targeting DuckDB. It defines Bronze sources,
-  Silver foundation models, and the implemented Gold layer (conformed dimensions,
+  Silver foundation models, the implemented Gold layer (conformed dimensions,
   the atomic rate-observation fact + code bridge, comparison/benchmark marts, and
-  coverage/transparency scorecards in `main_gold`). See
-  `docs/architecture/gold-schema.md` and decisions 0017/0018.
+  coverage/transparency scorecards in `main_gold`), and the nine `gld_bi__*`
+  presentation marts. See `docs/architecture/gold-schema.md`,
+  `docs/development/bi-layer.md`, and decisions 0017/0018.
+- `apps/evidence/` is the static public reporting app (Evidence.dev, decision
+  0020). It reads only exported Parquet from the allowlisted `gld_bi__*` marts;
+  comparability, denominator, trust, payer-matching, and amount semantics stay
+  in dbt, never in Evidence page SQL.
 - `infra/`, `orchestration/`, and `scripts/` are placeholders unless files are
   added later.
 

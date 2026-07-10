@@ -162,16 +162,36 @@ Implemented models:
 - **Scorecards** — `gld_score__snapshot_coverage_scorecard` (trust before price; a
   reconciliation anchor to the fact) and `gld_score__hospital_transparency_scorecard`
   (coverage/readiness, not compliance).
-- **BI presentation marts** — `gld_bi__hospital_overview`,
+- **BI presentation marts** — nine wide consumption surfaces over the Gold
+  contract, not new business-rule authorities: `gld_bi__hospital_overview`,
   `gld_bi__service_market_explorer`, `gld_bi__hospital_service_rankings`,
   `gld_bi__payer_contracting_explorer`, `gld_bi__comparison_blocker_summary`,
-  and `gld_bi__featured_services`. These are wide consumption surfaces over the
-  Gold contract, not new business-rule authorities.
+  `gld_bi__featured_services`, `gld_bi__market_summary` (one-row corpus KPIs
+  with distinct-count semantics), `gld_bi__comparability_funnel`
+  (published→comparable row funnel per hospital/corpus), and
+  `gld_bi__payer_overview`. They carry display labels plus presentation helpers
+  (`service_url_slug`, `description_availability`) and two deliberately distinct
+  confidence bands — hospital-level `data_confidence_band` and context-level
+  `comparison_confidence_band` (never a shared `trust_band`). See
+  `docs/development/bi-layer.md`.
 
 Gold models trade some source detail for usability but retain lineage back to
 Silver and Bronze identifiers. Per decisions 0016/0017 they do **not** build a
 global service master, canonical plan dimension, price-history mart, basket
 index, CBSA geography enrichment, `gld_dim__date`, or a semantic layer in v1.
+
+## Public reporting
+
+Status: implemented (v1), decision 0020.
+
+A static Evidence.dev app under `apps/evidence/` is the public presentation
+surface. It reads **only** exported Parquet artifacts generated from the nine
+allowlisted `gld_bi__*` marts (plus generated `public_metadata` and
+`public_data_dictionary`) — never the working warehouse, Silver/Bronze,
+validation, or the atomic fact/bridge. Comparability, denominator, trust, payer
+matching, and amount semantics stay in dbt; Evidence page SQL only filters,
+sorts, and labels. See `docs/decisions/0020-use-evidence-for-public-bi.md` and
+`apps/evidence/README.md`.
 
 ## Operational Audit
 

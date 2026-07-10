@@ -143,3 +143,27 @@ to the relevant docs and delete resolved items from here.
   context in the mart per open question §14.2 ("a couple of guarded ratio columns
   in the mart now; dedicated model later"). Promote to a dedicated
   `gld__cash_vs_negotiated` model if the cross-amount-kind logic grows.
+
+## Evidence public reporting redesign follow-ups (2026-07-07)
+
+- The 3-hospital dev corpus (nashville-general, tristar-northcrest,
+  williamson-medical-center) has **zero cross-hospital exact-context overlap**:
+  every `gld_bi__service_market_explorer` row has `hospital_count = 1`, so all
+  contexts are `insufficient_denominator`, `gld_bi__featured_services` is
+  empty, and comparability-funnel stage 5 is 0. The public pages render honest
+  empty states for this, but it is worth investigating whether systematic
+  context-label differences (setting/billing-class labeling across the three
+  source formats) prevent overlap that should exist, versus the corpus simply
+  being too small.
+- Evidence static builds prerender only param pages reachable through links in
+  rendered tables. Unlinked `/compare/[service_slug]` deep links 404 on a plain
+  static host; the deploy target needs a fallback rewrite (documented in
+  `apps/evidence/README.md`). Revisit if a full service index page (linking all
+  slugs) becomes affordable at build time.
+- The plan's "glossary coverage" QA idea (automated diff of rendered enum
+  values vs. `/glossary` anchors) is not implemented; today the mapping is
+  maintained by hand in page SQL label cases and the glossary page.
+- `scripts/check_evidence_readiness.py` gates on `featured_services >= 1 row`,
+  which legitimately fails on corpora with no floor-met contexts (like the
+  current dev corpus). That is by design for public-demo gating, but do not
+  treat its failure as a pipeline bug on small corpora.

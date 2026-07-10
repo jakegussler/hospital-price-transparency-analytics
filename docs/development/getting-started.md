@@ -152,6 +152,44 @@ selectors reuse the pipeline tags there so a single selector can span staging
 and Silver models for the selected pipeline. Audit selectors are intentionally
 unscoped from snapshots and only build views over `HPT_AUDIT_ROOT`.
 
+## Build The Evidence BI App
+
+The public Evidence app consumes generated Parquet artifacts from the Gold BI
+presentation marts. Build through `hpt run-dbt`, export the allowlisted BI
+tables, then run Evidence source extraction from `apps/evidence/`:
+
+```bash
+hpt run-dbt --command build --selector gold_bi
+hpt run-dbt --command test --selector gold_bi
+uv run python scripts/export_evidence_artifact.py --replace
+cd apps/evidence
+nvm use
+npm ci
+npm run sources
+npm run dev
+```
+
+The export step is suitable for small end-to-end smoke checks, including a
+single-hospital run: it requires the allowlisted marts to exist, but permits
+empty Parquet files when denominator-gated BI marts have no rows. For a
+public-demo corpus, run the optional readiness gate before exporting:
+
+```bash
+uv run python scripts/check_evidence_readiness.py
+uv run python scripts/export_evidence_artifact.py --replace
+```
+
+Use `npm run dev -- --port 4000` if port 3000 is occupied. Production build
+checks use `npm run sources && npm run build`.
+
+The exporter writes only the documented BI marts under
+`apps/evidence/sources/hpt/data/`, plus two generated artifacts
+(`public_metadata` with a git `build_id`, and `public_data_dictionary` parsed
+from `_gold_bi_models.yml`), and the public download bundle under
+`apps/evidence/static/downloads/` (Parquet + CSV per mart; CSVs over 25 MB
+gzip-compressed). All generated outputs are ignored by git. Evidence page SQL
+should query `hpt.<source_name>` tables only.
+
 ## Ad Hoc Scripts
 
 `adhoc_scripts/` contains exploration scripts for inspecting remote files,

@@ -17,6 +17,8 @@ flowchart LR
   ingest --> audit
   dbt --> audit
   silver --> gold[GoldModels]
+  gold --> biMarts[gld_bi Presentation Marts]
+  biMarts --> evidence[Evidence Public Reports]
 ```
 
 ## Implemented Components
@@ -51,8 +53,14 @@ Important modules:
 
 `transform/` is the dbt project. It defines external Bronze Parquet sources for
 DuckDB, staging views, validation models, Silver Base/Core models, review queue
-models, and the implemented Gold dimensional/analytics layer. Snapshot-grained
-Silver, validation, and Gold fact/bridge tables are incremental.
+models, the implemented Gold dimensional/analytics layer, and the nine
+`gld_bi__*` presentation marts. Snapshot-grained Silver, validation, and Gold
+fact/bridge tables are incremental.
+
+`apps/evidence/` is the static public reporting app (Evidence.dev, decision
+0020). It reads only exported Parquet from the allowlisted `gld_bi__*` marts, so
+comparability, denominator, trust, payer-matching, and amount semantics stay in
+dbt. See `docs/development/bi-layer.md` and `apps/evidence/README.md`.
 
 ## Download Flow
 

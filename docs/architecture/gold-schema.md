@@ -66,6 +66,12 @@ flowchart LR
   HSCORE --> BI_HOSP[gld_bi__hospital_overview]
   COV --> BI_BLOCKERS[gld_bi__comparison_blocker_summary]
   BI_SERVICE --> BI_FEATURED[gld_bi__featured_services]
+  MART --> BI_FUNNEL[gld_bi__comparability_funnel]
+  BI_PAYER --> BI_PAYER_OVERVIEW[gld_bi__payer_overview]
+  BI_HOSP --> BI_MARKET[gld_bi__market_summary]
+  BI_SERVICE --> BI_MARKET
+  BI_PAYER --> BI_MARKET
+  BI_FUNNEL --> BI_MARKET
 ```
 
 ## Materialization & run scoping
@@ -208,17 +214,29 @@ These are wide, dashboard-ready surfaces. They do not redefine comparability,
 denominator floors, payer matching, or trust logic; they join labels and derive
 display bands from the Gold facts, marts, scorecards, and dimensions.
 
+Two presentation helpers recur across these marts (macros in
+`transform/macros/bi_presentation.sql`): `service_url_slug`, a URL-safe service
+identifier 1:1 with `service_code_key` (singular test
+`gld_bi_service_slug_one_to_one.sql`), and `description_availability`
+(`available` / `license_restricted` / `not_loaded`), which explains why a code
+description is or is not displayable. The former shared `trust_band` name was
+split into two deliberately distinct measures: hospital-level
+`data_confidence_band` (readiness-score derived) and context-level
+`comparison_confidence_band` (cohort size + description availability), both
+with values `high`/`moderate`/`limited`/`low`.
+
 ### `gld_bi__hospital_overview`
 Grain: one row per `hospital_id` / current scored snapshot. Joins hospital
 display fields, current snapshot freshness, readiness scores, coverage rates,
-rank fields, and benchmark/context counts. Default source for hospital overview
-cards, maps, and ranked tables.
+rank fields, benchmark/context counts, and `data_confidence_band`. Default
+source for hospital overview cards, maps, and ranked tables.
 
 ### `gld_bi__service_market_explorer`
 Grain: `(service_code_key, clean_setting, clean_billing_class,
 modifier_signature, amount_kind)`. Adds service display code/name/label,
-modifier label, threshold flags, spread measures, `comparison_status`,
-`trust_band`, and `variation_band` over `gld_mart__service_price_summary`.
+`service_url_slug`, `description_availability`, modifier label, threshold
+flags, spread measures, `comparison_status`, `comparison_confidence_band`, and
+`variation_band` over `gld_mart__service_price_summary`.
 
 ### `gld_bi__hospital_service_rankings`
 Grain: `(hospital_id, service context, amount_kind)`. Enriches
@@ -239,6 +257,26 @@ row shares.
 Grain: one selected service/context/amount kind. Rule-selected from
 `gld_bi__service_market_explorer`, capped at 30 rows, and intended only as a
 default shortlist for public reports and dashboard demos.
+
+### `gld_bi__market_summary`
+Grain: exactly one row (`summary_id = 'current_corpus'`). Corpus headline KPIs
+with distinct-count semantics (hospitals, comparable services, matched payers,
+funnel totals/shares) so dashboards never sum per-hospital counts and
+double-count shared services or payers.
+
+### `gld_bi__comparability_funnel`
+Grain: `(scope_level, hospital_id, stage_index)`; `scope_level` is `hospital`
+or `corpus` (with the `<corpus>` hospital sentinel). Five cumulative
+decision-0017 gates over `gld_mart__service_price_comparison_current`
+classified rows: published → code-comparable → context-aligned → rankable
+dollar → meets the 3-hospital floor. Monotonicity locked by
+`gld_bi_funnel_stage_monotonic.sql`; stage 5 is the cohort-grain
+`below_min_hospital_denominator` gate.
+
+### `gld_bi__payer_overview`
+Grain: one row per `canonical_payer_id` from the contracting explorer.
+Distinct-count aggregates (hospitals, services, contexts), contract-position
+band counts, and cash-comparison band counts including `share_above_cash`.
 
 ## Entity relationship overview
 

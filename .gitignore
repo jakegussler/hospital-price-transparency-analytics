@@ -291,3 +291,7 @@ infra/terraform/*.tfplan
 !/logs/failures/.gitkeep
 !/logs/json/.gitkeep
 !/logs/std_out/.gitkeep
+
+# Claude
+.claude/
+

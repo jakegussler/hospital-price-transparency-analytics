@@ -15,12 +15,14 @@ dbt.
 This is an active data engineering project with a working local ingestion and
 modeling pipeline. The Python downloader, snapshot tracker, Bronze parsers, dbt
 staging models, Silver foundation models, Silver payer normalization models,
-review queues, and the Gold analytics layer (conformed dimensions, the atomic
+review queues, the Gold analytics layer (conformed dimensions, the atomic
 rate-observation fact, the code bridge, the current price-comparison and
-benchmark marts, and the coverage/transparency scorecards) are implemented.
+benchmark marts, and the coverage/transparency scorecards), the nine `gld_bi__*`
+presentation marts, and a static public reporting app (Evidence.dev, under
+`apps/evidence/`) are implemented.
 
-Dashboards, orchestration, Docker, and Terraform are not production-ready in this
-repository yet.
+Orchestration, Docker, and Terraform are not production-ready in this repository
+yet.
 
 ## Why This Project Matters
 
@@ -158,8 +160,12 @@ The current implementation includes:
   `gld_fct__rate_observations` fact and `gld_bridge__rate_observation_code`,
   the `gld_mart__service_price_comparison_current` mart with comparability tiers and
   blocker reasons, service/hospital/payer benchmark marts, and snapshot
-  coverage + hospital transparency scorecards, plus `gld_bi__*` presentation
-  marts for dashboard/report consumption (`main_gold` schema).
+  coverage + hospital transparency scorecards, plus the nine `gld_bi__*`
+  presentation marts for dashboard/report consumption (`main_gold` schema).
+- A static public reporting app (Evidence.dev, `apps/evidence/`) that reads only
+  exported Parquet from the allowlisted `gld_bi__*` marts and foregrounds
+  comparability limits, denominator floors, confidence bands, blocker reasons,
+  and snapshot freshness. Comparability logic stays in dbt (decision 0020).
 - pytest coverage for configuration, registry validation, download, storage,
   snapshots, parser behavior, Parquet writing, and ingest orchestration.
 - Append-only Parquet run audits for download, ingest, and dbt invocations.
@@ -336,7 +342,8 @@ flowchart LR
   bronze --> silver[dbt Silver Models]
   silver --> review[Review Queues]
   silver --> gold[dbt Gold Models]
-  gold --> dashboards[Future Dashboards]
+  gold --> bi[gld_bi Presentation Marts]
+  bi --> evidence[Evidence Public Reports]
 ```
 
 Python owns:
@@ -405,6 +412,9 @@ Start with:
 - `docs/domain/hospital-registry-rules.md`
 - `docs/development/getting-started.md`
 - `docs/development/testing-strategy.md`
+- `docs/development/bi-layer.md`
+- `docs/decisions/0020-use-evidence-for-public-bi.md`
+- `apps/evidence/README.md`
 
 Tracked docs are the authoritative reviewer-facing documentation. Historical
 notes and local research material are intentionally kept out of the tracked docs.
