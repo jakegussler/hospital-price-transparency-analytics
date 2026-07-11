@@ -4,13 +4,19 @@ hospital_price_transparency:
     dev:
       type: duckdb
       path: "{{ env_var('HPT_DUCKDB_PATH', '../data/hpt.duckdb') }}"
-      threads: 1
+      # Keep the local default serial: validation models have a high spill
+      # footprint. Larger deployments may opt in to more concurrency.
+      threads: "{{ env_var('HPT_DBT_THREADS', '1') | int }}"
       settings:
         # The validation violation models scan the full charge/code grain and
         # spill heavily at full-corpus scale. Not preserving insertion order lets
-        # DuckDB release intermediates and keeps temp-dir spill within local disk
-        # (see docs/cleanup.md; DuckDB OOM guidance).
+        # DuckDB release intermediates and reduces spill pressure.
         preserve_insertion_order: false
+        # Leave memory headroom for Python, dbt, Evidence, and the operating
+        # system. Deployments should size this explicitly for the instance.
+        memory_limit: "{{ env_var('HPT_DUCKDB_MEMORY_LIMIT', '6GiB') }}"
         # Cap temp spill below the actual free-disk capacity so an oversized model
-        # fails GRACEFULLY at this limit instead of filling the disk.
-        max_temp_directory_size: '28GiB'
+        # fails gracefully at this limit instead of filling the disk.
+        max_temp_directory_size: "{{ env_var('HPT_DUCKDB_MAX_TEMP_DIRECTORY_SIZE', '28GiB') }}"
+        # Deployments should point this at a volume sized for the build workload.
+        temp_directory: "{{ env_var('HPT_DUCKDB_TEMP_DIRECTORY', '../data/.tmp/duckdb') }}"
