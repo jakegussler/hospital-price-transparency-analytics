@@ -67,6 +67,13 @@ npm run build
 npm run preview
 ```
 
+For an automated public-site build, configure the required storage and DuckDB
+environment variables, then run `scripts/build_public_site.sh` from the
+repository root. The script performs download, ingest, memory-bounded dbt builds,
+readiness checks, artifact export, and the static Evidence build. If
+`HPT_PUBLIC_SITE_S3_URI` is set, it also syncs the completed `build/` directory
+to that S3 URI.
+
 Use `npm run dev -- --port 4000` if port 3000 is occupied.
 
 `npm run sources` includes a narrow post-processing step

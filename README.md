@@ -54,18 +54,17 @@ minimizing *comparability*.
 > *published-data readiness, not legal compliance*. The sample is one metro, one
 > snapshot per hospital.
 
-### Corpus
+### Illustrative run
 
-**12 active hospitals** — the nine-hospital HCA TriStar division, both Vanderbilt
-(VUMC) hospitals, and Metro Nashville General — across JSON and CSV MRF formats.
-Two further metro hospitals (Williamson Medical Center, Maury Regional) are
-registry entries deactivated for this run: their CSV-wide validation join exceeds
-the 8 GiB development machine's memory (a hardware limit, not a data limit — see
-`docs/cleanup.md`).
+The metrics below come from a 12-hospital Nashville-metro pipeline run spanning
+JSON and CSV MRF formats. They are a reproducible demonstration dataset, not a
+fixed product boundary: the registry and deployment workflow are designed to
+expand the active source set, and refreshed public outputs may cover a broader
+corpus.
 
 | Metric | Value |
 |---|---|
-| Hospitals (active) | 12 |
+| Hospitals represented | 12 |
 | Charge items | 2.19M |
 | Payer rates | 27.7M |
 | Atomic rate observations | 43.4M |
@@ -323,6 +322,10 @@ Most local runs work with defaults. The main overrides are:
 | `HPT_REFERENCE_RAW_ROOT` | External reference raw cache | `data/reference/raw` |
 | `HPT_REGISTRY_PATH` | Optional hospital registry override | bundled registry |
 | `HPT_DUCKDB_PATH` | dbt DuckDB database path | `data/hpt.duckdb` |
+| `HPT_DBT_THREADS` | dbt/DuckDB worker threads | `1` |
+| `HPT_DUCKDB_MEMORY_LIMIT` | DuckDB memory ceiling | `6GiB` |
+| `HPT_DUCKDB_MAX_TEMP_DIRECTORY_SIZE` | DuckDB temp-spill ceiling | `28GiB` |
+| `HPT_DUCKDB_TEMP_DIRECTORY` | DuckDB temp-spill directory | `data/.tmp/duckdb` |
 | `HPT_SILVER_RETENTION_MODE` | Silver/validation retention, `current_only` or `all_snapshots` | `current_only` |
 
 See `docs/configuration.md` for all environment variables, precedence rules, and

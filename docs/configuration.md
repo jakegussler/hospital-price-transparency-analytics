@@ -27,6 +27,10 @@ HPT keeps runtime configuration as small immutable dataclasses in
 | `HPT_HTTP_RETRIES` | `ClientConfig.retries` | `3` | HTTP transport retry count. |
 | `HPT_USER_AGENT` | `ClientConfig.user_agent` | `hpt-pipeline/0.1` | User-Agent sent to publishers. |
 | `HPT_DUCKDB_PATH` | dbt `profiles.yml` | `../data/hpt.duckdb` from `transform/` | DuckDB database path used by dbt. |
+| `HPT_DBT_THREADS` | dbt `profiles.yml` | `1` | DuckDB/dbt worker threads. Keep at `1` for memory-intensive validation unless the deployment is sized and tested for concurrency. |
+| `HPT_DUCKDB_MEMORY_LIMIT` | dbt `profiles.yml` | `6GiB` | Conservative local DuckDB memory ceiling. Size it below total RAM for each deployment environment. |
+| `HPT_DUCKDB_MAX_TEMP_DIRECTORY_SIZE` | dbt `profiles.yml` | `28GiB` | Maximum DuckDB temp-spill storage; size below available disk capacity. |
+| `HPT_DUCKDB_TEMP_DIRECTORY` | dbt `profiles.yml` | `../data/.tmp/duckdb` from `transform/` | DuckDB temp-spill directory. Point this at a volume sized for the build workload. |
 | `HPT_SILVER_RETENTION_MODE` | dbt `hpt_silver_retention_mode` var and `hpt run-dbt` retention behavior | `current_only` | Use `current_only` to prune non-current snapshot rows after materializing dbt runs, or `all_snapshots` to retain accumulated Silver/validation history while still syncing snapshot current flags from Bronze. |
 
 ## Important Distinction
@@ -53,10 +57,12 @@ change instead of a code rewrite.
 ## dbt And DuckDB
 
 The dbt project in `transform/` uses `transform/profiles.yml`. It reads
-`HPT_DUCKDB_PATH` for the local DuckDB database, `HPT_BRONZE_ROOT` for external
-Bronze Parquet sources, and `HPT_AUDIT_ROOT` for external operational audit
-sources. Python uses the same root names, so one override points writers and dbt
-reads at the same directories for local development.
+`HPT_DUCKDB_PATH` for the DuckDB database; `HPT_DBT_THREADS`,
+`HPT_DUCKDB_MEMORY_LIMIT`, `HPT_DUCKDB_MAX_TEMP_DIRECTORY_SIZE`, and
+`HPT_DUCKDB_TEMP_DIRECTORY` for runtime resource limits; `HPT_BRONZE_ROOT` for
+external Bronze Parquet sources; and `HPT_AUDIT_ROOT` for external operational
+audit sources. Python uses the same storage root names, so one override points
+writers and dbt reads at the same directories.
 
 Before invoking dbt, `hpt run-dbt` ensures every declared Bronze source table
 has a zero-row schema sentinel under

@@ -14,42 +14,21 @@ to the relevant docs and delete resolved items from here.
   `snapshot_replace` strategy and needs backend-neutral partition-overwrite
   semantics in the ingest/storage layer.
 
-## Validation + Gold marts spill on constrained local machines
+## Warehouse resource scaling
 
-- The full Nashville corpus can exceed the temp-spill budget on small developer
-  machines. `transform/profiles.yml` sets **`threads: 1`** so the two validation
-  violation models do not spill concurrently, plus an explicit
-  `max_temp_directory_size` so an oversized model fails cleanly instead of
-  filling the disk.
-- **`val__code_violations` / `val__standard_charge_violations` restructure (A+B,
-  applied).** The dominant spill driver was *not* the `cms_validation_rules` join
-  (that join is on the already-filtered violation rows and is cheap). It was the
-  normalized charge/code grain being **re-scanned once per rule**: each model
-  built a wide JSON+CSV union (and, for code, the CSV unpivot self-join) as a CTE
-  and then scanned it ~13× / ~5× through a per-rule `UNION ALL`, recomputing and
-  re-spilling the whole surface every branch. Two changes removed this:
-  - **A — materialized intermediates.** The grain now lives in
-    `val_int__standard_charge_grain`, `val_int__code_grain`, and
-    `val_int__csv_code_pairs` (all `+materialized: table`, scoped, under
-    `validation.violations.intermediate`). It is computed once and the CSV
-    unpivot runs once (the code grain and the missing-code anti-join both read
-    `val_int__csv_code_pairs`).
-  - **B — single-pass rule evaluation.** Each violation model scans its grain
-    once, emitting a `list_filter([... struct_pack ...])` of violated rules per
-    row and `unnest`-ing it, instead of one `UNION ALL` branch per rule. Output
-    is byte-identical (same surrogate keys / column contract); verified by an
-    old-vs-new equivalence harness over synthetic rows hitting every branch and
-    by the full `--selector validation` graph.
-- Scoping the build to **one hospital at a time** (`--hospital-ids <one>`) keeps
-  these models in budget. **Williamson Medical Center** and **Maury Regional**
-  (the two largest **CSV-wide** hospitals) remain deactivated (`active: false`);
-  re-verify them on the dev box now that the unpivot is materialized once, and
-  reactivate if their single-hospital `val__code_violations` fits. If the unpivot
-  self-join still spills there, the follow-on is restructure **C** (fuse the two
-  per-ordinal unpivots in `hpt_csv_code_unpivot` so there is no self-join) — now a
-  localized change to `val_int__csv_code_pairs` / the macro. These violation
-  models are transitive ancestors of Silver Core and Gold, so they **cannot** be
-  excluded with `--select +tag:gold` because that selector pulls ancestors in.
+- Validation over large mixed-format corpora can exceed the memory or temp-spill
+  budget of a developer workstation. `transform/profiles.yml` therefore keeps
+  the default thread count at `1`, bounds temp storage, and exposes the memory,
+  thread, and spill settings as deployment-time environment variables.
+- The validation grain is materialized once in `val_int__standard_charge_grain`,
+  `val_int__code_grain`, and `val_int__csv_code_pairs`, and violation rules are
+  evaluated in a single pass. Hospital-batched or per-snapshot builds remain the
+  supported way to bound peak resources as the registry grows.
+- If CSV-wide code expansion remains a bottleneck at larger scale, fuse the two
+  per-ordinal unpivots in `hpt_csv_code_unpivot` to remove the self-join in
+  `val_int__csv_code_pairs`. Validation models are transitive ancestors of
+  Silver Core and Gold, so they cannot be excluded from a complete downstream
+  build.
 - The Phase-2 Gold **comparison/benchmark marts** (`gld_mart__service_price_comparison_current`,
   `gld_mart__service_price_summary`, `gld_mart__hospital_service_benchmarks`,
   `gld_mart__payer_service_benchmarks`) and the `gld_int__service_comparison_spine` also
@@ -57,25 +36,24 @@ to the relevant docs and delete resolved items from here.
   functions sort the whole observation-by-code surface. Durable fix: a larger
   machine, or pre-aggregating/partitioning the window inputs.
 
-## billing_class is absent corpus-wide (comparability framework relaxed)
+## `billing_class` is absent in the profiled sample
 
-- No hospital in the active Nashville corpus publishes `billing_class` (confirmed:
-  zero occurrences of `"billing_class"` in the source MRFs; `raw_billing_class` is
-  null at the bronze layer for all 12 hospitals, JSON and CSV). The parser maps the
-  column but publishers never populate it; `clean_setting` publishes fine.
+- No hospital in the profiled 12-hospital Nashville sample publishes
+  `billing_class` (confirmed: zero occurrences of `"billing_class"` in the source
+  MRFs; `raw_billing_class` is null at the Bronze layer for JSON and CSV). The
+  parser maps the column, so future sources that publish it remain supported.
 - The decision 0017 tier rule (`hpt_comparison_tier`) originally required
   `clean_billing_class is not null` for `tier_2_context_aligned`, so under the strict
   rule **0%** of observations are cross-hospital comparable and the entire
   comparison/summary/benchmark output is empty. Empty marts still satisfy
   structural `not_null`/`unique` tests, so the semantic problem needs explicit
   coverage.
-- Current behavior (in `gld_fct__rate_observations`): coalesce `clean_billing_class`
-  to `'unspecified'` so its *uniform* absence is treated as an explicit context
-  rather than collapsing tier_2. This yields ~57% tier_2. Durable options: make
-  `billing_class` optional in the tier definition (an explicit decision 0017
-  amendment) or require it only when a corpus actually publishes it. The relaxed
-  comparisons mix professional/facility where hospitals would otherwise distinguish
-  them — acceptable here only because *no* hospital in the corpus distinguishes them.
+- Current behavior (in `gld_fct__rate_observations`) coalesces
+  `clean_billing_class` to `'unspecified'`, so uniform absence is represented
+  explicitly rather than collapsing tier 2. This assumption must be re-profiled
+  as the corpus expands. Durable options are to make `billing_class` optional in
+  the tier definition through a decision 0017 amendment, or require it only when
+  publishers in the comparison corpus distinguish it.
 
 ## Service-Item Continuity And Validation Corpus
 
