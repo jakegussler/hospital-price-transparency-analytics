@@ -5,10 +5,13 @@ from __future__ import annotations
 import importlib.util
 import shutil
 import sys
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import ModuleType
 
 import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 from hpt.cli import export_hospitals_seed_logic, ingest_logic, run_dbt_logic
@@ -45,15 +48,18 @@ def test_offline_fixture_pipeline(tmp_path, monkeypatch):
     bronze_root = tmp_path / "bronze"
     quarantine_root = tmp_path / "quarantine"
     audit_root = tmp_path / "audit"
+    reference_root = tmp_path / "reference" / "bronze"
     duckdb_path = tmp_path / "hpt.duckdb"
 
     shutil.copytree(FIXTURE_ROOT / "raw", raw_store / "raw")
     shutil.copytree(FIXTURE_ROOT / "metadata", raw_store / "metadata")
+    _write_reference_fixture(reference_root)
 
     monkeypatch.setenv("HPT_RAW_STORAGE_BASE_URI", to_storage_uri(raw_store))
     monkeypatch.setenv("HPT_BRONZE_ROOT", str(bronze_root))
     monkeypatch.setenv("HPT_QUARANTINE_ROOT", str(quarantine_root))
     monkeypatch.setenv("HPT_AUDIT_ROOT", str(audit_root))
+    monkeypatch.setenv("HPT_REFERENCE_ROOT", str(reference_root))
     monkeypatch.setenv("HPT_DUCKDB_PATH", str(duckdb_path))
 
     hospitals_seed = get_default_hospitals_seed_path(PROJECT_ROOT)
@@ -139,6 +145,37 @@ def _load_fixture_builder() -> ModuleType:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _write_reference_fixture(reference_root: Path) -> None:
+    """Write the smallest offline MS-DRG reference table dbt can stage."""
+    output_dir = reference_root / "ms_drg" / "release_date=2024-10-01"
+    output_dir.mkdir(parents=True)
+    table = pa.table(
+        {
+            "code_type": ["ms-drg"],
+            "code": ["470"],
+            "description": ["Major hip and knee joint replacement"],
+            "code_edition": ["FY2025"],
+            "effective_start": [date(2024, 10, 1)],
+            "effective_end": [date(2025, 9, 30)],
+            "source": ["CMS"],
+            "license": ["public-domain"],
+            "source_url": [
+                "https://www.cms.gov/medicare/payment/prospective-payment-systems/acute-inpatient-pps/fy-2025-ipps-final-rule-home-page"
+            ],
+            "retrieved_at": [datetime(2025, 1, 1, tzinfo=UTC)],
+            "mdc": ["08"],
+            "drg_type": ["SURG"],
+            "relative_weight": [1.9107],
+            "relative_weight_uncapped": [1.9107],
+            "geometric_mean_los": [1.8],
+            "arithmetic_mean_los": [2.3],
+            "post_acute_drg": [True],
+            "special_pay_drg": [False],
+        }
+    )
+    pq.write_table(table, output_dir / "part-000.parquet")
 
 
 def _bronze_counts(bronze_root: Path) -> dict[str, int]:
