@@ -19,6 +19,9 @@ hpt ingest
 echo "Exporting active hospital seed..."
 hpt export-hospitals-seed
 
+echo "Loading external code-description reference data..."
+hpt load-reference --source all
+
 echo "Building per-snapshot Silver/staging/validation graph..."
 hpt run-dbt \
   --per-snapshot \
