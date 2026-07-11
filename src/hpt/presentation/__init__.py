@@ -1,2 +1,1 @@
 """Presentation-layer publishing helpers."""
-
