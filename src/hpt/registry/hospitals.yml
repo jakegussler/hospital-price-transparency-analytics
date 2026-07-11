@@ -9,7 +9,7 @@
 # by the all-hospitals dbt run; inactive hospitals are retained here (URL
 # research preserved) and can still be targeted explicitly by id. The active
 # set is currently scoped to the Nashville, TN metro (see README / decision
-# 0019). Reactivate or add hospitals by flipping `active` / adding entries.
+# 0019). Expand the working set by enabling existing entries or adding sources.
 #
 # See docs/local/req_docs/source_registry_downloader.md for the registry shape.
 
@@ -141,11 +141,7 @@ hospitals:
       expected_format: csv_wide
       notes: >-
         Williamson County hospital; discovered from williamsonhealth.org
-        cms-hpt.txt. Deactivated 2026-06-27 for CSV-wide validation OOM, then
-        reactivated 2026-06-28 as the CSV-wide member of the small verification
-        corpus after the val__code_violations / val__standard_charge_violations
-        single-pass refactor (A+B) materialized the unpivot/grain once
-        (docs/cleanup.md).
+        cms-hpt.txt.
 
   - hospital_id: nashville-general
     canonical_hospital_name: Metro Nashville General Hospital
@@ -162,17 +158,13 @@ hospitals:
     canonical_state: TN
     hospital_type: nonprofit
     health_system: Maury Regional Health
-    active: false
     mrf_source:
       url: "https://www.mauryregional.com/clientfiles/getfile/626002623_maury-regional-medical-center_standardcharges.csv"
       expected_format: csv_wide
       notes: >-
         CMS v3.0 wide format; discovered from mauryregional.com cms-hpt.txt. The
         getfile endpoint 403s the default UA; download with HPT_USER_AGENT set to
-        a browser string. Deactivated 2026-06-27: its CSV-wide
-        val__code_violations join OOMs on this 8 GiB box (~30 GiB temp spill
-        exceeds free local disk); reactivate on a larger machine or after the
-        validation rule-join is pre-aggregated (docs/cleanup.md).
+        a browser-like value that includes an operator contact.
 
   # ===========================================================================
   # INACTIVE — retained for future activation (outside Nashville metro)

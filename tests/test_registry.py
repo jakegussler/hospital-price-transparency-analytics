@@ -153,8 +153,7 @@ class TestActivation:
 
 class TestHospitalIdValidation:
     def test_expanded_state_registry_loads(self):
-        # States span the full registry (active + inactive); deactivating the
-        # non-Nashville corpus must not drop these CMS state codes from the file.
+        # State validation spans the full registry, including inactive entries.
         hospitals = load_registry(include_inactive=True)
         states = {h.canonical_state for h in hospitals}
 

@@ -56,3 +56,14 @@ def test_export_hospitals_seed_logic_returns_error_for_bad_registry(tmp_path):
     )
 
     assert exit_code == 2
+
+
+def test_committed_hospitals_seed_matches_active_bundled_registry(tmp_path):
+    generated_path = tmp_path / "hospitals.csv"
+
+    write_hospitals_seed(output_path=generated_path)
+
+    committed_path = Path(__file__).parents[1] / "transform" / "seeds" / "hospitals.csv"
+    assert generated_path.read_text(encoding="utf-8") == committed_path.read_text(
+        encoding="utf-8"
+    )
