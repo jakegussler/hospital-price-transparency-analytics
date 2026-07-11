@@ -7,6 +7,16 @@ hospital_price_transparency:
       # Keep the local default serial: validation models have a high spill
       # footprint. Larger deployments may opt in to more concurrency.
       threads: "{{ env_var('HPT_DBT_THREADS', '1') | int }}"
+      # config_options is passed once to duckdb.connect() at instance creation.
+      # temp_directory MUST live here, not under settings: DuckDB forbids
+      # switching the temp directory after it has been used, and dbt-duckdb
+      # re-applies every settings entry as `SET key = value` on each new cursor.
+      # Once a model spills to temp, the next cursor's re-SET of temp_directory
+      # raises "Cannot switch temporary directory after the current one has been
+      # used" (seen at full-corpus scale in the gold_marts pass).
+      config_options:
+        # Deployments should point this at a volume sized for the build workload.
+        temp_directory: "{{ env_var('HPT_DUCKDB_TEMP_DIRECTORY', '../data/.tmp/duckdb') }}"
       settings:
         # The validation violation models scan the full charge/code grain and
         # spill heavily at full-corpus scale. Not preserving insertion order lets
@@ -18,5 +28,3 @@ hospital_price_transparency:
         # Cap temp spill below the actual free-disk capacity so an oversized model
         # fails gracefully at this limit instead of filling the disk.
         max_temp_directory_size: "{{ env_var('HPT_DUCKDB_MAX_TEMP_DIRECTORY_SIZE', '28GiB') }}"
-        # Deployments should point this at a volume sized for the build workload.
-        temp_directory: "{{ env_var('HPT_DUCKDB_TEMP_DIRECTORY', '../data/.tmp/duckdb') }}"
