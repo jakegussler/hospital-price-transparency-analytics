@@ -6,9 +6,8 @@ sidebar_position: 1
 
 # What the Price Types Mean
 
-Hospitals publish several different kinds of "price" for the same service.
-They answer different questions, and ranking one kind against another produces
-nonsense — so this site never does.
+Hospitals publish several kinds of "price" for the same service. Each answers a
+different question, so this site analyzes them separately.
 
 ## The three rankable price types
 

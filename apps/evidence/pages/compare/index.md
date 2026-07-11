@@ -108,9 +108,8 @@ limit 500
 
 <SiteCallout type="scope" title="No matching contexts">
 Nothing matches these filters. If "Which contexts" is set to <b>Comparable
-only</b>, note that the current corpus has no context reported by 3 or more
-hospitals yet — switch to <b>Everything published</b> to browse all published
-prices (individually visible, but not comparable across hospitals).
+only</b>, switch to <b>Everything published</b> to include contexts below the
+3-hospital comparison floor.
 </SiteCallout>
 
 {:else}

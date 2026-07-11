@@ -191,8 +191,8 @@ price. A signal to investigate, not proof of overpayment.
 
 ### Corpus
 
-The set of hospitals currently loaded — named on every page (currently
-Nashville metro). Every claim on the site is bounded to it.
+The set of hospitals included in an export. The site names the corpus and limits
+every claim to the hospitals it contains.
 
 ### Comparability funnel
 

@@ -156,10 +156,9 @@ limit 10
 
 <SiteCallout type="scope" title="No market positions yet">
 No service context at this hospital currently meets the 3-hospital comparison
-floor, so there are no "priced above/below market" findings to show — that is
-the honest answer, not a gap in the page. The hospital's published prices are
-browsable through <a href="/compare">Compare Prices</a> with "Everything published"
-selected.
+floor, so this export has no above- or below-market positions for the hospital.
+Its published prices are browsable through <a href="/compare">Compare Prices</a>
+with "Everything published" selected.
 </SiteCallout>
 
 {:else}

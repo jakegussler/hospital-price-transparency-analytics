@@ -6,10 +6,9 @@ sidebar_position: 2
 
 # How Comparison Works
 
-Two hospital prices are comparable only if they describe the same economic
-thing. That sounds obvious, but most published price rows fail it in some way.
-This page lists the exact rules — the same rules enforced and tested in the
-open-source data layer this site reads from.
+Two hospital prices are comparable only if they describe the same service and
+payment context. This page lists the rules enforced and tested in the
+open-source data layer that supplies the site.
 
 ## The comparison key
 
@@ -56,11 +55,10 @@ No market statistic — median, percentile, spread, ranking, or "vs. market"
 position — is computed unless **at least 3 hospitals** report the exact same
 service context.
 
-Why: with 2 hospitals, a "median" is just the halfway point between two
-prices, and a "range" simply identifies each hospital's price while dressing
-the pair up as a market. Even at n=3, a 10th or 90th percentile is essentially
-the minimum or maximum. We show the individual prices and the n instead, and
-label the context "Too few hospitals."
+With 2 hospitals, a median is only the halfway point between two prices, and a
+range simply reports those two values. Even at n=3, a 10th or 90th percentile
+is close to the minimum or maximum. Below the floor, we show the individual
+prices and the hospital count and label the context "Too few hospitals."
 
 The floor applies separately to every peer group: the all-corpus market, the
 same-state group, the same-hospital-type group, the same-health-system group,
@@ -98,5 +96,5 @@ current corpus, lives on the [data quality page](/data-quality).
 - No derived-dollar rankings.
 - No claims beyond the loaded corpus.
 
-These are design choices in favor of trustworthiness over coverage. The
-[data quality page](/data-quality) shows exactly what they cost.
+These rules reduce coverage in exchange for more consistent comparisons. The
+[data quality page](/data-quality) reports their effect on the published rows.

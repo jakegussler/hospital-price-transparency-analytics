@@ -76,10 +76,10 @@ means the 90th-percentile price is at least 3× the 10th-percentile price;
 
 ## Why we publish the thresholds
 
-Bands without thresholds are vibes. Every cutoff above is the actual value in
-the open-source data layer, locked by automated tests — if a threshold ever
-changes, this page changes with it (the build identifier on the
-[downloads page](/downloads) ties the two together).
+Publishing the cutoffs makes each label reproducible. Every cutoff above is
+implemented in the open-source data layer and covered by automated tests. If a
+threshold changes, this page must change with it; the build identifier on the
+[downloads page](/downloads) identifies the corresponding code version.
 
 ## What the scores are not
 

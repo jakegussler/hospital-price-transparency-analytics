@@ -6,10 +6,9 @@ sidebar_position: 5
 
 # Methodology
 
-This site's promise: every number is traceable to a hospital's own published
-file, every comparison rule is public, and everything we refuse to compare is
-labeled with the reason. This page is the plain-language overview; the
-sub-pages hold the full rules.
+Every number on this site is traceable to a hospital's published file. The
+comparison rules are public, and rows excluded from comparison carry a reason.
+This page summarizes the method; the sub-pages document the rules.
 
 - **[What the price types mean](/methodology/prices)** — list price, cash
   price, negotiated rate, and why they are never ranked against each other.

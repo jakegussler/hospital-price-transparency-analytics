@@ -6,10 +6,9 @@ sidebar_position: 8
 
 # About This Project
 
-An independent, open-source effort to make hospital price transparency files
-actually legible: ingest the machine-readable files hospitals publish,
-normalize them carefully, and present them with every comparison limit stated
-out loud.
+This independent, open-source project ingests hospitals' machine-readable price
+files, normalizes their contents, and publishes the results together with the
+rules that limit cross-hospital comparisons.
 
 ```sql export_stamp
 select
@@ -21,22 +20,20 @@ from hpt.public_metadata
 
 ## Why this exists
 
-Federal rules require hospitals to publish their standard charges, but the
-files are large, inconsistent, and easy to over-read. Most presentations of
-this data either dump raw tables or overstate what can be compared. This
-project takes a third path: **compare only what can honestly be compared, show
-everything else with a named reason, and publish the methodology in full.**
+Federal rules require hospitals to publish their standard charges, but file
+formats and labels vary. This project compares only rows that meet the published
+methodology. Rows that do not qualify remain available with a specific reason.
 
 ## Scope
 
 - **Corpus:** <Value data={export_stamp} column=corpus_label /> — a
-  deliberately bounded hospital set, listed below. Metro-bounded corpora keep
-  claims checkable; nothing here is a regional or national benchmark.
+  defined hospital set, listed below. Results apply only to the included
+  hospitals and should not be generalized to other markets.
 - **Sources:** each hospital's own published standard-charges file, linked
   from its page.
 - **Cadence:** data refreshes when the corpus is re-ingested and re-exported;
-  the current export is stamped on every page footer area and on
-  [downloads](/downloads).
+  the export date and build identifier appear on the overview and
+  [downloads](/downloads) pages.
 
 ## Hospitals in the current corpus
 
@@ -60,28 +57,24 @@ order by hospital_display_name
 
 ## Corrections
 
-If you represent a hospital or insurer and believe a number is wrong, we want
-to know. Open an issue on the project repository (or contact the maintainer)
-with the page URL, the value in question, and — if you can — the corresponding
-row in your own published file. We will check, in order: the source file
-itself, our parsing of it, our normalization rules, and the presentation. If
-we erred, we fix and note it below; if the source file drives the number, we
-will say that too.
+If you represent a hospital or insurer and believe a number is wrong, open an
+issue in the <a href="https://github.com/jakegussler/hospital-price-transparency-analytics/issues">project repository</a>
+with the page URL, the value in question, and, if possible, the corresponding
+row in the hospital's published file. We will check the source file, parsing,
+normalization rules, and presentation. Confirmed project errors will be
+corrected; source-file issues will be identified as such.
 
-## Release notes
+## Current site features
 
-- **{export_stamp[0].exported_on} (build {export_stamp[0].build_id})** —
-  redesigned public reports: plain-language labels throughout, the
-  comparability funnel, hospital report cards, insurer profiles, a full
-  methodology and glossary, and a documented download bundle with a data
-  dictionary. Renamed the two confidence measures (hospital-level "data
-  confidence" vs. context-level "comparison confidence") so they can no
-  longer be confused.
+The site includes a comparability funnel, hospital report cards, insurer
+profiles, methodology and glossary pages, and a download bundle with a data
+dictionary. Hospital-level **data confidence** and context-level **comparison
+confidence** are separate measures.
 
 ## What's planned
 
-- Growing the corpus (more hospitals, then more metros) — the methodology is
-  built to scale without changing.
+- Keeping the Nashville hospital roster and source files current, then adding
+  other metros.
 - Loading more public-domain code descriptions (HCPCS and APC next).
 - Price history once multiple file versions per hospital are retained.
 - Better insurer-name matching coverage.

@@ -5,10 +5,9 @@ hide_title: true
 
 # Nashville Hospital Price Transparency
 
-Hospitals are required to publish the prices they charge. This site reads those
-published files for the Nashville metro area, shows what they contain, and —
-just as importantly — explains exactly when prices **can and cannot be
-compared** across hospitals.
+Hospitals are required to publish their standard charges. This site organizes
+those files for Nashville-area hospitals and explains when the published prices
+**can and cannot be compared** across hospitals.
 
 ```sql export_metadata
 select
@@ -68,9 +67,9 @@ silently dropped. Details are in the [methodology](/methodology).
 
 ## From published to comparable
 
-Hospitals publish far more price rows than can be fairly compared. Each stage
-below applies one more comparison rule; the drop at each step is data we still
-show, but refuse to rank. This honesty is the point of the site.
+Hospitals publish far more price rows than qualify for cross-hospital
+comparison. Each stage below applies another comparison rule. Rows that do not
+pass remain in the data but are excluded from rankings.
 
 ```sql corpus_funnel
 select
@@ -101,10 +100,10 @@ order by stage_index
 
 {#if market.length > 0 && market[0].no_floor_met}
 
-<SiteCallout type="caution" title="No cross-hospital comparisons yet on this corpus">
-No service context in the current corpus is reported by 3 or more hospitals in
-exactly the same form, so no market statistics are published anywhere on this
-site yet. Everything the hospitals published is still browsable, and
+<SiteCallout type="caution" title="No cross-hospital comparisons in this export">
+No service context in this export is reported by 3 or more hospitals in exactly
+the same form, so the site cannot publish market statistics. The hospitals'
+published prices are still browsable, and
 within-hospital comparisons (like negotiated rate vs. cash price) do not need
 the floor. See <a href="/data-quality">why comparisons are limited</a>.
 </SiteCallout>
@@ -114,7 +113,7 @@ the floor. See <a href="/data-quality">why comparisons are limited</a>.
 ## Hospitals by data confidence
 
 Data confidence describes how usable each hospital's **published file** is for
-price comparison — not care quality, and not legal compliance.
+price comparison. It does not measure care quality or legal compliance.
 
 ```sql confidence_bands
 select
@@ -169,9 +168,8 @@ order by featured_rank
 
 <SiteCallout type="scope" title="Nothing featured yet">
 Featured comparisons appear when a described service is reported by at least 3
-hospitals in the same context. The current corpus has no such context yet, so
-this list is empty rather than filled with numbers we cannot stand behind. You
-can still <a href="/compare">browse everything hospitals published</a>.
+hospitals in the same context. None qualify in this export. You can still
+<a href="/compare">browse everything hospitals published</a>.
 </SiteCallout>
 
 {:else}

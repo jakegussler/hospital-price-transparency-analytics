@@ -6,10 +6,9 @@ sidebar_position: 4
 
 # Data Quality: How Much Is Actually Comparable?
 
-Hospitals publish enormous price files, but publishing a number and publishing
-a **comparable** number are different things. This page shows, openly, how much
-of the published data survives each comparison rule — and exactly why the rest
-does not.
+Hospital price files contain many rows that cannot support a fair
+cross-hospital comparison. This page counts how many rows pass each comparison
+rule and reports why other rows are excluded from rankings.
 
 <SiteCallout type="definition">
 "Blocked" never means hidden. Every published row stays visible somewhere on
@@ -207,8 +206,7 @@ Showing the top {thin_contexts.length} thin contexts by row volume.
 </DataTable>
 
 <SiteCallout type="scope">
-With a small corpus, most contexts are thin: three hospitals must publish the
-same code, setting, billing type, and modifiers for a context to clear the
-floor. As the corpus grows, contexts move up this funnel without any
-methodology change.
+A context clears the floor only when at least three hospitals publish the same
+code, setting, billing type, modifiers, and price type. Adding hospitals can
+increase the number of qualifying contexts without changing the methodology.
 </SiteCallout>

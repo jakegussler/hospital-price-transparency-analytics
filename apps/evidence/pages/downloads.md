@@ -14,7 +14,9 @@ that feeds these pages — the files and the site always match.
 select
   left(max(exported_at_utc), 10) as exported_on,
   max(corpus_label) as corpus_label,
-  max(build_id) as build_id
+  max(build_id) as build_id,
+  'https://github.com/jakegussler/hospital-price-transparency-analytics/commit/'
+    || max(build_id) as build_url
 from hpt.public_metadata
 ```
 
@@ -107,7 +109,7 @@ part of the data's meaning:
 
 > Hospital Price Transparency project, "{export_stamp[0].corpus_label}" public
 > data export, exported {export_stamp[0].exported_on}
-> (build {export_stamp[0].build_id}).
+> (<a href={export_stamp[0].build_url}>build {export_stamp[0].build_id}</a>).
 
 The build identifier pins your citation to the exact pipeline version that
 produced the numbers. Methodology for citation:
