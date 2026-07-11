@@ -138,8 +138,7 @@ class TestActivation:
     def test_duplicate_check_spans_inactive(self, tmp_path):
         p = tmp_path / "dupe.yml"
         p.write_text(
-            self._REGISTRY
-            + "  - hospital_id: active-hospital\n"
+            self._REGISTRY + "  - hospital_id: active-hospital\n"
             "    canonical_hospital_name: Dupe\n"
             "    canonical_state: TN\n"
             "    hospital_type: community\n"
