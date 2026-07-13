@@ -1,8 +1,9 @@
 # Agent Guide
 
-This file gives coding agents project context. Keep it aligned with the docs in
-`docs/`; future Cursor rules should be distilled from this guide rather than
-invented separately.
+This is the canonical project guidance for AI coding tools and new contributors.
+Codex reads it directly; `CLAUDE.md` imports it; Cursor's project rule points to
+it. Keep shared rules here rather than duplicating them in tool-specific files.
+Use [docs/ai/README.md](docs/ai/README.md) for the design of this AI workflow.
 
 ## Project Purpose
 
@@ -13,32 +14,20 @@ for dbt/DuckDB normalization and analysis.
 ## Current Architecture
 
 - `src/hpt/cli.py` exposes `hpt download`, `hpt ingest`, `hpt run-dbt`, and
-  `hpt clear-snapshot`. It is a thin layer that builds config objects and runs a
-  process.
-- `src/hpt/ingest/` owns config, HTTP download, raw storage, compression,
-  snapshot metadata, format detection, and schema sniffing.
+  `hpt clear-snapshot`; keep the CLI thin.
+- `src/hpt/ingest/` owns download, storage, compression, snapshots, format
+  detection, and schema sniffing.
 - `src/hpt/parsers/` owns JSON, CSV Tall, CSV Wide, and header parsing.
 - `src/hpt/loaders/parquet.py` writes Bronze Parquet partitions.
-- `src/hpt/pipeline/ingest_snapshot.py` connects snapshot resolution, parser
-  selection, quarantine handling, and Bronze writing.
-- `src/hpt/pipeline/dbt_config.py`, `dbt_manager.py`, and `dbt_orchestrator.py`
-  form the dbt orchestration layer: `DbtRunConfig` holds the run details and
-  normalizes comma-separated inputs to lists, `DbtManager` wraps `dbtRunner`
-  invocations, and `DbtOrchestrator` sequences the run modes (scoped,
-  all-current, per-snapshot, full-rebuild) and iterates selectors.
+- `src/hpt/pipeline/` connects snapshot resolution, parsing, Bronze writing, and
+  the supported dbt run modes.
 - `src/hpt/registry/` owns the active bundled hospital registry schema.
-- `transform/` is a dbt project targeting DuckDB. It defines Bronze sources,
-  Silver foundation models, the implemented Gold layer (conformed dimensions,
-  the atomic rate-observation fact + code bridge, comparison/benchmark marts, and
-  coverage/transparency scorecards in `main_gold`), and the nine `gld_bi__*`
-  presentation marts. See `docs/architecture/gold-schema.md`,
-  `docs/development/bi-layer.md`, and decisions 0017/0018.
-- `apps/evidence/` is the static public reporting app (Evidence.dev, decision
-  0020). It reads only exported Parquet from the allowlisted `gld_bi__*` marts;
-  comparability, denominator, trust, payer-matching, and amount semantics stay
-  in dbt, never in Evidence page SQL.
-- `infra/`, `orchestration/`, and `scripts/` are placeholders unless files are
-  added later.
+- `transform/` is the dbt/DuckDB project: Bronze sources, validation, Silver,
+  Gold, and the `gld_bi__*` presentation marts.
+- `apps/evidence/` is the static public reporting app. It reads exported Parquet
+  from allowlisted BI marts; analytical semantics stay in dbt.
+- `infra/` and `orchestration/` are planned integration points, not production
+  implementations.
 
 ## Development Commands
 
@@ -71,15 +60,10 @@ is changed to provide it.
 
 ### Memory at full-corpus scale
 
-The active corpus is the Nashville metro (14 hospitals across CSV Wide, CSV
-Tall, and JSON; decision 0019), large enough that a **single-pass full build can
-exhaust DuckDB's temp-spill directory and OOM** — the validation violation models
-(`val__code_violations`, `val__standard_charge_violations`) scan the full
-charge/code grain and spill hardest, and they are transitive ancestors of
-Silver/Gold (rejections), so they cannot be excluded. Their grain is now built
-once in `val_int__*` table intermediates and evaluated in a single pass (see
-`docs/cleanup.md`, restructure A+B), which removes the per-rule re-scan; the
-remaining spill is the grain build itself. Bound peak memory with one of:
+The Nashville corpus (14 hospitals across CSV Wide, CSV Tall, and JSON) is large
+enough that a single-pass full build can exhaust DuckDB's temp-spill directory.
+The validation grain is built once in `val_int__*` table intermediates, but that
+grain build can still spill heavily. Bound peak memory with one of:
 
 - **Hospital-batched single-pass builds** — `--hospital-ids <subset>` in batches
   of ~4; `snapshot_replace` accumulates and the final batch's unscoped marts
@@ -88,26 +72,8 @@ remaining spill is the grain build itself. Bound peak memory with one of:
   memory-bounding modes (one snapshot at a time). Previously discouraged for
   agents; allowed when a full-corpus rebuild would otherwise OOM.
 
-`preserve_insertion_order: false` is set in `transform/profiles.yml` to reduce
-spill but is not sufficient alone at this scale. See `docs/cleanup.md`.
-
-Example (named selector):
-
-```bash
-hpt run-dbt --command build --selector validation
-```
-
-Example (changed model and its downstream):
-
-```bash
-hpt run-dbt --command build --select slv_core__payer_rates+
-```
-
-Example (full Gold build):
-
-```bash
-hpt run-dbt --command build --select gld_+
-```
+`preserve_insertion_order: false` in `transform/profiles.yml` reduces spill but
+is not sufficient alone. See `docs/cleanup.md` for current operational risks.
 
 ## Data And Storage Rules
 
@@ -147,6 +113,10 @@ hpt run-dbt --command build --select gld_+
 - Record unresolved follow-ups, risks, or known mismatches in `docs/cleanup.md`
   unless fixing them in the same change. Do not use it for general architecture
   notes or status summaries.
+- Treat ignored material under `docs/planning/`, `docs/local/`, and `docs/ai/`
+  as working context, not public or authoritative documentation.
+- Keep `AGENTS.md` focused on durable, recurring rules. Put explanations in
+  tracked docs and multi-step reusable workflows in `.agents/skills/`.
 
 ## Testing Expectations
 
@@ -180,8 +150,7 @@ not how it is stored.
 ## Cautions
 
 - Do not commit local data, DuckDB files, logs, or downloaded MRFs.
-- Do not treat `docs/notes/` as authoritative. It contains planning history and
-  research notes.
+- Do not treat ignored planning, notes, prompts, or research as authoritative.
 - Be explicit when describing planned components such as Airflow, Docker, and
   Terraform. Do not imply they are production-ready. Silver and Gold are
   implemented; Gold cross-hospital percentile/benchmark output is only as broad

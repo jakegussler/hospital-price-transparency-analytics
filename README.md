@@ -235,7 +235,8 @@ hpt run-dbt --command test --hospital-ids vumc
 
 The active corpus (Nashville metro, 14 hospitals) is large enough that a
 single-pass 14-hospital build can exhaust DuckDB's temp directory; at
-full-corpus scale, build in `--hospital-ids` batches of ~4. See `AGENTS.md`.
+full-corpus scale, build in `--hospital-ids` batches of approximately four. See
+the [snapshot-scoped run guide](docs/development/snapshot-scoped-runs.md).
 
 By default, raw files, snapshot metadata, Bronze Parquet, quarantine records,
 DuckDB files, and logs are written under local ignored paths.
@@ -402,22 +403,17 @@ into dbt models that can support cross-hospital rate analysis.
 
 ## Documentation
 
-Start with:
+Use the [documentation index](docs/README.md) to navigate the architecture,
+methodology, development guides, and engineering decisions. Useful starting
+points include:
 
-- `docs/architecture/pipeline-overview.md`
-- `docs/architecture/medallion-layers.md`
-- `docs/architecture/storage-layout.md`
-- `docs/architecture/bronze-schema.md`
-- `docs/architecture/silver-schema.md`
-- `docs/architecture/gold-schema.md`
-- `docs/domain/hpt-glossary.md`
-- `docs/domain/cms-mrf-schema-notes.md`
-- `docs/domain/hospital-registry-rules.md`
-- `docs/development/getting-started.md`
-- `docs/development/testing-strategy.md`
-- `docs/development/bi-layer.md`
-- `docs/decisions/0020-use-evidence-for-public-bi.md`
-- `apps/evidence/README.md`
+- [Pipeline overview](docs/architecture/pipeline-overview.md)
+- [Gold schema](docs/architecture/gold-schema.md)
+- [Comparability framework](docs/decisions/0017-gold-comparability-framework.md)
+- [Getting started](docs/development/getting-started.md)
+- [BI presentation layer](docs/development/bi-layer.md)
+- [AI-assisted development](docs/ai/README.md)
+- [Evidence application guide](apps/evidence/README.md)
 
 Tracked docs are the authoritative reviewer-facing documentation. Historical
 notes and local research material are intentionally kept out of the tracked docs.

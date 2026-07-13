@@ -14,4 +14,4 @@ alwaysApply: false
 - Detect CSV attestation by text prefix and license state from `license_number|STATE`, not by fragile fixed positions.
 - Preserve raw payer, plan, modifier, code, null, duplicate, and odd source values unless a documented Bronze schema rule says otherwise.
 - Read `docs/domain/cms-mrf-schema-notes.md`, `docs/bronze_layer.md`, and `docs/header_parsing.md` before changing parser behavior.
-- If you need broader industry context on what a Bronze field represents (charge types, payer methodology semantics, code systems), read `docs/local/industry_guide.md`. This is reference material, not a parsing rule source.
+- For charge, methodology, amount, and comparability semantics, use the tracked domain documents and decisions routed from `AGENTS.md`.

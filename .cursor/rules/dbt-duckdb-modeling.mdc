@@ -7,13 +7,11 @@ alwaysApply: false
 # dbt DuckDB Modeling
 
 - Treat DuckDB as the current local analytical database and dbt as the owner of Silver and Gold transformations.
+- Invoke dbt only through `hpt run-dbt`; never call `dbt` directly or use materializing `make dbt-*` shortcuts.
 - Bronze sources are external Parquet tables rooted at `HPT_BRONZE_ROOT`; keep source definitions aligned with actual Bronze writer output.
 - Keep staging close to Bronze. Do not hide source-grain or lineage changes in staging views.
 - Silver models should normalize hospitals, charge items, codes, payers, plans, modifiers, dates, and source-specific quirks.
 - Gold models should be analytics-ready and retain traceability back to Silver and Bronze identifiers such as `snapshot_id`.
 - Add dbt tests for model grain, required keys, and accepted values where practical.
-- Do not imply Silver or Gold is implemented until model files exist.
-- Read `docs/architecture/medallion-layers.md` and `docs/decisions/0001-use-polars-and-duckdb.md` before adding models.
-- Read `docs/local/methodologies_algorithms.md` when modeling or querying the `methodology`, `negotiated_dollar`, `negotiated_percentage`, or `negotiated_algorithm` fields in `slv_base__payer_rates` or any downstream model that classifies, filters, or compares payer rates across methodology types. Dollar amounts on percent-of-charges contracts are pre-computed and not directly comparable to fee-schedule or case-rate dollar amounts.
-- Read `docs/local/industry_guide.md` when modeling charge semantics in Silver or Gold (charge types, code systems, price normalization, standard charge grain). Also read it when writing accepted-value tests or analytical logic where the meaning of a field — not just its name — determines correctness.
-- Read `docs/cms_reference/` when the exact CMS field names, allowed enum values, or schema version differences matter for a Bronze source definition or Silver staging layer.
+- Silver and Gold are implemented. Keep model descriptions aligned with the current files and do not describe planned infrastructure as deployed.
+- Read the relevant tracked architecture document and decision record before changing model grain, comparability, amount semantics, or lineage.

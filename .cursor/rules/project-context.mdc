@@ -1,13 +1,13 @@
 ---
-description: Core project context for Hospital Price Transparency work
+description: Canonical Hospital Price Transparency project guidance
 alwaysApply: true
 ---
 
-# Project Context
+# Project Guidance
 
-- This repo builds a local-first CMS hospital MRF pipeline: registry -> `hpt download` -> raw files and snapshot metadata -> `hpt ingest` -> Bronze Parquet -> dbt/DuckDB.
-- Current implementation lives mainly in `src/hpt`; `transform/` is a DuckDB dbt project with Bronze sources and planned Silver/Gold models.
-- Use `hpt download` and `hpt ingest`; do not use stale `hpt parse` references unless the CLI changes.
-- Treat `data/`, logs, DuckDB files, downloaded MRFs, and quarantine output as local runtime artifacts, not source files to commit.
-- Airflow, Docker, Terraform, Silver models, and Gold models are planned or skeletal unless implementation files are added.
-- Prefer `README.md`, `AGENTS.md`, `docs/ai/context.md`, and `docs/architecture/` for orientation before broad changes.
+Use @AGENTS.md as the canonical source for repository architecture, commands,
+domain constraints, documentation routing, and verification expectations.
+
+Do not duplicate those rules in Cursor-specific files. Update `AGENTS.md` when a
+shared, durable rule changes; add another scoped `.mdc` rule only when a
+directory or file pattern genuinely needs additional context.

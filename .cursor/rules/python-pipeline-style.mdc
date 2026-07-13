@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Python Pipeline Style
 
-- Keep CLI behavior in `src/hpt/cli.py` aligned with docs; current commands are `download` and `ingest`.
+- Keep CLI behavior in `src/hpt/cli.py` aligned with docs. Parsing is `hpt ingest`; never introduce or document a stale `hpt parse` command.
 - Preserve `fsspec` compatibility for raw files and snapshot metadata; avoid hard-coding local filesystem-only behavior for `HPT_RAW_STORAGE_BASE_URI`.
 - Maintain snapshot lineage fields: `snapshot_id`, `hospital_id`, `source_url`, `source_file_name`, `file_hash`, `ingested_at`, `valid_from`, `valid_to`, and `is_current_snapshot`.
 - Keep raw downloads intact. Materialize parser-ready temporary files for compressed inputs instead of destructively replacing source artifacts.
