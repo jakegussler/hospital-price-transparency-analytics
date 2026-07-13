@@ -232,12 +232,24 @@ __marimo__/
 .env
 .env.*
 
-# Local notes
-docs/local/
-docs/planning/
-docs/diagram_images/
-docs/cms_reference/
-docs/refactor/
+# Personal AI-tool state and working prompts. Shared project guidance is
+# committed in AGENTS.md, CLAUDE.md, .cursor/rules/, and docs/ai/README.md.
+/CLAUDE.local.md
+/docs/ai/context.md
+/docs/ai/prompting-guide.md
+/docs/ai/*-prompt.md
+/docs/ai/internal/
+
+# Working documentation and retained research. Planning material (including the
+# AWS implementation plans) is intentionally kept on disk and out of the public
+# repository. Final reviewer-facing docs and assets belong elsewhere in docs/.
+/docs/local/
+/docs/notes/
+/docs/planning/
+/docs/prompts/
+/docs/diagram_images/
+/docs/cms_reference/
+/docs/refactor/
 
 
 # Local data (raw downloads, bronze parquet, DuckDB files)
@@ -294,4 +306,3 @@ infra/terraform/*.tfplan
 
 # Claude
 .claude/
-
