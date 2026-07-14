@@ -42,7 +42,7 @@
 	builtWithEvidence={false}
 	{githubRepo}
 >
-	<div slot="content">
+	<div slot="content" class="hpl-content">
 		<slot />
 		<footer class="hpl-footer">
 			<span>© {year} Hospital Price Lens</span>
@@ -57,6 +57,44 @@
 </EvidenceDefaultLayout>
 
 <style>
+	/*
+	 * Keep wide visualizations from enlarging the mobile layout viewport. Evidence
+	 * tables remain horizontally scrollable inside their own .scrollbox.
+	 */
+	:global(html),
+	:global(body) {
+		width: 100%;
+		max-width: 100%;
+		overflow-x: hidden;
+	}
+
+	@supports (overflow: clip) {
+		:global(html),
+		:global(body) {
+			overflow-x: clip;
+		}
+	}
+
+	:global(#evidence-main-article),
+	.hpl-content,
+	:global(#evidence-main-article .chart-container),
+	:global(#evidence-main-article .table-container) {
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.hpl-content {
+		width: 100%;
+		overflow-wrap: anywhere;
+	}
+
+	:global(#evidence-main-article .scrollbox),
+	:global(#evidence-main-article pre.markdown) {
+		max-width: 100%;
+		overflow-x: auto;
+		overscroll-behavior-inline: contain;
+	}
+
 	.hpl-footer {
 		margin-top: 3rem;
 		padding: 1.25rem 0 0.5rem 0;
