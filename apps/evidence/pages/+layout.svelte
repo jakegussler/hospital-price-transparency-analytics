@@ -11,6 +11,10 @@
 </script>
 
 <svelte:head>
+	<!-- Cache-bust Evidence's default icon URLs so returning browsers pick up our brand. -->
+	<link rel="icon" href="/favicon.ico?v=hpl-20260714" sizes="32x32" />
+	<link rel="icon" href="/hospital-price-lens-icon.svg" type="image/svg+xml" />
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=hpl-20260714" />
 	<meta
 		name="description"
 		content="Hospital Price Lens organizes hospitals' published standard-charge files and shows when their prices can and cannot be compared. Currently covering the Nashville corpus."
@@ -36,6 +40,7 @@
 
 <EvidenceDefaultLayout
 	{data}
+	logo="/brand/logo.svg"
 	lightLogo="/brand/logo.svg"
 	darkLogo="/brand/logo-dark.svg"
 	homePageName="Overview"
@@ -66,6 +71,11 @@
 		width: 100%;
 		max-width: 100%;
 		overflow-x: hidden;
+		overscroll-behavior-x: none;
+	}
+
+	:global(body) {
+		position: relative;
 	}
 
 	@supports (overflow: clip) {
@@ -85,6 +95,7 @@
 
 	.hpl-content {
 		width: 100%;
+		overflow-x: hidden;
 		overflow-wrap: anywhere;
 	}
 

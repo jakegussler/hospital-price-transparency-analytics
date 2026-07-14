@@ -232,6 +232,10 @@ __marimo__/
 .env
 .env.*
 
+# Local staging area for manual site rebuilds (deploy_site_manual.sh):
+# downloaded production data pulled from S3 before flattening into the build.
+/.site-rebuild/
+
 # Personal AI-tool state and working prompts. Shared project guidance is
 # committed in AGENTS.md, CLAUDE.md, .cursor/rules/, and docs/ai/README.md.
 /CLAUDE.local.md
