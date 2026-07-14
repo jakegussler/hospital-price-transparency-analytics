@@ -12,4 +12,4 @@ alwaysApply: false
 - Keep raw downloads intact. Materialize parser-ready temporary files for compressed inputs instead of destructively replacing source artifacts.
 - Parser outputs should be schema-stable Polars DataFrames keyed by Bronze table name.
 - Add focused pytest coverage for config precedence, registry validation, storage paths, snapshot behavior, parser edge cases, pipeline orchestration, and Bronze writer changes.
-- Read `docs/architecture/pipeline-overview.md`, `docs/architecture/storage-layout.md`, and `docs/development/testing-strategy.md` for deeper context.
+- Read `docs/architecture/overview.md`, `docs/architecture/storage-layout.md`, and `docs/development/testing-strategy.md` for deeper context.

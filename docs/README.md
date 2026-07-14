@@ -7,10 +7,8 @@ index is the entry point for technical reviewers and contributors.
 
 ## Architecture
 
-- [Pipeline overview](architecture/pipeline-overview.md) — end-to-end flow and
-  the boundary between Python parsing, dbt modeling, and public reporting.
-- [Medallion layers](architecture/medallion-layers.md) — responsibilities of
-  Bronze, Silver, Gold, and the BI presentation layer.
+- [Architecture overview](architecture/overview.md) — end-to-end execution,
+  layer contracts, ownership boundaries, snapshot scope, and public reporting.
 - [Storage layout](architecture/storage-layout.md) — raw files, snapshot
   metadata, Parquet partitions, quarantine output, and DuckDB storage.
 - [Bronze schema](architecture/bronze-schema.md) — source-faithful parser output.

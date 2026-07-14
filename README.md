@@ -1,444 +1,230 @@
-# Hospital Price Transparency
+# Hospital Price Lens
 
-Hospital Price Transparency is a local-first data pipeline for working with CMS
-hospital machine-readable files (MRFs). It downloads hospital source files,
-tracks file snapshots, parses JSON and CSV layouts into source-faithful Bronze
-Parquet, and models the data with dbt and DuckDB.
+A reproducible data pipeline and public analytics product that turns fragmented
+CMS hospital price files into lineage-preserving, comparison-ready market data.
 
-The project is built for research and engineering work on hospital price
-transparency data. It emphasizes reproducible snapshots, source lineage, and a
-clear separation between structural parsing in Python and semantic modeling in
-dbt.
+[Explore the live project](https://hospitalpricelens.com) ·
+[Technical documentation](docs/README.md) ·
+[Comparison methodology](docs/decisions/0017-gold-comparability-framework.md)
 
-## Project Status
+[![Hospital Price Lens showing the Nashville market overview](docs/assets/screenshots/hospital-price-lens-home.jpg)](https://hospitalpricelens.com)
 
-This is an active data engineering project with a working local ingestion and
-modeling pipeline. The Python downloader, snapshot tracker, Bronze parsers, dbt
-staging models, Silver foundation models, Silver payer normalization models,
-review queues, the Gold analytics layer (conformed dimensions, the atomic
-rate-observation fact, the code bridge, the current price-comparison and
-benchmark marts, and the coverage/transparency scorecards), the nine `gld_bi__*`
-presentation marts, and a static public reporting app (Evidence.dev, under
-`apps/evidence/`) are implemented.
+## Project At A Glance
 
-Orchestration, Docker, and Terraform are not production-ready in this repository
-yet.
+<!-- portfolio-metrics:start source=hospitalpricelens.com exported=2026-07-11 -->
+| Current Nashville release | Value |
+|---|---:|
+| Hospitals | **14** |
+| Health systems | **5** |
+| Published services | **47,642** |
+| Services comparable across hospitals | **18,404** |
+| Identified insurers | **36** |
 
-## Why This Project Matters
+The current public release uses one published file per hospital and was exported
+on **July 11, 2026**. Results describe this Nashville-area corpus; they are not
+regional or national benchmarks.
+<!-- portfolio-metrics:end -->
 
-Hospital price transparency data is public, valuable, and difficult to use in
-practice. Hospitals publish large files in multiple layouts, with inconsistent
-headers, nested payer contracts, changing URLs, mixed code systems, and
-publisher-specific data quality issues.
+## Why This Project Exists
 
-This project addresses those problems as a reproducible healthcare analytics
-pipeline: it captures source snapshots, preserves lineage, parses multiple MRF
-formats, quarantines invalid records, applies quality checks, and builds
-analytics-ready Silver models for downstream analysis.
+US hospitals publish machine-readable price files, but the files are difficult
+to analyze together. They can be multi-gigabyte JSON or CSV documents with
+different layouts, unstable URLs, nested payer contracts, mixed code systems,
+publisher-specific headers, and incomplete comparison context.
 
-## Findings — Nashville Metro Sample (Illustrative)
+Hospital Price Lens makes that data usable without hiding its limitations. It
+captures source snapshots, preserves raw values, validates CMS rules, normalizes
+entities in dbt, and publishes only comparisons that meet explicit methodology
+and denominator requirements.
 
-The pipeline is built for **national scale**, but running it nationwide is a
-breadth-and-infrastructure effort still in progress. To demonstrate the analytical
-output the Gold layer produces *today*, the active corpus is deliberately scoped
-to a **single comparable market — the Nashville, TN metro** — as a **small-sample
-placeholder, not the project's end goal** (decision 0019). Concentrating on one
-market is intentional: cross-hospital price comparison only works when hospitals
-share code systems and service lines, so a geographic grab-bag maximizes *N* while
-minimizing *comparability*.
+## What I Built
 
-> **Read these as transparency, comparability, and data-quality findings — not a
-> market price study.** Every cross-hospital figure is captioned with its
-> denominator; Gold suppresses any cross-hospital statistic whose cohort has fewer
-> than three reporting hospitals (the decision 0017 floor). Scores measure
-> *published-data readiness, not legal compliance*. The sample is one metro, one
-> snapshot per hospital.
+- A registry-driven downloader with streaming HTTP, SHA-256 change detection,
+  Type-2 snapshot metadata, retries, and `fsspec` storage.
+- Streaming parsers for CMS JSON, CSV Tall, and CSV Wide layouts, producing
+  source-faithful Bronze Parquet and structured quarantine output.
+- A dbt/DuckDB warehouse with queryable validation, normalized Silver models,
+  conformed Gold dimensions, an atomic rate fact, a multi-code bridge, benchmark
+  marts, and data-readiness scorecards.
+- An explainable comparability framework that separates rankable dollar prices
+  from percentages and algorithms, retains blocker reasons, and suppresses
+  cohorts below a three-hospital denominator.
+- Nine presentation marts and a static Evidence application that publishes
+  market, hospital, payer, data-quality, methodology, and downloadable-data
+  views without exposing the working warehouse.
+- Run-level and snapshot-level lineage connecting every modeled observation back
+  to its source URL, filename, file hash, and ingestion event.
 
-### Illustrative run
+## Architecture
 
-The metrics below come from a 12-hospital Nashville-metro pipeline run spanning
-JSON and CSV MRF formats. They are a reproducible demonstration dataset, not a
-fixed product boundary: the registry and deployment workflow are designed to
-expand the active source set, and refreshed public outputs may cover a broader
-corpus.
+```mermaid
+flowchart LR
+  subgraph python[Python ingestion]
+    registry[Hospital registry] --> download[hpt download]
+    download --> raw[Raw MRF + SHA-256 snapshot]
+    raw --> ingest[hpt ingest]
+    ingest --> bronze[Bronze Parquet]
+    ingest --> quarantine[Quarantine]
+  end
 
-| Metric | Value |
-|---|---|
-| Hospitals represented | 12 |
-| Charge items | 2.19M |
-| Payer rates | 27.7M |
-| Atomic rate observations | 43.4M |
-| Distinct cross-hospital-comparable code cohorts | 30,054 |
+  subgraph warehouse[dbt + DuckDB]
+    bronze --> validation[CMS validation]
+    validation --> silver[Silver normalization]
+    silver --> gold[Gold facts, dimensions, marts]
+    gold --> bi[gld_bi presentation marts]
+  end
 
-### Published ≠ comparable
-
-- **97.8%** of classified observations are **code-backed** (carry a
-  cross-hospital-comparable code).
-- **57.2%** are **cross-hospital comparable** (tier 2: code-backed, item-specific,
-  context-aligned) — after the one deliberate adjustment below.
-
-**A concrete data-quality finding: none of the 12 hospitals publish
-`billing_class`.** The CMS schema defines it (professional vs. facility) and the
-parser maps it, but it is absent from every source file in this corpus. The
-comparability framework originally required it for context-alignment, so the strict
-reading is **0% cross-hospital comparable**. Because the field is *uniformly* absent
-(not selectively), this run treats its absence as an explicit `'unspecified'`
-context — a documented relaxation of the decision 0017 tier rule (see
-`docs/cleanup.md`) — which yields the 57.2% above. Either way the headline is the
-same: a field needed for clean apples-to-apples comparison simply is not published.
-
-### How negotiated rates are expressed
-
-Only dollar amounts are directly price-rankable; percentages and contract
-algorithms are not. Across 35.3M negotiated observations:
-
-| Expression | Share |
-|---|---|
-| Negotiated dollar | 78.2% |
-| Negotiated algorithm (contract text) | 21.4% |
-| Negotiated percentage | 0.4% |
-
-### Per-hospital readiness (coverage, not compliance)
-
-Overall readiness ranges **0.74–0.84** (mean of five 0–1 component scores). Every
-hospital publishes high code and amount coverage; they differ most on
-**payer-mapping** — HCA TriStar 0.64–0.93, VUMC 1.00, Metro Nashville General 0.57.
-VUMC's lower amount-coverage (0.66) reflects fewer dollar-valued cells per rate.
-
-### Code-description legibility (MS-DRG enrichment)
-
-Reference data makes a subset of codes human-readable:
-
-| Code system | Comparable cohorts | Described |
-|---|---|---|
-| MS-DRG | 791 | **97.7%** (FY2025, public-domain) |
-| CPT / HCPCS / CDT / NDC / … | 27,000+ | 0% (licensed or not yet loaded) |
-
-### A few legible example services
-
-With MS-DRG descriptions joined in, here are high-acuity inpatient DRGs reported by
-**11 of 12 hospitals** (well above the 3-hospital floor) — each hospital's median
-negotiated dollar, then the cross-hospital spread:
-
-| DRG | Service (abbrev.) | Hospitals | Median | P10 | P90 |
-|---|---|---|---|---|---|
-| 003 | ECMO or tracheostomy, MV >96h | 11 | $159,933 | $155,862 | $303,329 |
-| 927 | Extensive / full-thickness burns | 11 | $153,203 | $148,562 | $281,466 |
-| 231 | Coronary bypass w/ PTCA + MCC | 11 | $64,960 | $62,791 | $120,219 |
-| 020 | Intracranial vascular procedures | 11 | $60,216 | $58,613 | $112,217 |
-
-Even within one metro and a system-heavy cohort, negotiated prices for the same DRG
-vary roughly **2× from the 10th to the 90th percentile** across hospitals.
-
-> **Scope honesty.** The atomic fact, code bridge, conformed dimensions, and both
-> coverage/transparency scorecards are built over the 12 hospitals. The illustrative
-> sample build omits the Phase-2 comparison/benchmark marts (`gld__service_price_*`)
-> because their peer-window functions exceed the small-machine temp budget, so the
-> figures above are computed directly from the rate-observation fact and the
-> coverage scorecard. See `docs/cleanup.md`.
-
-## Current Implementation
-
-The current implementation includes:
-
-- Registry-driven downloads for a curated set of hospital MRF URLs.
-- SHA-256 source-file change detection and Type-2 snapshot metadata.
-- `fsspec`-backed raw storage, so local files and cloud object stores use the
-  same storage abstraction.
-- JSON, CSV Tall, and CSV Wide MRF parsing into Bronze Parquet.
-- Quarantine output for records that fail parser validation.
-- dbt/DuckDB staging views over Bronze Parquet.
-- Silver Base models for hospitals, snapshots, locations, NPIs, contract
-  provisions, charge items, codes, drug information, standard charges, payer
-  rates, modifiers, and modifier-payer information.
-- Silver Core payer-rate models with payer alias and payer/plan context matching.
-- Incremental dbt materialization for snapshot-grained Silver and validation
-  tables, with configurable current-only or all-snapshot retention.
-- Review queue models for unmatched payer and payer/plan candidates.
-- Gold dimensional models: five conformed dimensions, the atomic
-  `gld_fct__rate_observations` fact and `gld_bridge__rate_observation_code`,
-  the `gld_mart__service_price_comparison_current` mart with comparability tiers and
-  blocker reasons, service/hospital/payer benchmark marts, and snapshot
-  coverage + hospital transparency scorecards, plus the nine `gld_bi__*`
-  presentation marts for dashboard/report consumption (`main_gold` schema).
-- A static public reporting app (Evidence.dev, `apps/evidence/`) that reads only
-  exported Parquet from the allowlisted `gld_bi__*` marts and foregrounds
-  comparability limits, denominator floors, confidence bands, blocker reasons,
-  and snapshot freshness. Comparability logic stays in dbt (decision 0020).
-- pytest coverage for configuration, registry validation, download, storage,
-  snapshots, parser behavior, Parquet writing, and ingest orchestration.
-- Append-only Parquet run audits for download, ingest, and dbt invocations.
-- dbt schema and data tests for Bronze sources, staging, Silver, reconciliation,
-  and payer normalization rules.
-- Grain-aware validation rejection: file/header findings are report-only, while
-  entity failures remove only the failing entity and its descendants.
-
-## Repository Map
-
-```text
-src/hpt/             Python package and CLI
-tests/               pytest suite
-transform/           dbt project targeting DuckDB
-docs/                Architecture, domain, and development docs
-scripts/             Reusable utility scripts
-infra/               Placeholder deployment infrastructure
-orchestration/       Placeholder Airflow structure
-data/                Local runtime output, ignored by git
-logs/                Local run logs, ignored by git
+  bi --> export[Versioned Parquet export]
+  export --> site[Hospital Price Lens]
 ```
+
+Python owns acquisition and structural parsing. dbt owns semantic normalization,
+data-quality exclusions, payer matching, amount semantics, and analytical logic.
+Evidence reads only exported presentation Parquet, so the website cannot redefine
+comparability in page-level SQL.
+
+See the [architecture overview](docs/architecture/overview.md) and detailed
+[Gold schema](docs/architecture/gold-schema.md).
+
+## A Key Finding: Published Does Not Mean Comparable
+
+The public product makes the comparison funnel visible rather than ranking every
+published number as though it represented the same thing.
+
+| Comparison gate | Price rows | Share of published |
+|---|---:|---:|
+| Published in current hospital files | 79,094,586 | 100.0% |
+| Has a code usable across hospitals | 77,479,175 | 98.0% |
+| Has full service context | 45,127,753 | 57.1% |
+| Has a directly rankable dollar price | 18,005,569 | 22.8% |
+| Context is reported by at least 3 hospitals | **13,408,216** | **17.0%** |
+
+Rows that fail a gate remain available for diagnostics; they are excluded from
+rankings with an explicit reason. Scores measure the usability of published data,
+not quality of care or legal compliance.
+
+## Engineering Decisions
+
+### Preserve first, normalize later
+
+Bronze remains source-faithful, including odd nulls, duplicate records, raw payer
+strings, and mixed code systems. Structural parsing belongs in Python; business
+semantics belong in dbt. This keeps normalization reversible and auditable.
+
+### Keep the rate fact atomic
+
+One hospital charge item may carry several billing codes. The Gold fact stores
+one reported amount cell per row, while a bridge represents the many-to-many code
+relationship. This prevents code expansion from duplicating monetary facts.
+
+### Treat comparability as a data contract
+
+Price rankings require a usable code, aligned service context, a rankable amount,
+and a sufficient hospital denominator. The contract and its blocker vocabulary
+are defined in dbt and tested before publication.
+
+### Bound local analytical workloads
+
+The full Nashville corpus can exceed a small machine's DuckDB spill budget.
+Snapshot replacement, hospital-batched builds, and per-snapshot orchestration
+bound peak memory without sacrificing source lineage.
+
+The rationale behind these choices is captured in the
+[architecture decision records](docs/decisions/README.md).
+
+## Technology
+
+| Concern | Tools |
+|---|---|
+| CLI and ingestion | Python, Typer, HTTPX, Polars, ijson |
+| Storage and interchange | fsspec, Parquet, PyArrow |
+| Modeling and analytics | dbt, DuckDB, SQL |
+| Data contracts | Pydantic, dbt tests, pytest |
+| Public reporting | Evidence, Svelte, static Parquet exports |
+| Quality automation | Ruff, GitHub Actions, offline end-to-end fixtures |
+
+## AI-Assisted Engineering
+
+The repository is designed for responsible continuation with Codex, Claude Code,
+or Cursor:
+
+- [`AGENTS.md`](AGENTS.md) is the canonical project contract.
+- [`CLAUDE.md`](CLAUDE.md) imports that contract instead of duplicating it.
+- [Cursor rules](.cursor/rules/) add small, path-scoped instructions only where
+  they are useful.
+- Detailed references are loaded by task rather than placed in every agent's
+  initial context.
+- Tests, linting, dbt assertions, and human review enforce correctness; agent
+  instructions do not replace executable checks.
+
+The [AI development guide](docs/ai/README.md) explains the context architecture
+and maintenance policy.
 
 ## Quickstart
 
-Use Python 3.11 or newer and DuckDB 1.5.2 or newer for dbt/DuckDB work.
+Requires Python 3.11+ and DuckDB 1.5.2+.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,warehouse]"
-duckdb --version
-```
 
-DuckDB 1.5.2 includes fixes required to checkpoint the project's dynamic
-`UNPIVOT` staging views. Do not keep an older DuckDB CLI or UI connected to
-`data/hpt.duckdb` while dbt is writing to it.
-
-Verify the Python project:
-
-```bash
 make test
 make lint
-hpt --help
-```
 
-Download source MRFs from the bundled registry:
-
-```bash
-hpt download
-```
-
-Parse the current downloaded snapshots into Bronze Parquet:
-
-```bash
-hpt ingest
-```
-
-Build the DuckDB warehouse with dbt. `hpt run-dbt` is the canonical interface:
-it resolves each hospital to its current snapshot, scopes the run, and wraps
-`dbt` (do not call `dbt` directly or use materializing `make dbt-*` shortcuts).
-
-```bash
-make dbt-deps                                                # install dbt packages (once)
-make export-hospitals-seed                                   # active-hospital seed
-hpt run-dbt --command build --seeds --hospital-ids vumc      # first build (seed once)
-hpt run-dbt --command test --hospital-ids vumc
-```
-
-The active corpus (Nashville metro, 14 hospitals) is large enough that a
-single-pass 14-hospital build can exhaust DuckDB's temp directory; at
-full-corpus scale, build in `--hospital-ids` batches of approximately four. See
-the [snapshot-scoped run guide](docs/development/snapshot-scoped-runs.md).
-
-By default, raw files, snapshot metadata, Bronze Parquet, quarantine records,
-DuckDB files, and logs are written under local ignored paths.
-
-## Common Commands
-
-```bash
-# Install
-make install-dev
-
-# Python quality checks
-make test
-make lint
-make format
-
-# Pipeline shortcuts
-make download
-make ingest
-
-# Equivalent CLI commands and option help
 hpt download
 hpt ingest
-hpt download --help
-hpt ingest --help
-hpt export-hospitals-seed --help
-hpt clear-snapshot --help
-hpt show-run --run-id <run-uuid>
-
-# dbt — always through hpt run-dbt for dbt execution
-hpt run-dbt --command build --seeds --hospital-ids vumc          # first build / seed change
-hpt run-dbt --command build --hospital-ids vumc,nashville-general
-hpt run-dbt --command build --select slv_core__payer_rates+      # a model and its downstream
-hpt run-dbt --command build --selector silver                    # a named selector group
-hpt run-dbt --command build --select gld_+                       # the full Gold layer
-hpt run-dbt --command test --hospital-ids vumc
 ```
 
-The dbt project defines layer selectors — `staging`; `silver_base`,
-`silver_core`, `silver_review_queue`, `silver_audit`, `silver`; `validation`;
-and `gold_core`, `gold_dimension`, `gold_marts`, `gold_scorecards`, `gold` —
-and `gold_bi`, plus the pipeline selectors `pipeline_snapshot_metadata` and
-`pipeline_charge_data` and the operational `audit`, `audit_staging`, and
-`audit_marts` selectors. Pass one with `--selector`, or use `--select` with dbt
-node syntax (`model`, `model+`, `+model`) for arbitrary targets.
+Build a scoped warehouse through the project CLI:
 
-`hpt run-dbt` defaults to the complete dbt graph so snapshot-grained
-consumers, Silver tables, and cross-model tests stay coherent. Pass `--selector`
-(named selectors) or `--select` (model node selection with dbt graph operators
-such as `model+`, mutually exclusive with `--selector`) for an intentionally
-partial run. Per-snapshot runs, including `--full-refresh`, accept partial
-selectors. For multi-snapshot rebuilds, `--defer-tests` materializes every
-snapshot first and runs the whole-table tests once at the end instead of after
-each snapshot.
-
-Snapshot-grained incremental models use the custom `snapshot_replace` strategy.
-It deletes rows for the explicitly requested `snapshot_ids` before inserting
-the new model result, so a successful rebuild that produces zero rows still
-removes the snapshot's prior rows. Repeat incremental runs require a non-empty
-snapshot scope; pass `--hospital-ids` (or `--snapshot-ids`) to `hpt run-dbt`.
-Use `hpt run-dbt --full-rebuild` for an unscoped full refresh, or build in
-`--hospital-ids` batches at full-corpus scale to bound memory.
-
-When a build fails partway it can leave a snapshot partially materialized across
-the Silver and validation tables. `hpt clear-snapshot --snapshot-ids <id>`
-deletes that snapshot's rows from every snapshot-grained table so it is no longer
-partial; raw files, snapshot metadata, and Bronze partitions are untouched, so
-re-running dbt for the snapshot rebuilds it cleanly. Pass
-`hpt run-dbt --clear-on-failure` to do this automatically when a build/run fails:
-per-snapshot runs clear the failing snapshot, scoped runs clear the whole scoped
-set. Canonical staging views remain unscoped and are intentionally not changed
-by `clear-snapshot`.
-
-## Runtime Configuration
-
-Most local runs work with defaults. The main overrides are:
-
-| Variable | Purpose | Default |
-|---|---|---|
-| `HPT_RAW_STORAGE_BASE_URI` | Raw downloads and snapshot metadata root | `file://.../data` |
-| `HPT_BRONZE_ROOT` | Parsed Bronze Parquet root | `data/bronze` |
-| `HPT_QUARANTINE_ROOT` | Parser validation failures | `data/quarantine` |
-| `HPT_AUDIT_ROOT` | Queryable command run and attempt audits | `data/audit` |
-| `HPT_REFERENCE_ROOT` | External reference Bronze Parquet root | `data/reference/bronze` |
-| `HPT_REFERENCE_RAW_ROOT` | External reference raw cache | `data/reference/raw` |
-| `HPT_REGISTRY_PATH` | Optional hospital registry override | bundled registry |
-| `HPT_DUCKDB_PATH` | dbt DuckDB database path | `data/hpt.duckdb` |
-| `HPT_DBT_THREADS` | dbt/DuckDB worker threads | `1` |
-| `HPT_DUCKDB_MEMORY_LIMIT` | DuckDB memory ceiling | `6GiB` |
-| `HPT_DUCKDB_MAX_TEMP_DIRECTORY_SIZE` | DuckDB temp-spill ceiling | `28GiB` |
-| `HPT_DUCKDB_TEMP_DIRECTORY` | DuckDB temp-spill directory | `data/.tmp/duckdb` |
-| `HPT_SILVER_RETENTION_MODE` | Silver/validation retention, `current_only` or `all_snapshots` | `current_only` |
-
-See `docs/configuration.md` for all environment variables, precedence rules, and
-HTTP client settings.
-
-## Architecture
-
-The pipeline follows a medallion pattern:
-
-```mermaid
-flowchart LR
-  registry[Hospital Registry] --> download[Download]
-  download --> raw[Raw MRF Files]
-  download --> snapshots[Snapshot Metadata]
-  raw --> bronze[Bronze Parquet]
-  snapshots --> bronze
-  bronze --> silver[dbt Silver Models]
-  silver --> review[Review Queues]
-  silver --> gold[dbt Gold Models]
-  gold --> bi[gld_bi Presentation Marts]
-  bi --> evidence[Evidence Public Reports]
+```bash
+make dbt-deps
+make export-hospitals-seed
+hpt run-dbt --command build --seeds --hospital-ids vumc
 ```
 
-Python owns:
+Always invoke dbt through `hpt run-dbt`. A full-corpus local build should use
+hospital batches of approximately four or the orchestrator's per-snapshot mode.
+See [Getting Started](docs/development/getting-started.md) and
+[Snapshot-Scoped Runs](docs/development/snapshot-scoped-runs.md).
 
-- hospital registry loading;
-- HTTP download and retry behavior;
-- raw file and snapshot metadata storage;
-- compression handling and MRF layout sniffing;
-- JSON and CSV structural parsing;
-- Bronze Parquet writing and quarantine output.
+## Repository Map
 
-dbt owns:
+```text
+src/hpt/        Python package and CLI
+tests/          pytest and offline end-to-end coverage
+transform/      dbt project targeting DuckDB
+apps/evidence/  public static reporting application
+docs/           architecture, methodology, and development references
+scripts/        build, export, and fixture utilities
+```
 
-- external Bronze source definitions for DuckDB;
-- external audit source definitions and operational audit views;
-- staging views over Bronze;
-- Silver Base normalization across JSON and CSV inputs;
-- Silver Core payer identity and payer/plan context enrichment;
-- review queues and data quality tests.
-
-Bronze intentionally preserves source values and lineage. Business
-normalization, payer matching, code interpretation, and analytics-friendly
-shaping belong in dbt models.
-
-## Data And Lineage
-
-Downloaded MRFs can be large and are not committed to git. Runtime output is
-local by default and ignored:
-
-- `data/raw/` for source files;
-- `data/metadata/` for snapshot metadata;
-- `data/bronze/` for parsed Parquet;
-- `data/quarantine/` for validation failures;
-- `data/audit/` for append-only invocation and attempt audit Parquet;
-- `data/hpt.duckdb` for local dbt/DuckDB work;
-- `logs/` for CLI run logs and failure summaries.
-
-Snapshot lineage is a core design constraint. Downstream tables preserve
-identifiers such as `snapshot_id`, `file_hash`, source URL, source filename, and
-ingest timestamps so modeled rows can be traced back to the source file.
-
-Each `hpt download`, `hpt ingest`, and `hpt run-dbt` invocation receives a
-unique `run_id`. Inspect a run with `hpt show-run --run-id <run-uuid>`.
-Separate command invocations can be correlated through their shared
-`snapshot_id`.
-
-## Example Use Case
-
-One intended workflow is comparing negotiated payer rates across hospitals after
-normalizing charge items, payer identities, and plan context. The pipeline keeps
-the source file lineage intact while converting heterogeneous JSON and CSV MRFs
-into dbt models that can support cross-hospital rate analysis.
+Local MRFs, Bronze Parquet, DuckDB databases, exports, and logs are ignored by
+git.
 
 ## Documentation
 
-Use the [documentation index](docs/README.md) to navigate the architecture,
-methodology, development guides, and engineering decisions. Useful starting
-points include:
-
-- [Pipeline overview](docs/architecture/pipeline-overview.md)
-- [Gold schema](docs/architecture/gold-schema.md)
+- [Documentation index](docs/README.md)
+- [Architecture overview](docs/architecture/overview.md)
+- [Gold data model](docs/architecture/gold-schema.md)
+- [CMS validation rules](docs/domain/cms-validation-rules.md)
 - [Comparability framework](docs/decisions/0017-gold-comparability-framework.md)
-- [Getting started](docs/development/getting-started.md)
-- [BI presentation layer](docs/development/bi-layer.md)
-- [AI-assisted development](docs/ai/README.md)
-- [Evidence application guide](apps/evidence/README.md)
+- [Testing strategy](docs/development/testing-strategy.md)
+- [Public BI contract](docs/development/bi-layer.md)
+- [Evidence application](apps/evidence/README.md)
 
-Tracked docs are the authoritative reviewer-facing documentation. Historical
-notes and local research material are intentionally kept out of the tracked docs.
+## Scope And Limitations
 
-## Current Limitations
-
-- The bundled registry is curated for development and research coverage, not a
-  complete national hospital registry.
-- Publisher MRF URLs can change or disappear; failed downloads should be
-  investigated against the registry and source hospital pages.
-- Gold cross-hospital percentile and benchmark output is only as broad as the
-  loaded corpus: cohorts below the 3-hospital denominator publish no percentiles
-  (the rows remain, flagged `below_min_hospital_denominator`). See
-  `docs/architecture/gold-schema.md`.
-- The shipped analytics goal is comparing *current* prices across hospitals.
-  Price-change-over-time analysis is a deliberate extension point, not a v1
-  deliverable: there is no longitudinal corpus to build or validate it against
-  within this project's scope. The architecture keeps the seam open for it —
-  snapshot lineage, the `all_snapshots` retention mode, and a validated
-  cross-snapshot service identity — so an adopter who runs the pipeline
-  continuously can add history without reworking the model. See
-  `docs/decisions/0016-scope-history-as-extension-point.md`.
-- Airflow, Docker, and Terraform directories are placeholders.
-- This project is not medical, billing, legal, or compliance advice.
+- The active registry is a curated Nashville-area corpus, not a national hospital
+  directory.
+- Hospital-published charges are not quotes, patient out-of-pocket estimates, or
+  measures of care quality.
+- The product compares current snapshots. Longitudinal price-change analysis is
+  an extension point, not a current deliverable.
+- Airflow, Docker, and Terraform are planning targets rather than production
+  dependencies in this repository.
 
 ## License
 
-This project is licensed under the [Apache License 2.0](LICENSE.md).
+Licensed under the [Apache License 2.0](LICENSE.md).
