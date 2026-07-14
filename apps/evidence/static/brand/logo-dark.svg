@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 40" role="img" aria-label="Hospital Price Lens">
+  <!-- lens mark: magnifier ring examining a small bar chart -->
+  <g fill="none" stroke="#2DD4BF" stroke-width="3" stroke-linecap="round">
+    <circle cx="17" cy="18" r="11.5" />
+    <line x1="25.2" y1="26.2" x2="33" y2="34" stroke-width="3.4" />
+  </g>
+  <g>
+    <rect x="11.5" y="20" width="3" height="4" rx="1" fill="#2DD4BF" />
+    <rect x="15.5" y="16" width="3" height="8" rx="1" fill="#5EEAD4" />
+    <rect x="19.5" y="13" width="3" height="11" rx="1" fill="#38BDF8" />
+  </g>
+  <!-- wordmark -->
+  <text x="42" y="26.5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="-0.3">
+    <tspan fill="#F1F5F9">Hospital Price </tspan><tspan fill="#5EEAD4">Lens</tspan>
+  </text>
+</svg>

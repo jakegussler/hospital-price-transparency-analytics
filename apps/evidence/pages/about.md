@@ -18,6 +18,20 @@ select
 from hpt.public_metadata
 ```
 
+## About the project & author
+
+This is an independent, open-source **portfolio project by Jake Gussler**. It
+demonstrates an end-to-end data workflow — ingesting CMS machine-readable price
+files, modeling them with dbt and DuckDB, and publishing a reporting layer that
+is honest about what the data can and cannot show — applied to a real, messy
+public-data problem. The site is not affiliated with any hospital, insurer, or
+government agency.
+
+<div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin:0.9rem 0 0.25rem;">
+  <a href="https://github.com/jakegussler/hospital-price-transparency-analytics" target="_blank" rel="noopener noreferrer" style="background:#0F766E; color:#fff; padding:0.5rem 0.95rem; border-radius:8px; font-weight:600; text-decoration:none; font-size:0.9rem; display:inline-block;">GitHub repository</a>
+  <a href="https://www.linkedin.com/in/jakegussler" target="_blank" rel="noopener noreferrer" style="border:1.5px solid #0F766E; color:#0F766E; padding:0.5rem 0.95rem; border-radius:8px; font-weight:600; text-decoration:none; font-size:0.9rem; display:inline-block;">LinkedIn</a>
+</div>
+
 ## Why this exists
 
 Federal rules require hospitals to publish their standard charges, but file

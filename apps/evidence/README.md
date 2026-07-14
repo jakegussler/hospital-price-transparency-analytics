@@ -30,6 +30,28 @@ labeled, never dropped; scores are described as published-data usability, never
 legal compliance; markdown links do not render inside component slots — use
 `<a href>` inside `SiteCallout`.
 
+## Branding & theme
+
+The site is branded **Hospital Price Lens** (hospitalpricelens.com):
+
+- **Theme** lives in `evidence.config.yaml` under `appearance:` + `theme:` (the
+  "Clinical teal" palette: primary `#0F766E`, accent `#0EA5E9`, chart sequence
+  teal → sky → indigo → amber). Evidence's tailwind loader reads these from the
+  same config file, so it is the single place to change site-wide color.
+- **Chrome** is set in `pages/+layout.svelte`, a custom layout that overrides the
+  generated Evidence template layout. It supplies the logo (`lightLogo`/`darkLogo`
+  → `static/brand/logo*.svg`), disables `builtWithEvidence`, adds the `githubRepo`
+  link, sets `<svelte:head>` social/OG meta, and renders the site footer. Keep its
+  `{data}` prop and named `content` slot wiring intact when editing.
+- **Brand assets** are in `static/`: `brand/logo.svg` + `brand/logo-dark.svg`
+  (header wordmark, rendered at 20px height), `icon.svg` (SVG favicon),
+  `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, and
+  `og-image.png`. Regenerate the raster set from the vector mark with
+  `uv run --with pillow python scripts/gen_icons.py`, or swap in an
+  AI-generated logo by replacing the two `brand/logo*.svg` files — no layout
+  change needed. `SiteHero` and `SiteCallout` (in `components/`) follow the same
+  palette.
+
 ## Workflow
 
 Run all commands from the repository root unless noted.

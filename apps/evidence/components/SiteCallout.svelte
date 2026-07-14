@@ -7,9 +7,9 @@
   export let title = "";
 
   const styles = {
-    scope: { border: "#4c6ef5", background: "#eef1fd", label: "Scope" },
-    caution: { border: "#e8990c", background: "#fdf6e8", label: "Caution" },
-    definition: { border: "#5f6b7a", background: "#f1f3f5", label: "Definition" },
+    scope: { border: "#0f766e", background: "#f0fdfa", text: "#0f766e", label: "Scope" },
+    caution: { border: "#d97706", background: "#fffbeb", text: "#b45309", label: "Caution" },
+    definition: { border: "#475569", background: "#f8fafc", text: "#475569", label: "Definition" },
   };
 
   $: style = styles[type] ?? styles.scope;
@@ -20,7 +20,7 @@
   class="hpt-callout"
   style={`border-left: 4px solid ${style.border}; background: ${style.background};`}
 >
-  <div class="hpt-callout-title">{heading}</div>
+  <div class="hpt-callout-title" style={`color: ${style.text};`}>{heading}</div>
   <div class="hpt-callout-body">
     <slot />
   </div>
@@ -37,7 +37,6 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    opacity: 0.75;
     margin-bottom: 0.15rem;
   }
   .hpt-callout-body {

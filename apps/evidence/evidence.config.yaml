@@ -3,3 +3,51 @@ plugins:
     "@evidence-dev/core-components": {}
   datasources:
     "@evidence-dev/duckdb": {}
+
+# Hospital Price Lens — "Clinical teal" theme.
+# Public data site: default to light, no appearance switcher.
+appearance:
+  default: light
+  switcher: false
+
+theme:
+  colors:
+    primary: { light: '#0F766E', dark: '#2DD4BF' } # teal-700 / teal-300
+    accent: { light: '#0EA5E9', dark: '#38BDF8' } # sky-500 / sky-400
+    base-100: { light: '#FFFFFF', dark: '#0B1220' }
+    info: { light: '#0EA5E9', dark: '#38BDF8' }
+    positive: { light: '#16A34A', dark: '#4ADE80' }
+    warning: { light: '#D97706', dark: '#FBBF24' }
+    negative: { light: '#DC2626', dark: '#F87171' }
+  colorPalettes:
+    default:
+      light:
+        - '#0F766E'
+        - '#0EA5E9'
+        - '#6366F1'
+        - '#F59E0B'
+        - '#14B8A6'
+        - '#0284C7'
+        - '#8B5CF6'
+        - '#D97706'
+        - '#334155'
+        - '#22C55E'
+      dark:
+        - '#2DD4BF'
+        - '#38BDF8'
+        - '#818CF8'
+        - '#FBBF24'
+        - '#5EEAD4'
+        - '#0EA5E9'
+        - '#A78BFA'
+        - '#F59E0B'
+        - '#94A3B8'
+        - '#4ADE80'
+  colorScales:
+    default:
+      light:
+        - '#CCFBF1'
+        - '#0F766E'
+      dark:
+        - '#134E4A'
+        - '#5EEAD4'

@@ -1,13 +1,17 @@
 ---
-title: Overview
+title: Hospital Price Lens
 hide_title: true
 ---
 
-# Nashville Hospital Price Transparency
+<SiteHero eyebrow="Prices you can actually compare" title="Hospital Price Lens">
 
-Hospitals are required to publish their standard charges. This site organizes
-those files for Nashville-area hospitals and explains when the published prices
-**can and cannot be compared** across hospitals.
+Hospital Price Lens organizes hospitals' published standard-charge files and
+explains when those prices **can and cannot be compared** across hospitals.
+Hospitals are required to publish their standard charges, but the files are
+messy and rarely comparable as-is. This site **currently covers the Nashville
+corpus only** — more metros are planned.
+
+</SiteHero>
 
 ```sql export_metadata
 select

@@ -107,7 +107,7 @@ part of the data's meaning:
 
 ## Citing this data
 
-> Hospital Price Transparency project, "{export_stamp[0].corpus_label}" public
+> Hospital Price Lens, "{export_stamp[0].corpus_label}" public
 > data export, exported {export_stamp[0].exported_on}
 > (<a href={export_stamp[0].build_url}>build {export_stamp[0].build_id}</a>).
 
