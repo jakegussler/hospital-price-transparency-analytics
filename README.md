@@ -103,6 +103,11 @@ Rows that fail a gate remain available for diagnostics; they are excluded from
 rankings with an explicit reason. Scores measure the usability of published data,
 not quality of care or legal compliance.
 
+[![Hospital Price Lens comparing hospital prices for MS-DRG 003](docs/assets/screenshots/hospital-price-lens-service-comparison.jpg)](https://hospitalpricelens.com/compare/ms-drg-003/)
+
+The live comparison view keeps the service context, hospital denominator,
+percentile range, and confidence label beside the prices they qualify.
+
 ## Engineering Decisions
 
 ### Preserve first, normalize later
