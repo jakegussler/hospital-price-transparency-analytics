@@ -64,6 +64,4 @@ def test_committed_hospitals_seed_matches_active_bundled_registry(tmp_path):
     write_hospitals_seed(output_path=generated_path)
 
     committed_path = Path(__file__).parents[1] / "transform" / "seeds" / "hospitals.csv"
-    assert generated_path.read_text(encoding="utf-8") == committed_path.read_text(
-        encoding="utf-8"
-    )
+    assert generated_path.read_text(encoding="utf-8") == committed_path.read_text(encoding="utf-8")

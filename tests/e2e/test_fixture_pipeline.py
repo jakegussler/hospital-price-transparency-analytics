@@ -50,6 +50,7 @@ def test_offline_fixture_pipeline(tmp_path, monkeypatch):
     audit_root = tmp_path / "audit"
     reference_root = tmp_path / "reference" / "bronze"
     duckdb_path = tmp_path / "hpt.duckdb"
+    duckdb_temp_directory = tmp_path / "duckdb_temp"
 
     shutil.copytree(FIXTURE_ROOT / "raw", raw_store / "raw")
     shutil.copytree(FIXTURE_ROOT / "metadata", raw_store / "metadata")
@@ -61,6 +62,7 @@ def test_offline_fixture_pipeline(tmp_path, monkeypatch):
     monkeypatch.setenv("HPT_AUDIT_ROOT", str(audit_root))
     monkeypatch.setenv("HPT_REFERENCE_ROOT", str(reference_root))
     monkeypatch.setenv("HPT_DUCKDB_PATH", str(duckdb_path))
+    monkeypatch.setenv("HPT_DUCKDB_TEMP_DIRECTORY", str(duckdb_temp_directory))
 
     hospitals_seed = get_default_hospitals_seed_path(PROJECT_ROOT)
     original_seed = hospitals_seed.read_text(encoding="utf-8")
@@ -107,7 +109,9 @@ def test_offline_fixture_pipeline(tmp_path, monkeypatch):
             == 0
         )
 
-        with duckdb.connect(str(duckdb_path)) as con:
+        with duckdb.connect(
+            str(duckdb_path), config={"temp_directory": str(duckdb_temp_directory)}
+        ) as con:
             assert _table_counts(con, EXPECTED_SILVER_COUNTS) == EXPECTED_SILVER_COUNTS
             assert (
                 con.execute(
