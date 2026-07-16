@@ -43,9 +43,31 @@ directly quoted. Shown as context, never ranked against quoted prices.
 ### Service context
 
 The exact combination prices are compared within: billing code + care setting
-+ billing type + modifier set (+ drug units) + price type. If any part
-differs, prices are never mixed. See
++ billing type + modifier set (+ drug units) + price type + payment
+methodology (for negotiated rates). If any part differs, prices are never
+mixed. Every comparable context has its own stable page address. See
 [how comparison works](/methodology/comparability).
+
+### Payment methodology
+
+How a negotiated rate is paid: **fee schedule** (per item/service), **case
+rate** (one amount per episode or bundle), or **per diem** (per DAY of
+inpatient care — a daily amount, not the price of a full stay). Rates with
+different methodologies price different things and are never compared with
+each other, and a per-diem is never labeled above or below a cash price.
+
+### Insurer contract
+
+One insurer + plan + methodology combination inside one hospital's file. A
+contract's repeated rows collapse to a single amount before any statistic; a
+contract carrying several different amounts for one exact context is excluded
+from statistics as ambiguous (visible in [data quality](/data-quality)).
+
+### Hospital-weighted
+
+How every market statistic here is computed: one representative price per
+hospital ("one hospital, one vote"), never raw row counts — so a rate
+repeated hundreds of times in a file gains no weight.
 
 ### Billing code
 
@@ -82,12 +104,15 @@ itself still compares correctly.
 
 ### Hospitals (n)
 
-The number of hospitals reporting the exact service context — the denominator
-behind every market statistic. Shown next to every comparison on this site.
+The number of hospitals with a safely representable price for the exact
+service context — the denominator behind every market statistic, each
+contributing exactly one representative price. Shown next to every comparison
+on this site. Hospitals that published rows but could not be represented
+safely are counted separately as excluded.
 
 ### The 3-hospital floor
 
-No market statistic is computed from fewer than 3 hospitals reporting the
+No market statistic is computed from fewer than 3 comparable hospitals in the
 exact same context. Below the floor, individual prices stay visible but the
 context is labeled "Too few hospitals."
 [Why.](/methodology/comparability#the-3-hospital-floor)

@@ -113,12 +113,12 @@ order by blocked_row_count desc
 
 ## Every blocker, explained
 
-The comparison framework names 11 blockers. Ten apply to individual rows; the
-eleventh (the 3-hospital floor) is a property of a whole service context, so it
-appears as the "Too few hospitals" status on service pages rather than in the
-table above. For each blocker we also say **whose limitation it is** — the
-hospital's file, our framework's strictness, or this project's current
-coverage.
+The comparison framework names 12 blockers. Ten apply to individual rows; the
+other two are properties of a whole service context or insurer contract, so
+they appear as the "Too few hospitals" status and the excluded-contract counts
+on service pages rather than in the table above. For each blocker we also say
+**whose limitation it is** — the hospital's file, our framework's strictness,
+or this project's current coverage.
 
 **Row-level blockers:**
 
@@ -154,12 +154,27 @@ coverage.
   not say whether it covers commercial, Medicare Advantage, etc. It is
   excluded only from market-segment cuts. *Hospital's file.*
 
-**Context-level blocker:**
+**Context-level blockers:**
 
 - **Too few hospitals** (`below_min_hospital_denominator`) — fewer than 3
-  hospitals report the exact service context. The context stays fully visible
-  with its individual prices, but no median, percentile, or ranking is
-  computed. *Framework rule protecting against false precision.*
+  hospitals have a safely representable price for the exact service context.
+  The context stays fully visible with its individual prices, but no median,
+  percentile, or ranking is computed. *Framework rule protecting against
+  false precision.*
+- **Contract has mixed amounts** (`multiple_amounts_per_contract_context`) —
+  one insurer contract carries several different dollar amounts for the exact
+  same service context, usually a hidden distinction (a revenue-code or
+  network difference) the published file does not label. We refuse to average
+  those into one number: the contract's rows stay visible and downloadable,
+  but the contract is excluded from every statistic, and service pages show
+  how many hospitals were excluded this way. *Hospital's file, protected by a
+  framework rule.*
+
+**Statistics are hospital-weighted.** Every market median and percentile is
+computed over ONE representative price per hospital — a rate repeated across
+dozens of rows (for example one per-diem published against 56 revenue-code
+variants) counts exactly once, and negotiated methodologies (fee schedule /
+case rate / per diem) are never mixed in one distribution.
 
 ## Thin contexts (below the 3-hospital floor)
 

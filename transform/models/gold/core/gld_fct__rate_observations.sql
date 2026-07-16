@@ -88,6 +88,10 @@ standard_charge_base as (
         coalesce(mods.modifier_count, 0) as modifier_count,
         coalesce(mods.has_pro_tech_split_modifier, false) as has_pro_tech_split_modifier,
         cast(null as varchar) as canonical_payer_id,
+        cast(null as varchar) as clean_payer_name,
+        cast(null as varchar) as clean_plan_name,
+        cast(null as varchar) as source_contract_key,
+        cast(null as varchar) as contract_identity_precision,
         cast(null as varchar) as market_segment,
         cast(null as varchar) as benefit_line,
         cast(null as varchar) as plan_type,
@@ -136,6 +140,34 @@ payer_rate_base as (
         pr.modifier_count,
         coalesce(mods.has_pro_tech_split_modifier, false) as has_pro_tech_split_modifier,
         coalesce(pr.canonical_payer_id, '<unmatched>') as canonical_payer_id,
+        pr.clean_payer_name,
+        pr.clean_plan_name,
+        -- Source-contract identity (decision 0021): the cleaned source payer/plan
+        -- labels plus methodology define one negotiated contract within a
+        -- hospital snapshot. Source labels (not canonical_payer_id) are used so
+        -- unmatched insurers still collapse correctly. When the payer label is
+        -- missing entirely, fall back to a row-specific identity rather than
+        -- merging unrelated rows.
+        case
+            when pr.clean_payer_name is not null
+                then {{ hpt_surrogate_key([
+                    'pr.snapshot_id',
+                    'pr.hospital_id',
+                    'pr.clean_payer_name',
+                    'pr.clean_plan_name',
+                    'pr.methodology'
+                ]) }}
+            else {{ hpt_surrogate_key([
+                'pr.snapshot_id',
+                'pr.hospital_id',
+                'pr.silver_payer_rate_id'
+            ]) }}
+        end as source_contract_key,
+        case
+            when pr.clean_payer_name is null then 'row'
+            when pr.clean_plan_name is null then 'payer_only'
+            else 'payer_plan'
+        end as contract_identity_precision,
         pr.market_segment,
         pr.benefit_line,
         pr.plan_type,
@@ -308,7 +340,9 @@ standard_charge_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_gross_charge
@@ -320,7 +354,9 @@ standard_charge_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_discounted_cash
@@ -332,7 +368,9 @@ standard_charge_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_min_negotiated
@@ -344,7 +382,9 @@ standard_charge_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_max_negotiated
@@ -358,7 +398,9 @@ payer_rate_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_negotiated_dollar
@@ -370,7 +412,9 @@ payer_rate_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_negotiated_percentage
@@ -382,7 +426,9 @@ payer_rate_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_negotiated_algorithm
@@ -394,7 +440,9 @@ payer_rate_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_estimated_amount
@@ -406,7 +454,9 @@ payer_rate_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_median_amount
@@ -418,7 +468,9 @@ payer_rate_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_p10_amount
@@ -430,7 +482,9 @@ payer_rate_observations as (
         is_price_rankable, methodology, amount_comparability_tier,
         is_price_comparable, count_min, count_max, clean_setting,
         clean_billing_class, modifier_signature, modifier_count,
-        has_pro_tech_split_modifier, canonical_payer_id, market_segment,
+        has_pro_tech_split_modifier, canonical_payer_id, clean_payer_name,
+        clean_plan_name, source_contract_key, contract_identity_precision,
+        market_segment,
         benefit_line, plan_type, plan_type_basis, is_drug_observation,
         canonical_drug_unit_type, drug_unit_status, is_current_snapshot
     from obs_p90_amount
@@ -473,6 +527,10 @@ select
     modifier_count > 0 as has_modifier,
     has_pro_tech_split_modifier,
     canonical_payer_id,
+    clean_payer_name,
+    clean_plan_name,
+    source_contract_key,
+    contract_identity_precision,
     market_segment,
     benefit_line,
     plan_type,

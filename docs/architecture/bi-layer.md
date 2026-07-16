@@ -15,12 +15,14 @@ surface.
 ## Models
 
 - `gld_bi__hospital_overview` — one row per hospital/current scored snapshot.
-- `gld_bi__service_market_explorer` — one row per service context and amount
-  kind.
-- `gld_bi__hospital_service_rankings` — one row per hospital/service context and
-  amount kind.
-- `gld_bi__payer_contracting_explorer` — one row per payer/hospital/service
-  context.
+- `gld_bi__service_market_explorer` — one row per exact comparison context
+  (`service_context_key`: service, setting, billing class, modifiers, amount
+  kind, comparison methodology, drug unit context). All statistics are
+  hospital-weighted and methodology-separated (decision 0021).
+- `gld_bi__hospital_service_rankings` — one row per hospital and exact
+  comparison context.
+- `gld_bi__payer_contracting_explorer` — one row per payer/hospital/exact
+  comparison context, with `cash_comparison_status` methodology guards.
 - `gld_bi__comparison_blocker_summary` — one row per snapshot/blocker code.
 - `gld_bi__featured_services` — rule-selected dashboard defaults from the
   service explorer.
@@ -75,17 +77,30 @@ public mart.
   match_code)`; it is 1:1 with `service_code_key`, locked by
   `gld_bi_service_slug_one_to_one.sql`. Public service page routes use it
   instead of the MD5 `service_code_key`.
+- `service_context_url_slug` (`hpt_service_context_url_slug` macro) — URL-safe
+  exact-context identifier (for example,
+  `ms-drg-003-negotiated-per-diem-3f2a9c1d2e`): the service slug, the public
+  price-type word, the methodology when applicable, and a 10-char prefix of
+  `service_context_key`. 1:1 with `service_context_key`, locked by
+  `gld_bi_context_slug_one_to_one.sql`. This is the durable cross-page link
+  target — hospital, payer, and featured-service links must carry it so the
+  exact methodology-specific context is never lost in navigation (decision
+  0021).
+- `comparison_methodology_display_label`
+  (`hpt_comparison_methodology_display_label` macro) — spells out the payment
+  unit: 'Fee schedule (per item/service)', 'Case rate (per episode)',
+  'Per diem (per day)', 'Not applicable'.
 - `description_availability` (`hpt_description_availability` macro) — why a
   code description is or is not shown: `available`, `license_restricted`
   (CPT/CDT descriptions cannot be republished; not a hospital failure), or
   `not_loaded` (public-domain reference data not yet loaded). The display-name
   fallback is `Description not available`, never `Undescribed service`.
 
-## Blocker Vocabulary Spans Two Marts By Grain
+## Blocker Vocabulary Spans Marts By Grain
 
-Decision 0017 names 11 blocker codes. They are split across two BI surfaces
-because they live at different grains, and any UI that lists blocker vocabulary
-must read both:
+Decisions 0017 and 0021 name 12 blocker codes. They are split across BI
+surfaces because they live at different grains, and any UI that lists blocker
+vocabulary must read all of them:
 
 - The 10 atomic row-grain blockers (`not_current_snapshot`,
   `code_not_cross_hospital_comparable`, `code_not_specific`,
@@ -93,12 +108,19 @@ must read both:
   `modifier_context_required`, `drug_unit_context_missing`, `payer_unmatched`,
   `market_segment_unknown`) are published per snapshot/blocker code in
   `gld_bi__comparison_blocker_summary`.
-- The 11th, `below_min_hospital_denominator`, is a service-context cohort
-  property (`hospital_count < 3`) that cannot be evaluated per atomic row. It
-  is surfaced as `gld_bi__service_market_explorer.comparison_status =
+- `below_min_hospital_denominator` is a service-context cohort property
+  (fewer than 3 hospitals with a valid representative) that cannot be
+  evaluated per atomic row. It is surfaced as
+  `gld_bi__service_market_explorer.comparison_status =
   'insufficient_denominator'`, not as a row in the blocker summary.
   `gld_bi__comparability_funnel` stage 5 applies the same gate corpus- and
   hospital-wide.
+- `multiple_amounts_per_contract_context` (decision 0021) is a contract-grain
+  property (one source contract carrying multiple distinct amounts for one
+  exact context). It is surfaced as a boolean/blocker-reason on
+  `gld_mart__service_price_comparison_current` rows and aggregated as the
+  explorer's `ambiguous_contract_count` / `excluded_hospital_count` and the
+  payer explorer's `cash_comparison_status = 'ambiguous_negotiated_context'`.
 
 This split is intentional (see the `hpt_comparison_blocker_flags` macro and the
 `gld_score__snapshot_coverage_scorecard` headers). The contract is locked by the

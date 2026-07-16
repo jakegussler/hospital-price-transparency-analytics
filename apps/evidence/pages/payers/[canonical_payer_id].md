@@ -34,9 +34,11 @@ insurer name matched this identity appear here.
 
 ## Negotiated rates vs. hospitals' cash prices
 
-For each rate context where the hospital also published a cash price, we
-compare this insurer's negotiated rate to that cash price. This comparison is
-within one hospital's file, so it needs no cross-hospital floor.
+For each rate context where the hospital also published a cash price AND the
+comparison is meaningful, we compare this insurer's negotiated rate to that
+cash price. This comparison is within one hospital's file, so it needs no
+cross-hospital floor — but it is methodology-guarded: a per-diem rate is a
+DAILY amount and is never labeled above or below a cash price.
 
 ```sql cash_summary
 select
@@ -44,22 +46,31 @@ select
     when 'below_cash' then 'Negotiated below cash price'
     when 'equal_to_cash' then 'Same as cash price'
     when 'above_cash' then 'Negotiated ABOVE cash price'
+    when 'per_diem_incompatible' then 'Per-diem (daily) rate — not comparable'
+    when 'ambiguous' then 'Contract has mixed amounts — excluded'
   end as comparison,
   case bands.band
     when 'below_cash' then below_cash_context_count
     when 'equal_to_cash' then equal_to_cash_context_count
     when 'above_cash' then above_cash_context_count
+    when 'per_diem_incompatible' then cash_incompatible_context_count
+    when 'ambiguous' then ambiguous_context_count
   end as context_count
 from hpt.payer_overview
 cross join (
-  select unnest(['below_cash', 'equal_to_cash', 'above_cash']) as band
+  select unnest([
+    'below_cash', 'equal_to_cash', 'above_cash',
+    'per_diem_incompatible', 'ambiguous'
+  ]) as band
 ) as bands
 where canonical_payer_id = '${params.canonical_payer_id}'
 order by
   case bands.band
     when 'below_cash' then 1
     when 'equal_to_cash' then 2
-    else 3
+    when 'above_cash' then 3
+    when 'per_diem_incompatible' then 4
+    else 5
   end
 ```
 
@@ -76,7 +87,9 @@ order by
 <SiteCallout type="caution">
 A negotiated rate above the cash price is a signal to investigate, not proof of
 overpayment — the two published numbers can cover different bundles, units, or
-plan contexts. <a href="/methodology/prices#negotiated-vs-cash">How to read this comparison.</a>
+plan contexts. Per-diem (daily) rates and contracts with mixed amounts are
+never counted as above or below cash.
+<a href="/methodology/prices#negotiated-vs-cash">How to read this comparison.</a>
 </SiteCallout>
 
 ## This insurer across hospitals
@@ -166,11 +179,16 @@ where canonical_payer_id = '${params.canonical_payer_id}'
 select
   hospital_display_name,
   service_display_label,
-  '/compare/' || service_url_slug as service_link,
+  case
+    when coalesce(context_hospital_count, 0) >= 3
+      then '/compare/context/' || service_context_url_slug
+    else '/compare/' || service_url_slug
+  end as service_link,
   case clean_setting
     when 'unspecified' then 'Not specified'
     else clean_setting
   end as setting,
+  comparison_methodology_display_label as methodology,
   negotiated_dollar,
   hospital_cash_amount,
   case cash_comparison_band
@@ -178,9 +196,12 @@ select
     when 'equal_to_cash' then 'Same as cash'
     when 'above_cash' then 'Above cash'
     when 'cash_unavailable' then 'No cash price'
+    when 'per_diem_incompatible' then 'Daily rate — not comparable'
+    when 'ambiguous_negotiated_context' then 'Mixed amounts — excluded'
   end as vs_cash,
   case contract_position_band
     when 'insufficient_denominator' then 'Too few hospitals'
+    when 'ambiguous_negotiated_context' then 'Mixed amounts — excluded'
     when 'well_below_payer_market' then 'Well below insurer median'
     when 'below_payer_market' then 'Below insurer median'
     when 'near_payer_market' then 'Near insurer median'
@@ -205,6 +226,7 @@ limit 500
   <Column id=hospital_display_name title="Hospital" />
   <Column id=service_display_label title="Service" />
   <Column id=setting title="Care setting" />
+  <Column id=methodology title="Methodology" />
   <Column id=negotiated_dollar title="Negotiated rate" fmt=usd0 />
   <Column id=hospital_cash_amount title="Hospital cash price" fmt=usd0 />
   <Column id=vs_cash title="vs. cash" />

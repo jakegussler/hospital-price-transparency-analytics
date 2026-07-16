@@ -122,6 +122,48 @@ to the relevant docs and delete resolved items from here.
   in the mart now; dedicated model later"). Promote to a dedicated
   `gld__cash_vs_negotiated` model if the cross-amount-kind logic grows.
 
+## Decision 0021 rollout follow-ups (2026-07-15)
+
+- The methodology-separated, hospital-weighted refactor (decision 0021) was
+  verified on an 8-hospital corpus (nashville-general, williamson-medical-center,
+  tristar-northcrest, tristar-ashland-city, tristar-summit, tristar-skyline,
+  tristar-hendersonville, tristar-stonecrest) built on an external drive
+  (`/Volumes/Primary/hpt/data`). The full 14-hospital corpus rebuild is planned
+  for AWS with the same per-snapshot sequence; rerun the MS-DRG 003 regression
+  audit and the corpus-wide P10-constant audit there.
+- Ambiguous multi-amount contract/contexts (the
+  `multiple_amounts_per_contract_context` blocker) often hide a revenue-code or
+  network distinction the comparison key does not model. Profile the co-code
+  patterns on the full corpus and decide whether a revenue-code context
+  component would recover a material share of the excluded contracts.
+- `contract_identity_precision = 'payer_only'` collapses all plan-less rates of
+  one payer+methodology into one contract. Safe today (multi-amount collapse is
+  quarantined), but re-profile as the corpus grows: a payer publishing many
+  plan-less contracts would inflate ambiguity exclusions rather than mix rates.
+- The Evidence exact-context route (`/compare/context/[service_context_url_slug]`)
+  is prerendered only for floor-met contexts reachable through links. If a
+  full exact-context index ever becomes affordable at build time, revisit
+  page coverage for below-floor contexts.
+- 8-hospital audit findings (2026-07-15): the named regression is fixed — zero
+  comparable MS-DRG contexts show a P10 of $1,947 (previously 87.5%), MS-DRG 003
+  splits into case-rate / fee-schedule / per-diem cohorts at 6 hospitals each,
+  and the 56 United/VACCN repetitions collapse to one contract vote. Ambiguous
+  contract share is 0.8–2% per hospital except williamson-medical-center at
+  7.2% (csv_wide) — profile its multi-amount patterns before the AWS rebuild.
+  Repeated per-diem P10 constants across many contexts (e.g. $1,176.878 in
+  1,273 contexts) are expected: one payer's daily rate legitimately covers many
+  DRGs; they are now confined to per-diem cohorts.
+- Pre-existing stale dbt unit test: `charge_item_schema_version_mismatch_warns_once`
+  (transform/models/validation/_validation_unit_tests.yml) errors with a missing
+  `gross_charge` column in its fixture; the model evolved after the fixture was
+  written. Unrelated to decision 0021; fix the fixture to the current schema.
+- Evidence source size: on the 8-hospital corpus, `payer_contracting_explorer`
+  is ~1.3 GB uncompressed at ingest (1.0M rows after the methodology grain
+  split) and `npm run sources` needs `NODE_OPTIONS=--max-old-space-size=6144`.
+  Evidence warns about client-side performance. Before the full AWS corpus,
+  either prune the payer explorer's public column set, pre-aggregate the
+  payer-page views, or split the mart by payer for lazy loading.
+
 ## Evidence public reporting redesign follow-ups (2026-07-07)
 
 - The 3-hospital dev corpus (nashville-general, tristar-northcrest,

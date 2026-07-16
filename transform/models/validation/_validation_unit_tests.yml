@@ -554,7 +554,12 @@ unit_tests:
               cast(null as double) as drug_unit,
               cast(null as varchar) as clean_drug_unit_type,
               cast(null as varchar) as code_1,
-              cast(null as varchar) as code_1_type
+              cast(null as varchar) as code_1_type,
+              cast(null as decimal(18, 4)) as gross_charge,
+              cast(null as decimal(18, 4)) as discounted_cash,
+              cast(null as decimal(18, 4)) as negotiated_dollar,
+              cast(null as double) as negotiated_percentage,
+              cast(null as varchar) as negotiated_algorithm
           where false
       - input: ref('cms_code_types')
         format: sql

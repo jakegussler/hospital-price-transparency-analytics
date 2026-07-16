@@ -38,14 +38,22 @@ aggregated as (
         coalesce(sum((contract_position_band = 'well_above_payer_market')::int), 0)
             as contexts_well_above_payer_market,
 
-        coalesce(sum((cash_comparison_band <> 'cash_unavailable')::int), 0)
+        -- Decision 0021: only methodology-COMPATIBLE comparisons count as
+        -- cash-available; per-diem-incompatible and ambiguous contexts are
+        -- surfaced separately, never as below/equal/above cash.
+        coalesce(sum((cash_comparison_band in
+            ('below_cash', 'equal_to_cash', 'above_cash'))::int), 0)
             as cash_available_context_count,
         coalesce(sum((cash_comparison_band = 'below_cash')::int), 0)
             as below_cash_context_count,
         coalesce(sum((cash_comparison_band = 'equal_to_cash')::int), 0)
             as equal_to_cash_context_count,
         coalesce(sum((cash_comparison_band = 'above_cash')::int), 0)
-            as above_cash_context_count
+            as above_cash_context_count,
+        coalesce(sum((cash_comparison_band = 'per_diem_incompatible')::int), 0)
+            as cash_incompatible_context_count,
+        coalesce(sum((cash_comparison_band = 'ambiguous_negotiated_context')::int), 0)
+            as ambiguous_context_count
     from contexts
     group by canonical_payer_id
 )
@@ -68,6 +76,8 @@ select
     below_cash_context_count,
     equal_to_cash_context_count,
     above_cash_context_count,
+    cash_incompatible_context_count,
+    ambiguous_context_count,
     above_cash_context_count / nullif(cash_available_context_count, 0)::double
         as share_above_cash
 from aggregated

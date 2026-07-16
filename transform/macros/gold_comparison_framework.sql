@@ -35,6 +35,37 @@
 {%- endmacro %}
 
 
+{#- Comparison methodology (decision 0021): negotiated-rate methodology is part
+    of the economic unit being compared. Negotiated dollars carry their canonical
+    methodology; every other amount kind is 'not applicable'. References in-scope
+    columns amount_kind and methodology. -#}
+{% macro hpt_comparison_methodology() -%}
+    case
+        when amount_kind = 'negotiated_dollar' then methodology
+        else 'not applicable'
+    end
+{%- endmacro %}
+
+
+{#- The exact-comparison-context key (decision 0021): one stable md5 per
+    (service_code_key, clean_setting, clean_billing_class, modifier_signature,
+    amount_kind, comparison_methodology, drug unit context). This is the grain
+    of every market-statistic cohort and the durable cross-page link target.
+    References those in-scope column names; comparison_methodology must already
+    be computed (hpt_comparison_methodology) in an enclosing scope. -#}
+{% macro hpt_service_context_key() -%}
+    {{ hpt_surrogate_key([
+        'service_code_key',
+        'clean_setting',
+        'clean_billing_class',
+        'modifier_signature',
+        'amount_kind',
+        'comparison_methodology',
+        "coalesce(canonical_drug_unit_type, '<none>')"
+    ]) }}
+{%- endmacro %}
+
+
 {#- Typed boolean blocker flags. Every exclusion from a stricter use
     case is one of these stable codes; they are columns, never hidden WHERE
     clauses. Emitted as a comma-separated list of `<expr> as <blocker_code>`
@@ -73,8 +104,12 @@
 
 
 {#- The stable blocker-code vocabulary, in the order the flags are emitted above
-    plus the window-derived below_min_hospital_denominator. Consumers use this to
-    build the blocker_reasons array and to lock the accepted set in tests. -#}
+    plus the cohort-derived codes. Consumers use this to build the
+    blocker_reasons array and to lock the accepted set in tests.
+    below_min_hospital_denominator and multiple_amounts_per_contract_context
+    (decision 0021) are NOT emitted by hpt_comparison_blocker_flags(): the first
+    needs the peer-count window, the second the contract-grain collapse in
+    gld_int__service_contract_representatives. -#}
 {% macro hpt_comparison_blocker_codes() -%}
     {{ return([
         'not_current_snapshot',
@@ -87,6 +122,7 @@
         'drug_unit_context_missing',
         'payer_unmatched',
         'market_segment_unknown',
-        'below_min_hospital_denominator'
+        'below_min_hospital_denominator',
+        'multiple_amounts_per_contract_context'
     ]) }}
 {%- endmacro %}

@@ -311,6 +311,11 @@ question:
 or `unmapped` methodology are `derived_dollar`: the pre-computed dollar is
 preserved, but Gold must treat it as derived from a percent or algorithm context.
 
+Gold enforces these cautions structurally (decision 0021): negotiated market
+statistics are partitioned by `comparison_methodology`, so per-diem, case-rate,
+and fee-schedule dollars never enter one distribution, and per-diem rates are
+never compared directly to cash amounts.
+
 ## Billing-Code Enrichment
 
 Billing codes are the strongest available anchor for comparing hospital items,

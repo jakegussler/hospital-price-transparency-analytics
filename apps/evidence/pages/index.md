@@ -153,12 +153,13 @@ is made of.
 select
   featured_rank,
   service_display_label,
-  '/compare/' || service_url_slug as service_link,
+  '/compare/context/' || service_context_url_slug as service_link,
   case amount_kind
     when 'gross_charge' then 'List price'
     when 'discounted_cash' then 'Cash price'
     when 'negotiated_dollar' then 'Negotiated rate'
   end as price_type,
+  comparison_methodology_display_label as methodology,
   hospital_count,
   median_amount,
   p10_amount,
@@ -178,16 +179,18 @@ hospitals in the same context. None qualify in this export. You can still
 
 {:else}
 
-Each row shows its hospital count ("n") — the number of hospitals behind the
-statistics. Click a service to see every hospital's price.
+Each row shows its comparable-hospital count ("n") — the number of hospitals
+behind the statistics, each contributing exactly one representative price.
+Click a service to see every hospital's price for that exact context.
 
 <DataTable data={featured} link=service_link search=true>
   <Column id=service_display_label title="Service" />
   <Column id=price_type title="Price type" />
+  <Column id=methodology title="Methodology" />
   <Column id=hospital_count title="Hospitals (n)" />
-  <Column id=median_amount title="Typical (median)" fmt=usd0 />
-  <Column id=p10_amount title="Lower (10th pct)" fmt=usd0 />
-  <Column id=p90_amount title="Upper (90th pct)" fmt=usd0 />
+  <Column id=median_amount title="Typical hospital price" fmt=usd0 />
+  <Column id=p10_amount title="Lower hospital price (10th pct)" fmt=usd0 />
+  <Column id=p90_amount title="Upper hospital price (90th pct)" fmt=usd0 />
   <Column id=spread_ratio_p90_to_p10 title="Price spread (x)" fmt=num1 />
 </DataTable>
 

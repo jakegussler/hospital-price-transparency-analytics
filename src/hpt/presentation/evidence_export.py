@@ -85,6 +85,16 @@ PUBLIC_METADATA_NAME = "public_metadata.parquet"
 PUBLIC_DATA_DICTIONARY_NAME = "public_data_dictionary.parquet"
 DEFAULT_CORPUS_LABEL = "Nashville metro"
 
+# Version of the analytics contract behind the exported statistics. Bump when
+# the DEFINITION of a published statistic changes (not for corpus refreshes) so
+# downloaded datasets identify which semantics produced them.
+# hospital_weighted_methodology_v2 (decision 0021): market percentiles are
+# hospital-weighted (one representative amount per hospital, deduplicated
+# contract votes) and methodology-separated (per diem / case rate / fee
+# schedule never mix), with the three-hospital floor counted over valid
+# representatives.
+ANALYTICS_CONTRACT_VERSION = "hospital_weighted_methodology_v2"
+
 # Download-bundle CSVs larger than this are shipped gzip-compressed
 # (<name>.csv.gz) so a single wide mart cannot bloat the static site artifact.
 CSV_GZIP_THRESHOLD_BYTES = 25 * 1024 * 1024
@@ -112,6 +122,16 @@ _GENERATED_ARTIFACT_DICTIONARY_ROWS: tuple[tuple[str, str, str, str, str], ...] 
         "One row per exported public table: export provenance and row counts.",
         "build_id",
         "Source-repository build identifier (git commit) of the export, when available.",
+    ),
+    (
+        "public_metadata",
+        "generated",
+        "One row per exported public table: export provenance and row counts.",
+        "analytics_contract_version",
+        "Version of the statistic definitions behind the export. "
+        "hospital_weighted_methodology_v2: market percentiles are "
+        "hospital-weighted (one representative amount per hospital) and "
+        "methodology-specific (per diem / case rate / fee schedule never mix).",
     ),
     (
         "public_metadata",
@@ -512,6 +532,7 @@ def _write_public_metadata(
             exported_at.isoformat(),
             corpus_label,
             build_id,
+            ANALYTICS_CONTRACT_VERSION,
             spec.public_name,
             spec.source_schema,
             spec.source_table,
@@ -530,6 +551,7 @@ def _write_public_metadata(
             exported_at_utc varchar,
             corpus_label varchar,
             build_id varchar,
+            analytics_contract_version varchar,
             public_table_name varchar,
             source_schema varchar,
             source_table varchar,
@@ -543,7 +565,7 @@ def _write_public_metadata(
     )
     con.executemany(
         """
-        insert into evidence_public_metadata values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        insert into evidence_public_metadata values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         metadata_rows,
     )
@@ -764,6 +786,10 @@ def _downloads_readme_text(
         f"Corpus: {corpus_label}\n"
         f"Exported (UTC): {exported_at.isoformat()}\n"
         f"{build_line}"
+        f"Analytics contract: `{ANALYTICS_CONTRACT_VERSION}` — market\n"
+        "percentiles are hospital-weighted (one representative amount per\n"
+        "hospital, deduplicated contract votes) and methodology-specific\n"
+        "(per diem / case rate / fee schedule never mix in one statistic).\n"
         "\n"
         "Each table ships as Parquet and CSV with identical content. CSVs\n"
         "larger than 25 MB are gzip-compressed (`.csv.gz`).\n"
@@ -778,8 +804,11 @@ def _downloads_readme_text(
         "- Never rank different price types against each other: gross_charge\n"
         "  (list price), discounted_cash (self-pay), and negotiated_dollar\n"
         "  (insurer-negotiated) are separate measures.\n"
+        "- Never compare different negotiated methodologies against each\n"
+        "  other: a per-diem value is a DAILY payment, not the price of a\n"
+        "  full stay or episode.\n"
         "- Respect the published comparison gates: rows or contexts marked\n"
-        "  insufficient_denominator have fewer than 3 reporting hospitals and\n"
+        "  insufficient_denominator have fewer than 3 comparable hospitals and\n"
         "  carry no market statistics by design.\n"
         "- Readiness/usability scores describe how usable a hospital's\n"
         "  published file is. They are not legal-compliance findings and not\n"

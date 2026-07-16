@@ -10,7 +10,9 @@ aggregate marts/scorecards built *from* the fact — never blended into it.
 The comparability rules come from decision
 [0017](../decisions/0017-gold-comparability-framework.md); the atomic-fact +
 bridge split is decision
-[0018](../decisions/0018-gold-fact-is-atomic-code-expansion-is-a-bridge.md).
+[0018](../decisions/0018-gold-fact-is-atomic-code-expansion-is-a-bridge.md);
+methodology-separated, hospital-weighted market statistics are decision
+[0021](../decisions/0021-methodology-separated-hospital-weighted-market-statistics.md).
 
 All Gold models land in the `main_gold` DuckDB schema.
 
@@ -47,14 +49,21 @@ flowchart LR
 
   F --> SPINE[gld_int__service_comparison_spine]
   BR --> SPINE
+  SPINE --> CR[gld_int__service_contract_representatives]
+  CR --> HSA[gld_int__hospital_service_amounts]
+  SPINE --> HSA
   SPINE --> MART[gld_mart__service_price_comparison_current]
+  CR --> MART
+  HSA --> MART
   DH --> MART
   DS --> MART
   DP --> MART
 
-  MART --> SUM[gld_mart__service_price_summary]
-  MART --> HB[gld_mart__hospital_service_benchmarks]
-  MART --> PB[gld_mart__payer_service_benchmarks]
+  HSA --> SUM[gld_mart__service_price_summary]
+  CR --> SUM
+  HSA --> HB[gld_mart__hospital_service_benchmarks]
+  CR --> PB[gld_mart__payer_service_benchmarks]
+  HSA --> PB
 
   F --> COV[gld_score__snapshot_coverage_scorecard]
   BR --> COV
@@ -162,36 +171,65 @@ and the mart can apply the gate.
 ### `gld_int__service_comparison_spine` (intermediate)
 Materializes the code-expanded, classified spine (`fact ⋈ bridge` + the §6
 `comparison_tier` / blocker columns) once, current snapshots only, so the
-comparison mart's five references read it back instead of rebuilding it
-(memory). Grain: `(gold_rate_observation_id, service_code_key)`.
+downstream references read it back instead of rebuilding it (memory). Adds the
+decision 0021 identity columns: `comparison_methodology` (`methodology` for
+negotiated dollars, `'not applicable'` otherwise) and `service_context_key`
+(md5 of the exact comparison context: code cohort + setting + billing class +
+modifier signature + amount kind + comparison methodology + drug unit context).
+Grain: `(gold_rate_observation_id, service_code_key)`.
+
+### `gld_int__service_contract_representatives` (intermediate)
+Decision 0021 level 1: one row per `(hospital_id, snapshot_id,
+service_context_key, source_contract_key)` over the negotiated-dollar ranking
+subset. Collapses exact repetitions of one amount inside a contract/context to
+one `contract_representative_amount`; a contract/context with multiple distinct
+amounts is flagged `has_multiple_contract_amounts` and gets no representative
+(visible, excluded, never averaged).
+
+### `gld_int__hospital_service_amounts` (intermediate)
+Decision 0021 level 2: one row per `(hospital_id, service_context_key)` — each
+hospital's ONE vote per exact context. Negotiated: median of valid contract
+representatives (null when every contract is ambiguous). Gross/cash: median of
+ranking rows. Every market percentile/median/rank/delta downstream is computed
+over `hospital_amount` from this model, so the marts reconcile by construction.
 
 ### `gld_mart__service_price_comparison_current`
 User question: which hospitals report comparable current prices, how do they
 vary, how much to trust them. Grain: `(gold_rate_observation_id,
 service_code_key)`, current only. All tiers retained with `comparison_tier`,
-the eleven blocker flags, and a `blocker_reasons` array. Market-wide **and**
-payer-specific peer cuts (median/p10/p90/pct-rank/deltas), each gated by the
-3-hospital floor; guarded `gross_to_cash_ratio` / `cash_to_negotiated_ratio`.
+the twelve blocker flags (including the contract-grain
+`multiple_amounts_per_contract_context`), and a `blocker_reasons` array.
+Market-wide **and** payer-specific peer cuts (median/p10/p90/pct-rank/deltas)
+are hospital-weighted from the representative intermediates and gated by the
+3-valid-hospital floor; every ranked row of one hospital/context shares the
+hospital's rank. Guarded `gross_to_cash_ratio` / `cash_to_negotiated_ratio`.
 Dimension attributes joined for hospital, snapshot, and payer.
 
 ### `gld_mart__service_price_summary`
-Grain: `(service_code_key, clean_setting, clean_billing_class,
-modifier_signature, amount_kind)`. Built from the mart's `is_price_ranking_row`
-subset. Denominators always published; percentiles/IQR/spread/outliers
-suppressed below the 3-hospital floor. Robust 1.5×IQR outlier flag (no
-winsorizing). Reconciles to the mart.
+Grain: one row per exact comparison context — `(service_code_key,
+clean_setting, clean_billing_class, modifier_signature, amount_kind,
+comparison_methodology, canonical_drug_unit_type)`, equivalently
+`service_context_key`. All distribution statistics are hospital-weighted over
+`gld_int__hospital_service_amounts`. Publishes the three-way denominator
+(`reporting_hospital_count` / `hospital_count` / `excluded_hospital_count`)
+plus observation/contract/payer counts; percentiles/IQR/spread/outliers
+suppressed below the 3-valid-hospital floor. Robust 1.5×IQR outlier flag over
+hospital representatives (`outlier_hospital_count`, no winsorizing).
 
 ### `gld_mart__hospital_service_benchmarks`
-Grain: `(hospital_id, service context, amount_kind)`. The hospital's
-representative (median) amount vs market median for four peer groups — all, same
-state, same `hospital_type`, same `health_system` — each gated by its own
-3-hospital floor.
+Grain: `(hospital_id, service_context_key)`. The hospital's representative
+amount (from the shared intermediate) vs hospital-weighted market stats for
+four peer groups — all, same state, same `hospital_type`, same `health_system`
+— each methodology-separated and gated by its own 3-hospital floor.
 
 ### `gld_mart__payer_service_benchmarks`
-Grain: `(canonical_payer_id, hospital_id, service context)`,
+Grain: `(canonical_payer_id, hospital_id, service_context_key)`,
 `amount_kind = negotiated_dollar`. Payer identity is the prerequisite gate
-(unmatched never enters). Negotiated dollar vs the hospital's own cash and vs the
-payer's service-market median; plus `payer_match_coverage_rate`.
+(unmatched never enters). Built from contract representatives: one
+payer-hospital representative per exact context, one hospital-weighted payer
+market over them. `cash_comparison_status` guards methodology compatibility —
+per-diem daily rates are never labeled above/below cash; ambiguous contexts
+stay visible with null statistics. Plus `payer_match_coverage_rate`.
 
 ## Scorecards (trust / data quality)
 
@@ -214,12 +252,15 @@ These are wide, dashboard-ready surfaces. They do not redefine comparability,
 denominator floors, payer matching, or trust logic; they join labels and derive
 display bands from the Gold facts, marts, scorecards, and dimensions.
 
-Two presentation helpers recur across these marts (macros in
+Presentation helpers recur across these marts (macros in
 `transform/macros/bi_presentation.sql`): `service_url_slug`, a URL-safe service
 identifier 1:1 with `service_code_key` (singular test
-`gld_bi_service_slug_one_to_one.sql`), and `description_availability`
-(`available` / `license_restricted` / `not_loaded`), which explains why a code
-description is or is not displayable. The former shared `trust_band` name was
+`gld_bi_service_slug_one_to_one.sql`); `service_context_url_slug`, a URL-safe
+exact-context identifier 1:1 with `service_context_key` (singular test
+`gld_bi_context_slug_one_to_one.sql`); `comparison_methodology_display_label`
+(spells out the payment unit, e.g. 'Per diem (per day)'); and
+`description_availability` (`available` / `license_restricted` / `not_loaded`),
+which explains why a code description is or is not displayable. The former shared `trust_band` name was
 split into two deliberately distinct measures: hospital-level
 `data_confidence_band` (readiness-score derived) and context-level
 `comparison_confidence_band` (cohort size + description availability), both
@@ -232,21 +273,29 @@ rank fields, benchmark/context counts, and `data_confidence_band`. Default
 source for hospital overview cards, maps, and ranked tables.
 
 ### `gld_bi__service_market_explorer`
-Grain: `(service_code_key, clean_setting, clean_billing_class,
-modifier_signature, amount_kind)`. Adds service display code/name/label,
-`service_url_slug`, `description_availability`, modifier label, threshold
-flags, spread measures, `comparison_status`, `comparison_confidence_band`, and
-`variation_band` over `gld_mart__service_price_summary`.
+Grain: one row per exact comparison context (`service_context_key`; includes
+`comparison_methodology` and drug unit context). Adds service display
+code/name/label, `service_url_slug`, `service_context_url_slug` (the durable
+exact-context link target, 1:1 locked by
+`gld_bi_context_slug_one_to_one.sql`), methodology display label,
+`description_availability`, modifier label, the three-way hospital
+denominator, threshold flags, spread measures, `comparison_status`,
+`comparison_confidence_band`, and `variation_band` over
+`gld_mart__service_price_summary`.
 
 ### `gld_bi__hospital_service_rankings`
-Grain: `(hospital_id, service context, amount_kind)`. Enriches
-`gld_mart__hospital_service_benchmarks` with hospital and service labels plus
-all-market `price_position_band`, `is_high_outlier`, and `is_low_outlier`.
+Grain: `(hospital_id, service_context_key)`. Enriches
+`gld_mart__hospital_service_benchmarks` with hospital and service labels,
+methodology labels, `service_context_url_slug`, plus all-market
+`price_position_band`, `is_high_outlier`, and `is_low_outlier`.
 
 ### `gld_bi__payer_contracting_explorer`
-Grain: `(canonical_payer_id, hospital_id, service context)`. Enriches
+Grain: `(canonical_payer_id, hospital_id, service_context_key)`. Enriches
 `gld_mart__payer_service_benchmarks` with payer/hospital/service labels,
-`contract_position_band`, and `cash_comparison_band`.
+methodology labels, `service_context_url_slug`, `cash_comparison_status`,
+`contract_position_band`, and `cash_comparison_band` (which carries
+`per_diem_incompatible` / `ambiguous_negotiated_context` instead of a
+direction where the comparison is not methodology-compatible).
 
 ### `gld_bi__comparison_blocker_summary`
 Grain: `(snapshot_id, blocker_code)`. Unpivots the snapshot coverage scorecard's
@@ -289,10 +338,12 @@ gld_dim__modifier_signature 1───* gld_fct__rate_observations  (modifier_si
 gld_fct__rate_observations 1───* gld_bridge__rate_observation_code
 gld_dim__service_code 1───* gld_bridge__rate_observation_code  (service_code_key; null for non-comparable)
 
-gld_fct__rate_observations + gld_bridge ──> gld_int__service_comparison_spine ──> gld_mart__service_price_comparison_current
-gld_mart__service_price_comparison_current ──> gld_mart__service_price_summary
-gld_mart__service_price_comparison_current ──> gld_mart__hospital_service_benchmarks
-gld_mart__service_price_comparison_current ──> gld_mart__payer_service_benchmarks
+gld_fct__rate_observations + gld_bridge ──> gld_int__service_comparison_spine
+gld_int__service_comparison_spine ──> gld_int__service_contract_representatives ──> gld_int__hospital_service_amounts
+gld_int__service_comparison_spine + representatives ──> gld_mart__service_price_comparison_current
+gld_int__hospital_service_amounts ──> gld_mart__service_price_summary
+gld_int__hospital_service_amounts ──> gld_mart__hospital_service_benchmarks
+gld_int__service_contract_representatives + gld_int__hospital_service_amounts ──> gld_mart__payer_service_benchmarks
 gld_fct__rate_observations + gld_bridge ──> gld_score__snapshot_coverage_scorecard ──> gld_score__hospital_transparency_scorecard
 gld__* marts + gld__* scorecards + dimensions ──> gld_bi__* presentation marts
 ```

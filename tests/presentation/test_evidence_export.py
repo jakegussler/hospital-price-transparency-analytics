@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from hpt.presentation.evidence_export import (
+    ANALYTICS_CONTRACT_VERSION,
     EVIDENCE_EXPORTS,
     EvidenceExportError,
     assert_evidence_readiness,
@@ -241,6 +242,13 @@ def test_export_writes_data_dictionary_and_metadata_build_id(tmp_path: Path) -> 
                 [str(target / "public_metadata.parquet")],
             ).fetchall()
         }
+        contract_versions = {
+            row[0]
+            for row in con.execute(
+                "select distinct analytics_contract_version from read_parquet(?)",
+                [str(target / "public_metadata.parquet")],
+            ).fetchall()
+        }
 
     expected_tables = {spec.public_name for spec in EVIDENCE_EXPORTS} | {
         "public_metadata",
@@ -249,6 +257,10 @@ def test_export_writes_data_dictionary_and_metadata_build_id(tmp_path: Path) -> 
     assert documented_tables == expected_tables
     assert "Grain: test rows." in table_description
     assert build_ids == {"abc1234"}
+    # The analytics contract version identifies which statistic definitions
+    # produced the export (decision 0021: hospital-weighted, methodology-
+    # separated market statistics).
+    assert contract_versions == {ANALYTICS_CONTRACT_VERSION}
 
 
 def test_export_fails_when_dictionary_model_is_missing(tmp_path: Path) -> None:

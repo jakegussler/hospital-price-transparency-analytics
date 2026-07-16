@@ -31,6 +31,8 @@ select
         when hospital_count >= 10 then 'broad_hospital_coverage'
         else 'described_comparable_service'
     end as featured_reason,
+    service_context_key,
+    service_context_url_slug,
     service_code_key,
     canonical_code_system,
     match_code,
@@ -45,8 +47,13 @@ select
     modifier_signature,
     modifier_display_label,
     amount_kind,
+    comparison_methodology,
+    comparison_methodology_display_label,
+    canonical_drug_unit_type,
     observation_count,
+    reporting_hospital_count,
     hospital_count,
+    excluded_hospital_count,
     payer_count,
     median_amount,
     p10_amount,

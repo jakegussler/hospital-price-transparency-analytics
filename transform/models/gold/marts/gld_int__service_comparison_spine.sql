@@ -64,6 +64,10 @@ assembled as (
         f.modifier_signature,
         f.has_pro_tech_split_modifier,
         f.canonical_payer_id,
+        f.clean_payer_name,
+        f.clean_plan_name,
+        f.source_contract_key,
+        f.contract_identity_precision,
         f.market_segment,
         f.benefit_line,
         f.plan_type,
@@ -78,11 +82,23 @@ assembled as (
     from fact as f
     left join obs_cohorts as oc
         on f.gold_rate_observation_id = oc.gold_rate_observation_id
+),
+
+-- Comparison classification (plan §6): tier + the row-level blocker flags, plus
+-- the decision 0021 methodology-separated exact-context identity.
+classified as (
+    select
+        *,
+        {{ hpt_comparison_tier() }} as comparison_tier,
+        {{ hpt_comparison_methodology() }} as comparison_methodology,
+        {{ hpt_comparison_blocker_flags() }}
+    from assembled
 )
 
--- Comparison classification (plan §6): tier + the row-level blocker flags.
+-- service_context_key needs comparison_methodology in scope, so it is layered
+-- on after classification. Null service_code_key rows (tier_0) still get a key;
+-- consumers always scope to ranking rows before using it.
 select
     *,
-    {{ hpt_comparison_tier() }} as comparison_tier,
-    {{ hpt_comparison_blocker_flags() }}
-from assembled
+    {{ hpt_service_context_key() }} as service_context_key
+from classified

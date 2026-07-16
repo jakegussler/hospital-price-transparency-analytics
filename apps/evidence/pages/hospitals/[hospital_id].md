@@ -108,12 +108,13 @@ where hospital_id = '${params.hospital_id}'
 ```sql above_market
 select
   service_display_label,
-  '/compare/' || service_url_slug as service_link,
+  '/compare/context/' || service_context_url_slug as service_link,
   case amount_kind
     when 'gross_charge' then 'List price'
     when 'discounted_cash' then 'Cash price'
     when 'negotiated_dollar' then 'Negotiated rate'
   end as price_type,
+  comparison_methodology_display_label as methodology,
   hospital_amount,
   market_median_all,
   pct_delta_from_market_median_all,
@@ -135,12 +136,13 @@ where hospital_id = '${params.hospital_id}'
 ```sql below_market
 select
   service_display_label,
-  '/compare/' || service_url_slug as service_link,
+  '/compare/context/' || service_context_url_slug as service_link,
   case amount_kind
     when 'gross_charge' then 'List price'
     when 'discounted_cash' then 'Cash price'
     when 'negotiated_dollar' then 'Negotiated rate'
   end as price_type,
+  comparison_methodology_display_label as methodology,
   hospital_amount,
   market_median_all,
   pct_delta_from_market_median_all,
@@ -170,6 +172,7 @@ Showing the top {above_market.length} of {(above_market_count[0]?.n ?? 0).toLoca
 <DataTable data={above_market} link=service_link>
   <Column id=service_display_label title="Service" />
   <Column id=price_type title="Price type" />
+  <Column id=methodology title="Methodology" />
   <Column id=hospital_amount title="This hospital" fmt=usd0 />
   <Column id=market_median_all title="Area median" fmt=usd0 />
   <Column id=pct_delta_from_market_median_all title="vs. median" fmt=pct0 />
@@ -183,6 +186,7 @@ Showing the top {below_market.length} of {(below_market_count[0]?.n ?? 0).toLoca
 <DataTable data={below_market} link=service_link>
   <Column id=service_display_label title="Service" />
   <Column id=price_type title="Price type" />
+  <Column id=methodology title="Methodology" />
   <Column id=hospital_amount title="This hospital" fmt=usd0 />
   <Column id=market_median_all title="Area median" fmt=usd0 />
   <Column id=pct_delta_from_market_median_all title="vs. median" fmt=pct0 />
@@ -194,7 +198,9 @@ Showing the top {below_market.length} of {(below_market_count[0]?.n ?? 0).toLoca
 ## Insurer rates vs. this hospital's cash price
 
 Comparing a negotiated rate to the same hospital's cash price needs no
-cross-hospital floor — both numbers come from this one hospital's file.
+cross-hospital floor — both numbers come from this one hospital's file. The
+comparison is only made where it is meaningful: a per-diem rate is a DAILY
+amount and is never labeled above or below a cash price.
 
 ```sql cash_bands
 select
@@ -203,6 +209,8 @@ select
     when 'equal_to_cash' then 'Same as cash price'
     when 'above_cash' then 'Negotiated ABOVE cash price'
     when 'cash_unavailable' then 'No cash price published'
+    when 'per_diem_incompatible' then 'Per-diem (daily) rate — not comparable to cash'
+    when 'ambiguous_negotiated_context' then 'Contract has mixed amounts — excluded'
   end as comparison,
   count(*) as context_count
 from hpt.payer_contracting_explorer
@@ -213,7 +221,9 @@ order by
     when 'below_cash' then 1
     when 'equal_to_cash' then 2
     when 'above_cash' then 3
-    else 4
+    when 'cash_unavailable' then 4
+    when 'per_diem_incompatible' then 5
+    else 6
   end
 ```
 
@@ -241,7 +251,8 @@ where hospital_id = '${params.hospital_id}'
 select
   payer_display_name,
   service_display_label,
-  '/compare/' || service_url_slug as service_link,
+  '/compare/context/' || service_context_url_slug as service_link,
+  comparison_methodology_display_label as methodology,
   negotiated_dollar,
   hospital_cash_amount,
   pct_delta_from_hospital_cash
@@ -267,6 +278,7 @@ published numbers. <a href="/methodology/prices#negotiated-vs-cash">How to read 
 <DataTable data={above_cash_examples} link=service_link>
   <Column id=payer_display_name title="Insurer" />
   <Column id=service_display_label title="Service" />
+  <Column id=methodology title="Methodology" />
   <Column id=negotiated_dollar title="Negotiated rate" fmt=usd0 />
   <Column id=hospital_cash_amount title="Cash price" fmt=usd0 />
   <Column id=pct_delta_from_hospital_cash title="Above cash by" fmt=pct0 />

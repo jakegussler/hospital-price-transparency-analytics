@@ -49,9 +49,10 @@ project yet. The code still compares correctly across hospitals.
 {/if}
 
 This service appears in <Value data={service_header} column=context_count /> published
-context(s). A context is the exact combination of price type, care setting,
-billing type, and modifiers — prices are only ever compared within one context.
-Pick one:
+context(s). A context is the exact combination of price type, payment
+methodology, care setting, billing type, and modifiers — prices are only ever
+compared within one context, and negotiated methodologies are never mixed (a
+per-diem is a daily amount, not an episode price). Pick one:
 
 ```sql slug_price_types
 select
@@ -72,11 +73,23 @@ order by
   end
 ```
 
+```sql slug_methodologies
+select
+  comparison_methodology,
+  comparison_methodology_display_label
+from hpt.service_market_explorer
+where service_url_slug = '${params.service_slug}'
+  and amount_kind = '${inputs.price_type.value}'
+group by 1, 2
+order by 1
+```
+
 ```sql slug_settings
 select clean_setting
 from hpt.service_market_explorer
 where service_url_slug = '${params.service_slug}'
   and amount_kind = '${inputs.price_type.value}'
+  and comparison_methodology = '${inputs.methodology.value}'
 group by clean_setting
 order by 1
 ```
@@ -86,6 +99,7 @@ select clean_billing_class
 from hpt.service_market_explorer
 where service_url_slug = '${params.service_slug}'
   and amount_kind = '${inputs.price_type.value}'
+  and comparison_methodology = '${inputs.methodology.value}'
   and clean_setting = '${inputs.setting.value}'
 group by clean_billing_class
 order by 1
@@ -96,6 +110,7 @@ select modifier_display_label
 from hpt.service_market_explorer
 where service_url_slug = '${params.service_slug}'
   and amount_kind = '${inputs.price_type.value}'
+  and comparison_methodology = '${inputs.methodology.value}'
   and clean_setting = '${inputs.setting.value}'
   and clean_billing_class = '${inputs.billing_class.value}'
 group by modifier_display_label
@@ -105,6 +120,8 @@ order by
 ```
 
 <Dropdown data={slug_price_types} name=price_type value=amount_kind label=price_type_label title="Price type" />
+
+<Dropdown data={slug_methodologies} name=methodology value=comparison_methodology label=comparison_methodology_display_label title="Payment methodology" />
 
 <Dropdown data={slug_settings} name=setting value=clean_setting title="Care setting" />
 
@@ -119,7 +136,19 @@ select
     when 'discounted_cash' then 'Cash price'
     when 'negotiated_dollar' then 'Negotiated rate'
   end as price_type_label,
+  comparison_methodology,
+  comparison_methodology_display_label,
+  case comparison_methodology
+    when 'fee schedule' then 'Fee schedule: each negotiated amount applies per item or service.'
+    when 'case rate' then 'Case rate: each negotiated amount covers an entire episode or bundle of care.'
+    when 'per diem' then 'Per diem: each negotiated amount is PER DAY of inpatient care. It is not the price of a full stay, and it is never compared with case rates or fee schedules.'
+    else ''
+  end as methodology_note,
+  '/compare/context/' || service_context_url_slug as context_link,
   hospital_count,
+  reporting_hospital_count::double as reporting_hospital_count,
+  excluded_hospital_count::double as excluded_hospital_count,
+  contract_count::double as contract_count,
   observation_count,
   payer_count,
   case comparison_status
@@ -140,6 +169,7 @@ select
 from hpt.service_market_explorer
 where service_url_slug = '${params.service_slug}'
   and amount_kind = '${inputs.price_type.value}'
+  and comparison_methodology = '${inputs.methodology.value}'
   and clean_setting = '${inputs.setting.value}'
   and clean_billing_class = '${inputs.billing_class.value}'
   and modifier_display_label = '${inputs.modifier.value}'
@@ -164,6 +194,7 @@ select
 from hpt.hospital_service_rankings
 where service_url_slug = '${params.service_slug}'
   and amount_kind = '${inputs.price_type.value}'
+  and comparison_methodology = '${inputs.methodology.value}'
   and clean_setting = '${inputs.setting.value}'
   and clean_billing_class = '${inputs.billing_class.value}'
   and modifier_display_label = '${inputs.modifier.value}'
@@ -195,15 +226,41 @@ would look precise while meaning almost nothing.
 {:else}
 
 <Grid cols=4>
-  <BigValue data={selected_context} value=hospital_count title="Hospitals (n)" />
-  <BigValue data={selected_context} value=median_amount title="Typical (median)" fmt=usd0 />
-  <BigValue data={selected_context} value=p10_amount title="Lower (10th pct)" fmt=usd0 />
-  <BigValue data={selected_context} value=p90_amount title="Upper (90th pct)" fmt=usd0 />
+  <BigValue data={selected_context} value=hospital_count title="Comparable hospitals (n)" />
+  <BigValue data={selected_context} value=median_amount title="Typical hospital price" fmt=usd0 />
+  <BigValue data={selected_context} value=p10_amount title="Lower hospital price (10th pct)" fmt=usd0 />
+  <BigValue data={selected_context} value=p90_amount title="Upper hospital price (90th pct)" fmt=usd0 />
 </Grid>
 
 Comparison status: **{selected_context[0].comparison}** · Comparison
 confidence: **{selected_context[0].confidence}** (based on
-{selected_context[0].hospital_count} hospitals).
+{selected_context[0].hospital_count} comparable hospitals) ·
+{selected_context[0].reporting_hospital_count} hospital(s) published this
+context{#if selected_context[0].contract_count > 0}&nbsp;across
+{selected_context[0].contract_count} insurer contract(s){/if}.
+Direct link: <a href={selected_context[0].context_link}>this exact context</a>.
+
+{/if}
+
+{#if selected_context[0].methodology_note !== ''}
+
+<SiteCallout type="definition" title={selected_context[0].comparison_methodology_display_label}>
+{selected_context[0].methodology_note}
+</SiteCallout>
+
+{/if}
+
+{#if selected_context[0].excluded_hospital_count > 0}
+
+<SiteCallout type="caution" title="Some hospitals could not be compared">
+{selected_context[0].excluded_hospital_count} hospital(s) published this
+context but were excluded from the statistics because one insurer contract
+carried several different amounts for the exact same context — a hidden
+pricing distinction (often a revenue-code or network difference) we refuse to
+average away. Their raw rows remain in the
+<a href="/downloads">public downloads</a>; see
+<a href="/data-quality">data quality</a> for how exclusions work.
+</SiteCallout>
 
 {/if}
 
@@ -213,7 +270,7 @@ confidence: **{selected_context[0].confidence}** (based on
   y=hospital_amount
   swapXY=true
   yFmt=usd0
-  title="Published price by hospital (each bar is one hospital)"
+  title="Representative price by hospital (each bar is one hospital's single vote)"
 />
 
 <DataTable data={context_hospitals} link=hospital_link>
@@ -226,10 +283,12 @@ confidence: **{selected_context[0].confidence}** (based on
 </DataTable>
 
 <SiteCallout type="definition">
-"This hospital's price" is the hospital's representative (median) published
-amount for this exact context — negotiated rates are summarized across the
-hospital's insurer contracts. Price type:
-<b>{selected_context[0].price_type_label}</b>.
+"This hospital's price" is the hospital's ONE representative amount for this
+exact context — for negotiated rates, the median of its deduplicated insurer
+contract amounts, so a rate repeated across many rows counts once. The bars
+above are exactly the values behind the percentiles. Price type:
+<b>{selected_context[0].price_type_label}</b>
+({selected_context[0].comparison_methodology_display_label}).
 See <a href="/methodology/prices">what the price types mean</a>.
 </SiteCallout>
 
@@ -238,15 +297,21 @@ See <a href="/methodology/prices">what the price types mean</a>.
 ## All published contexts for this service
 
 Every context the corpus hospitals published for this billing code, across all
-price types. Blank statistics mean the context is below the 3-hospital floor.
+price types and payment methodologies. Blank statistics mean the context is
+below the 3-hospital floor. Comparable rows link to their exact-context page.
 
 ```sql all_contexts
 select
+  case
+    when comparison_status <> 'insufficient_denominator'
+      then '/compare/context/' || service_context_url_slug
+  end as context_link,
   case amount_kind
     when 'gross_charge' then 'List price'
     when 'discounted_cash' then 'Cash price'
     when 'negotiated_dollar' then 'Negotiated rate'
   end as price_type,
+  comparison_methodology_display_label as methodology,
   case clean_setting
     when 'unspecified' then 'Not specified'
     else clean_setting
@@ -268,20 +333,22 @@ select
   p90_amount
 from hpt.service_market_explorer
 where service_url_slug = '${params.service_slug}'
-order by amount_kind, clean_setting, clean_billing_class, modifier_display_label
+order by amount_kind, comparison_methodology, clean_setting,
+  clean_billing_class, modifier_display_label
 ```
 
-<DataTable data={all_contexts} rows=25>
+<DataTable data={all_contexts} link=context_link rows=25>
   <Column id=price_type title="Price type" />
+  <Column id=methodology title="Methodology" />
   <Column id=setting title="Care setting" />
   <Column id=billing_type title="Billing type" />
   <Column id=modifier_display_label title="Modifiers" />
-  <Column id=hospital_count title="Hospitals (n)" />
+  <Column id=hospital_count title="Comparable hospitals (n)" />
   <Column id=observation_count title="Price rows" fmt=num0 />
   <Column id=comparison title="Comparison status" />
-  <Column id=median_amount title="Typical (median)" fmt=usd0 />
-  <Column id=p10_amount title="Lower (10th pct)" fmt=usd0 />
-  <Column id=p90_amount title="Upper (90th pct)" fmt=usd0 />
+  <Column id=median_amount title="Typical hospital price" fmt=usd0 />
+  <Column id=p10_amount title="Lower hospital price (10th pct)" fmt=usd0 />
+  <Column id=p90_amount title="Upper hospital price (90th pct)" fmt=usd0 />
 </DataTable>
 
 {/if}

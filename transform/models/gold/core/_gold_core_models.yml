@@ -384,6 +384,31 @@ models:
               arguments:
                 to: ref('gld_dim__payer')
                 field: canonical_payer_id
+      - name: clean_payer_name
+        description: >
+          Deterministically cleaned source payer label from slv_core__payer_rates;
+          null for standard_charge scope. Contract-identity input (decision 0021) —
+          source labels, not canonical_payer_id, define a contract so unmatched
+          insurers still collapse correctly.
+      - name: clean_plan_name
+        description: >
+          Deterministically cleaned source plan label from slv_core__payer_rates;
+          null for standard_charge scope. Contract-identity input (decision 0021).
+      - name: source_contract_key
+        description: >
+          One negotiated source contract within a hospital snapshot (decision 0021):
+          md5 over (snapshot_id, hospital_id, clean_payer_name, clean_plan_name,
+          methodology). Falls back to a row-specific key when clean_payer_name is
+          missing. Null for standard_charge scope.
+      - name: contract_identity_precision
+        description: >
+          How much identity backed source_contract_key: 'payer_plan' (both labels),
+          'payer_only' (plan label missing), or 'row' (payer label missing —
+          row-specific fallback). Null for standard_charge scope.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['payer_plan', 'payer_only', 'row']
       - name: market_segment
         description: "Observation-level payer context; gates segment cuts downstream."
       - name: benefit_line

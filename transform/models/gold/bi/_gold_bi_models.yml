@@ -135,11 +135,14 @@ models:
   - name: gld_bi__service_market_explorer
     description: >
       BI presentation mart for service-market exploration. Grain: one row per
-      service_code_key, setting, billing_class, modifier_signature, and
-      amount_kind from the service summary mart. Adds human-readable service and
-      modifier labels, URL slugs, status fields, threshold flags, and variation
-      bands. Percentile and spread statistics are published only where the exact
-      context has at least 3 reporting hospitals.
+      exact comparison context - service_code_key, setting, billing_class,
+      modifier_signature, amount_kind, comparison_methodology, and drug unit
+      context (equivalently one row per service_context_key). All percentile and
+      spread statistics are HOSPITAL-WEIGHTED (computed over one representative
+      amount per hospital, so repeated contract rows add no weight) and
+      METHODOLOGY-SPECIFIC (per-diem daily rates, case rates, and fee-schedule
+      amounts are never mixed in one distribution). Statistics are published
+      only where at least 3 hospitals have a valid representative amount.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -149,7 +152,19 @@ models:
               - clean_billing_class
               - modifier_signature
               - amount_kind
+              - comparison_methodology
+              - canonical_drug_unit_type
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - service_context_key
     columns:
+      - name: service_context_key
+        description: Stable key for the exact comparison context (service, setting, billing class, modifiers, price type, methodology, drug unit context). Join key across marts; not human-readable.
+        tests: [not_null]
+      - name: service_context_url_slug
+        description: URL-safe identifier for the exact comparison context, used in public exact-context page URLs. One slug per service_context_key.
+        tests: [not_null]
       - name: service_code_key
         description: Surrogate key for the (code system, code) cohort. Join key to other marts; not human-readable.
         tests:
@@ -229,34 +244,63 @@ models:
           - accepted_values:
               arguments:
                 values: ["gross_charge", "discounted_cash", "negotiated_dollar"]
+      - name: comparison_methodology
+        description: >
+          How the negotiated rate is paid: fee schedule (per item/service), case
+          rate (per episode), or per diem (per day - a DAILY amount, not the
+          price of a full stay); 'not applicable' for list and cash prices.
+          Different methodologies price different economic units and are never
+          mixed in one market distribution.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["fee schedule", "case rate", "per diem", "not applicable"]
+      - name: comparison_methodology_display_label
+        description: Human-readable methodology label spelling out the payment unit (e.g. 'Per diem (per day)').
+        tests: [not_null]
+      - name: canonical_drug_unit_type
+        description: Drug unit context for drug/NDC contexts; null otherwise. Contexts are never merged across differing drug units.
       - name: observation_count
-        description: Price observations in this exact context.
+        description: Raw price rows behind this exact context. Shown for transparency; statistics never weight by it (a repeated contract row adds no weight).
+      - name: contract_count
+        description: Distinct payer contracts behind this context (negotiated rates only; null for list/cash prices).
+      - name: reporting_hospital_count
+        description: Hospitals that published any raw row for this exact context, whether or not it could be represented safely.
       - name: hospital_count
-        description: Distinct hospitals reporting this exact context. The comparison denominator (the "n" shown next to every market statistic).
+        description: >
+          Hospitals with a VALID representative amount - the comparison
+          denominator (the "n" shown next to every market statistic). Every
+          published statistic is computed over one representative amount per
+          such hospital.
+      - name: excluded_hospital_count
+        description: Reporting hospitals excluded from statistics because none of their contracts could be represented safely (ambiguous multi-amount contracts).
+      - name: ambiguous_contract_count
+        description: Contracts excluded because one contract carried multiple distinct amounts for this exact context (a hidden pricing distinction).
       - name: payer_count
-        description: Distinct matched payers contributing observations to this context (negotiated rates only).
+        description: Distinct matched payers contributing contracts to this context (negotiated rates only).
       - name: meets_hospital_threshold
-        description: True when hospital_count is at least 3, the minimum denominator for publishing market statistics.
+        description: True when hospital_count (valid representatives) is at least 3, the minimum denominator for publishing market statistics.
       - name: market_coverage_rate
-        description: Share (0-1) of corpus hospitals reporting this exact context.
+        description: Share (0-1) of corpus hospitals with a valid representative for this exact context.
       - name: min_amount
-        description: Minimum observed amount. Null when below the 3-hospital floor.
+        description: Smallest hospital representative amount. Null when below the 3-hospital floor.
       - name: p10_amount
-        description: 10th-percentile amount. Null when below the 3-hospital floor; at small n this is close to the minimum.
+        description: Hospital-weighted 10th-percentile amount (one vote per hospital). Null when below the 3-hospital floor; at small n this is close to the minimum.
       - name: median_amount
-        description: Median (typical) amount. Null when below the 3-hospital floor.
+        description: Hospital-weighted median (typical hospital) amount. Null when below the 3-hospital floor.
       - name: p90_amount
-        description: 90th-percentile amount. Null when below the 3-hospital floor; at small n this is close to the maximum.
+        description: Hospital-weighted 90th-percentile amount (one vote per hospital). Null when below the 3-hospital floor; at small n this is close to the maximum.
       - name: max_amount
-        description: Maximum observed amount. Null when below the 3-hospital floor.
+        description: Largest hospital representative amount. Null when below the 3-hospital floor.
       - name: spread_amount_p90_to_p10
-        description: Dollar gap between the 90th and 10th percentile amounts. Null when below the floor.
+        description: Dollar gap between the hospital-weighted 90th and 10th percentile amounts. Null when below the floor.
       - name: spread_ratio_p90_to_p10
-        description: Ratio of the 90th to the 10th percentile amount (price spread multiple). Null when below the floor.
+        description: Ratio of the hospital-weighted 90th to 10th percentile amount (price spread multiple). Null when below the floor.
       - name: iqr_amount
-        description: Interquartile range of amounts. Null when below the floor.
-      - name: outlier_observation_count
-        description: Observations flagged as robust (1.5 x IQR) outliers. Null when below the floor.
+        description: Interquartile range of hospital representative amounts. Null when below the floor.
+      - name: outlier_hospital_count
+        description: Hospitals whose representative amount falls outside the robust (1.5 x IQR) fences. Null when below the floor.
       - name: comparison_status
         description: >
           Whether this context can be compared across hospitals:
@@ -302,12 +346,15 @@ models:
   - name: gld_bi__hospital_service_rankings
     description: >
       BI presentation mart for hospital-vs-market service comparisons. Grain:
-      one row per hospital_id, service_code_key, setting, billing_class,
-      modifier_signature, and amount_kind. The hospital's representative amount
-      is compared against four peer groups (all corpus hospitals, same state,
-      same hospital type, same health system), each gated by its own 3-hospital
-      floor. Position bands describe one service context, not the hospital
-      overall.
+      one row per hospital and exact comparison context - hospital_id,
+      service_code_key, setting, billing_class, modifier_signature, amount_kind,
+      comparison_methodology, and drug unit context (equivalently hospital_id +
+      service_context_key). The hospital's representative amount is ONE value
+      per exact context (for negotiated rates: the median of its deduplicated,
+      unambiguous payer-contract amounts), compared against four peer groups
+      (all corpus hospitals, same state, same hospital type, same health
+      system), each hospital-weighted and gated by its own 3-hospital floor.
+      Position bands describe one service context, not the hospital overall.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -318,7 +365,20 @@ models:
               - clean_billing_class
               - modifier_signature
               - amount_kind
+              - comparison_methodology
+              - canonical_drug_unit_type
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - hospital_id
+              - service_context_key
     columns:
+      - name: service_context_key
+        description: Stable key for the exact comparison context (matches gld_bi__service_market_explorer).
+        tests: [not_null]
+      - name: service_context_url_slug
+        description: URL-safe identifier for the exact comparison context, used in public exact-context page URLs.
+        tests: [not_null]
       - name: hospital_id
         description: Stable registry identifier for the hospital.
         tests:
@@ -384,12 +444,37 @@ models:
         description: Human-readable modifier set label.
       - name: amount_kind
         description: Which kind of price this row compares (gross_charge, discounted_cash, negotiated_dollar). Never compared across kinds.
+      - name: comparison_methodology
+        description: >
+          How the negotiated rate is paid (fee schedule / case rate / per diem -
+          a DAILY amount; 'not applicable' for list and cash prices). Rankings
+          never mix methodologies.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["fee schedule", "case rate", "per diem", "not applicable"]
+      - name: comparison_methodology_display_label
+        description: Human-readable methodology label spelling out the payment unit.
+      - name: canonical_drug_unit_type
+        description: Drug unit context for drug/NDC contexts; null otherwise.
       - name: comparison_tier
         description: Comparability tier of the underlying rows (tier_2_context_aligned rows feed the ranking subset).
       - name: hospital_amount
-        description: The hospital's representative (median) amount for this exact context and amount kind.
+        description: >
+          The hospital's ONE representative amount for this exact context: for
+          negotiated rates, the median of its deduplicated unambiguous contract
+          amounts; for list/cash prices, the median of its published rows.
+      - name: raw_observation_count
+        description: Raw price rows behind the hospital's representative (transparency count; never a statistical weight).
+      - name: source_contract_count
+        description: The hospital's payer contracts behind this context (negotiated rates only).
+      - name: valid_contract_count
+        description: Contracts that produced a representative amount (negotiated rates only).
+      - name: ambiguous_contract_count
+        description: Contracts excluded as ambiguous (multiple distinct amounts under one contract; negotiated rates only).
       - name: peer_hospital_count_all
-        description: Hospitals in the all-corpus peer group for this context. Market statistics are null below 3.
+        description: Hospitals with a valid representative amount in the all-corpus peer group for this exact context. Market statistics are null below 3.
       - name: market_median_all
         description: Median amount across the all-corpus peer group. Null below the floor.
       - name: market_p10_all
@@ -454,12 +539,16 @@ models:
   - name: gld_bi__payer_contracting_explorer
     description: >
       BI presentation mart for matched-payer contracting exploration. Grain:
-      one row per canonical_payer_id, hospital_id, service_code_key, setting,
-      billing_class, and modifier_signature (negotiated dollar rates only).
-      Compares each negotiated rate against the hospital's own cash price and
-      against the same payer's market median across hospitals. Unmatched payer
-      names are excluded by design; they remain countable through the blocker
-      summary.
+      one row per canonical_payer_id, hospital_id, and exact comparison context
+      (service_code_key, setting, billing_class, modifier_signature,
+      comparison_methodology, drug unit context — equivalently
+      service_context_key); negotiated dollar rates only. The negotiated amount
+      is the payer-hospital representative: the median of the payer's
+      deduplicated, unambiguous contract amounts for the exact context. Payer
+      market medians are hospital-weighted and methodology-specific. Cash
+      comparisons carry cash_comparison_status — a per-diem (daily) rate is
+      never labeled above or below a cash amount. Unmatched payer names are
+      excluded by design; they remain countable through the blocker summary.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -470,7 +559,56 @@ models:
               - clean_setting
               - clean_billing_class
               - modifier_signature
+              - comparison_methodology
+              - canonical_drug_unit_type
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - canonical_payer_id
+              - hospital_id
+              - service_context_key
     columns:
+      - name: service_context_key
+        description: Stable key for the exact comparison context (matches gld_bi__service_market_explorer).
+        tests: [not_null]
+      - name: service_context_url_slug
+        description: URL-safe identifier for the exact comparison context, used in public exact-context page URLs.
+        tests: [not_null]
+      - name: comparison_methodology
+        description: >
+          How the negotiated rate is paid (fee schedule / case rate / per diem -
+          a DAILY amount). Payer benchmarks never mix methodologies.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["fee schedule", "case rate", "per diem"]
+      - name: comparison_methodology_display_label
+        description: Human-readable methodology label spelling out the payment unit.
+      - name: canonical_drug_unit_type
+        description: Drug unit context for drug/NDC contexts; null otherwise.
+      - name: source_contract_count
+        description: The payer's contracts behind this exact context at this hospital.
+      - name: valid_contract_count
+        description: Contracts that produced a representative amount.
+      - name: ambiguous_contract_count
+        description: Contracts excluded as ambiguous (multiple distinct amounts under one contract).
+      - name: cash_comparison_status
+        description: >
+          Whether the negotiated-vs-cash comparison is methodology-compatible:
+          comparable, cash_unavailable (no cash price for the context),
+          per_diem_incompatible (a daily payment cannot be compared to an
+          item/episode cash amount), or ambiguous_negotiated_context (the
+          payer's contracts could not be represented safely).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - comparable
+                  - cash_unavailable
+                  - per_diem_incompatible
+                  - ambiguous_negotiated_context
       - name: canonical_payer_id
         description: Stable identifier of the matched (canonical) payer. Used in public payer page URLs.
         tests:
@@ -552,17 +690,21 @@ models:
       - name: market_segment
         description: Insurance market segment context of the rate (e.g. commercial, medicare_advantage), when published.
       - name: negotiated_dollar
-        description: The negotiated dollar rate for this payer/hospital/service context (hospital-level representative value).
+        description: >
+          The payer-hospital representative negotiated rate for this exact
+          context: the median of the payer's deduplicated, unambiguous contract
+          amounts. Null when every contract was ambiguous (see
+          cash_comparison_status).
       - name: hospital_cash_amount
-        description: The same hospital's discounted cash price for the same charge-item context, when published.
+        description: The same hospital's representative discounted cash price for the same context components, when published.
       - name: delta_from_hospital_cash
-        description: Dollar difference between the negotiated rate and the hospital's cash price.
+        description: Dollar difference between the negotiated rate and the hospital's cash price. Null unless cash_comparison_status is 'comparable'.
       - name: pct_delta_from_hospital_cash
-        description: Percent difference vs. the hospital's cash price.
+        description: Percent difference vs. the hospital's cash price. Null unless the comparison is methodology-compatible.
       - name: payer_hospital_count
-        description: Hospitals where this payer has a comparable negotiated rate for this exact context. Payer-market statistics are null below 3.
+        description: Hospitals where this payer has a valid representative negotiated rate for this exact context. Payer-market statistics are null below 3.
       - name: payer_market_median_negotiated
-        description: Median negotiated rate for this payer across hospitals for this context. Null below the floor.
+        description: Hospital-weighted median of the payer's representative rates across hospitals for this exact context (one vote per hospital, one methodology per context). Null below the floor.
       - name: delta_from_payer_market_median
         description: Dollar difference vs. the payer's market median. Null below the floor.
       - name: pct_delta_from_payer_market_median
@@ -574,15 +716,18 @@ models:
       - name: contract_position_band
         description: >
           Where this negotiated rate sits vs. the same payer's market median
-          for this context: well_below/below/near/above/well_above payer market
-          (thresholds +/-10% and +/-25%), or insufficient_denominator when the
-          payer has fewer than 3 hospitals for the context.
+          for this exact context: well_below/below/near/above/well_above payer
+          market (thresholds +/-10% and +/-25%), insufficient_denominator when
+          the payer has fewer than 3 hospitals for the context, or
+          ambiguous_negotiated_context when the payer's contracts could not be
+          represented safely.
         tests:
           - not_null
           - accepted_values:
               arguments:
                 values:
                   - insufficient_denominator
+                  - ambiguous_negotiated_context
                   - well_below_payer_market
                   - below_payer_market
                   - near_payer_market
@@ -591,10 +736,13 @@ models:
       - name: cash_comparison_band
         description: >
           How the negotiated rate compares to the hospital's own cash price:
-          below_cash, equal_to_cash, above_cash, or cash_unavailable when the
-          hospital published no cash price for the context. above_cash can
-          reflect differing service bundles or units; it is a signal to
-          investigate, not proof of overpayment.
+          below_cash, equal_to_cash, above_cash, cash_unavailable when the
+          hospital published no cash price for the context,
+          per_diem_incompatible when the rate is a DAILY per-diem payment
+          (never labeled above/below an item/episode cash amount), or
+          ambiguous_negotiated_context when the payer's contracts could not be
+          represented safely. above_cash can reflect differing service bundles
+          or units; it is a signal to investigate, not proof of overpayment.
         tests:
           - not_null
           - accepted_values:
@@ -604,16 +752,21 @@ models:
                   - below_cash
                   - equal_to_cash
                   - above_cash
+                  - per_diem_incompatible
+                  - ambiguous_negotiated_context
 
   - name: gld_bi__comparison_blocker_summary
     description: >
       BI presentation mart for comparison blocker explanations. Grain: one row
       per snapshot_id and blocker_code. Counts use the same blocker vocabulary
       as the Gold comparison framework and are joined to hospital/snapshot
-      display context. Covers the 10 atomic row-grain blockers; the 11th
-      decision-0017 blocker (below_min_hospital_denominator) is cohort-grain
-      and is surfaced as gld_bi__service_market_explorer.comparison_status =
-      'insufficient_denominator' instead.
+      display context. Covers the 10 atomic row-grain blockers; the two
+      cohort/contract-grain blockers are surfaced elsewhere:
+      below_min_hospital_denominator as
+      gld_bi__service_market_explorer.comparison_status =
+      'insufficient_denominator', and multiple_amounts_per_contract_context
+      (decision 0021) as the explorer's ambiguous_contract_count /
+      excluded_hospital_count and the payer explorer's cash_comparison_status.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -654,12 +807,13 @@ models:
       - name: blocker_code
         description: >
           The 10 atomic row-grain blockers from the comparison framework. The
-          11th decision-0017 blocker, below_min_hospital_denominator, is
-          intentionally absent: it is a service-context cohort-grain (window)
-          signal and is surfaced as
+          cohort/contract-grain blockers are intentionally absent:
+          below_min_hospital_denominator is surfaced as
           gld_bi__service_market_explorer.comparison_status =
-          'insufficient_denominator', not here. The accepted_values list below is
-          the contract guard against accidentally adding it at the wrong grain.
+          'insufficient_denominator', and multiple_amounts_per_contract_context
+          (decision 0021) as the explorer's ambiguous-contract / excluded-
+          hospital counts. The accepted_values list below is the contract guard
+          against accidentally adding either at the wrong grain.
         tests:
           - not_null
           - accepted_values:
@@ -701,11 +855,29 @@ models:
   - name: gld_bi__featured_services
     description: >
       Rule-selected BI default list for public reports and dashboards. Grain:
-      one row per selected service/context/amount_kind, capped at 30 rows.
-      Selection favors described services with adequate hospital denominator and
-      higher observed variation. A starter list for landing pages, not a
-      canonical service master.
+      one row per selected exact comparison context (methodology-specific),
+      capped at 30 rows. Selection favors described services with adequate
+      valid-hospital denominator and higher observed variation. Statistics are
+      hospital-weighted (one representative amount per hospital). A starter
+      list for landing pages, not a canonical service master.
     columns:
+      - name: service_context_key
+        description: Stable key for the exact comparison context (matches gld_bi__service_market_explorer).
+        tests: [not_null]
+      - name: service_context_url_slug
+        description: URL-safe identifier for the exact comparison context, used in public exact-context page URLs.
+        tests: [not_null]
+      - name: comparison_methodology
+        description: How the negotiated rate is paid (fee schedule / case rate / per diem - a DAILY amount); 'not applicable' for list and cash prices.
+        tests: [not_null]
+      - name: comparison_methodology_display_label
+        description: Human-readable methodology label spelling out the payment unit.
+      - name: canonical_drug_unit_type
+        description: Drug unit context for drug/NDC contexts; null otherwise.
+      - name: reporting_hospital_count
+        description: Hospitals that published any raw row for the context.
+      - name: excluded_hospital_count
+        description: Reporting hospitals excluded because no contract could be represented safely.
       - name: featured_rank
         description: Selection order (1 = first default shown).
         tests:
@@ -758,15 +930,15 @@ models:
       - name: amount_kind
         description: Which kind of price the row summarizes.
       - name: observation_count
-        description: Price observations in the context.
+        description: Raw price rows behind the context (transparency count; never a statistical weight).
       - name: hospital_count
-        description: Distinct hospitals reporting the context (always >= 3 here).
+        description: Hospitals with a valid representative amount for the context (always >= 3 here).
       - name: payer_count
         description: Distinct matched payers contributing to the context.
       - name: median_amount
-        description: Median (typical) amount across hospitals.
+        description: Hospital-weighted median (typical hospital) amount.
       - name: p10_amount
-        description: 10th-percentile amount.
+        description: Hospital-weighted 10th-percentile amount (one vote per hospital).
       - name: p90_amount
         description: 90th-percentile amount.
       - name: spread_amount_p90_to_p10
@@ -819,11 +991,11 @@ models:
       - name: latest_published_last_updated_on
         description: Latest file-published date among current hospital snapshots.
       - name: service_context_count
-        description: Service contexts (service x setting x billing class x modifiers x amount kind) in the explorer mart.
+        description: Exact comparison contexts (service x setting x billing class x modifiers x amount kind x methodology x drug unit) in the explorer mart.
       - name: comparable_service_context_count
-        description: Service contexts meeting the 3-hospital comparison floor.
+        description: Exact contexts meeting the 3-valid-hospital comparison floor.
       - name: thin_service_context_count
-        description: Service contexts below the 3-hospital floor (visible but not compared).
+        description: Exact contexts below the 3-hospital floor (visible but not compared).
       - name: distinct_service_count
         description: Distinct services (code system + code) observed.
       - name: distinct_comparable_service_count
@@ -933,9 +1105,9 @@ models:
       - name: service_count
         description: Distinct services with negotiated-rate contexts for this payer.
       - name: contract_context_count
-        description: Payer/hospital/service-context rows for this payer.
+        description: Payer/hospital/exact-context rows for this payer (methodology-specific contexts).
       - name: contexts_meeting_payer_floor
-        description: Contexts where the payer has at least 3 hospitals (payer-market statistics published).
+        description: Contexts where the payer has at least 3 hospitals with valid representatives (payer-market statistics published).
       - name: contexts_well_below_payer_market
         description: Contexts priced 25%+ below the payer's market median.
       - name: contexts_below_payer_market
@@ -947,12 +1119,19 @@ models:
       - name: contexts_well_above_payer_market
         description: Contexts priced 25%+ above the payer's market median.
       - name: cash_available_context_count
-        description: Contexts where the hospital also published a cash price.
+        description: >
+          Contexts where a methodology-compatible cash comparison exists
+          (below/equal/above only). Per-diem and ambiguous contexts are counted
+          separately, never as above or below cash.
       - name: below_cash_context_count
-        description: Contexts where the negotiated rate is below the hospital's cash price.
+        description: Compatible contexts where the negotiated rate is below the hospital's cash price.
       - name: equal_to_cash_context_count
-        description: Contexts where the negotiated rate equals the cash price.
+        description: Compatible contexts where the negotiated rate equals the cash price.
       - name: above_cash_context_count
-        description: Contexts where the negotiated rate is above the hospital's cash price.
+        description: Compatible contexts where the negotiated rate is above the hospital's cash price.
+      - name: cash_incompatible_context_count
+        description: Contexts excluded from cash comparison because the rate is a per-diem (daily) payment.
+      - name: ambiguous_context_count
+        description: Contexts excluded because the payer's contracts could not be represented safely (multiple distinct amounts under one contract).
       - name: share_above_cash
-        description: above_cash_context_count / cash_available_context_count (0-1). A signal to investigate, not proof of overpayment.
+        description: above_cash_context_count / cash_available_context_count (0-1), over methodology-compatible contexts only. A signal to investigate, not proof of overpayment.

@@ -1,0 +1,367 @@
+version: 2
+
+# Decision 0021 fixture coverage: the $1,947 regression in miniature. One
+# hospital repeats a per-diem rate 56 times (revenue-code variants), case-rate
+# hospitals publish episode prices around $160k, one contract hides two distinct
+# amounts. Expected: 56 duplicates -> one contract vote; methodologies never
+# share a cohort; the ambiguous contract is visible but excluded; every market
+# statistic is computed over one representative amount per hospital.
+
+unit_tests:
+  - name: contract_representatives_collapse_and_quarantine
+    description: >
+      56 identical per-diem rows under one contract/context collapse to ONE
+      representative (raw_observation_count preserves the repetition); a
+      contract with two distinct amounts is flagged and gets no representative;
+      non-ranking rows (tier_1, gross_charge, derived dollars) never enter.
+    model: gld_int__service_contract_representatives
+    given:
+      - input: ref('gld_int__service_comparison_spine')
+        format: sql
+        rows: |
+          -- TriStar-Ashland-style repetition: one $1,947 per-diem rate published
+          -- across 56 revenue-code variants of one MS-DRG context.
+          select
+              'h-ashland' as hospital_id,
+              'snap-1' as snapshot_id,
+              'ctx-perdiem' as service_context_key,
+              'svc-003' as service_code_key,
+              'inpatient' as clean_setting,
+              'unspecified' as clean_billing_class,
+              'nomod' as modifier_signature,
+              'negotiated_dollar' as amount_kind,
+              'per diem' as comparison_methodology,
+              cast(null as varchar) as canonical_drug_unit_type,
+              'c-united-vaccn' as source_contract_key,
+              'payer_plan' as contract_identity_precision,
+              'united healthcare' as clean_payer_name,
+              'vaccn' as clean_plan_name,
+              'united' as canonical_payer_id,
+              'commercial' as market_segment,
+              'item-' || range as silver_charge_item_id,
+              cast(1947.00 as decimal(18, 4)) as amount_value,
+              'tier_2_context_aligned' as comparison_tier,
+              true as is_price_rankable
+          from range(56)
+          union all
+          -- Ambiguous contract: two distinct amounts under one contract/context.
+          select
+              'h-two', 'snap-1', 'ctx-fee', 'svc-fee', 'outpatient', 'unspecified',
+              'nomod', 'negotiated_dollar', 'fee schedule', null, 'c-ambiguous',
+              'payer_plan', 'acme health', 'ppo', 'acme', 'commercial',
+              'item-a', cast(100.00 as decimal(18, 4)),
+              'tier_2_context_aligned', true
+          union all
+          select
+              'h-two', 'snap-1', 'ctx-fee', 'svc-fee', 'outpatient', 'unspecified',
+              'nomod', 'negotiated_dollar', 'fee schedule', null, 'c-ambiguous',
+              'payer_plan', 'acme health', 'ppo', 'acme', 'commercial',
+              'item-a', cast(200.00 as decimal(18, 4)),
+              'tier_2_context_aligned', true
+          union all
+          -- Clean single-amount case rate.
+          select
+              'h-three', 'snap-1', 'ctx-case', 'svc-003', 'inpatient', 'unspecified',
+              'nomod', 'negotiated_dollar', 'case rate', null, 'c-case',
+              'payer_plan', 'acme health', 'hmo', 'acme', 'commercial',
+              'item-b', cast(160000.00 as decimal(18, 4)),
+              'tier_2_context_aligned', true
+          union all
+          -- Excluded: tier_1 row (no context alignment).
+          select
+              'h-three', 'snap-1', 'ctx-case', 'svc-003', 'inpatient', 'unspecified',
+              'nomod', 'negotiated_dollar', 'case rate', null, 'c-case',
+              'payer_plan', 'acme health', 'hmo', 'acme', 'commercial',
+              'item-c', cast(999999.00 as decimal(18, 4)),
+              'tier_1_code_backed', true
+          union all
+          -- Excluded: gross charge (no contract concept in this model).
+          select
+              'h-three', 'snap-1', 'ctx-gross', 'svc-003', 'inpatient', 'unspecified',
+              'nomod', 'gross_charge', 'not applicable', null, null,
+              null, null, null, null, null,
+              'item-b', cast(500000.00 as decimal(18, 4)),
+              'tier_2_context_aligned', true
+    expect:
+      rows:
+        - hospital_id: h-ashland
+          service_context_key: ctx-perdiem
+          source_contract_key: c-united-vaccn
+          comparison_methodology: "per diem"
+          raw_observation_count: 56
+          distinct_amount_count: 1
+          distinct_charge_item_count: 56
+          contract_representative_amount: 1947.0
+          has_multiple_contract_amounts: false
+        - hospital_id: h-two
+          service_context_key: ctx-fee
+          source_contract_key: c-ambiguous
+          comparison_methodology: "fee schedule"
+          raw_observation_count: 2
+          distinct_amount_count: 2
+          distinct_charge_item_count: 1
+          contract_representative_amount: null
+          has_multiple_contract_amounts: true
+        - hospital_id: h-three
+          service_context_key: ctx-case
+          source_contract_key: c-case
+          comparison_methodology: "case rate"
+          raw_observation_count: 1
+          distinct_amount_count: 1
+          distinct_charge_item_count: 1
+          contract_representative_amount: 160000.0
+          has_multiple_contract_amounts: false
+
+  - name: hospital_amounts_one_vote_per_hospital
+    description: >
+      Each hospital gets one representative per exact context: negotiated
+      amounts are medians of VALID contract representatives (a hospital whose
+      contracts are all ambiguous keeps its row with a null amount); gross/cash
+      amounts are medians of ranking rows; non-tier_2 rows never enter.
+    model: gld_int__hospital_service_amounts
+    given:
+      - input: ref('gld_int__service_contract_representatives')
+        format: sql
+        rows: |
+          select
+              'h1' as hospital_id, 'snap-1' as snapshot_id,
+              'ctx-n' as service_context_key, 'svc-1' as service_code_key,
+              'inpatient' as clean_setting, 'unspecified' as clean_billing_class,
+              'nomod' as modifier_signature, 'negotiated_dollar' as amount_kind,
+              'case rate' as comparison_methodology,
+              cast(null as varchar) as canonical_drug_unit_type,
+              'c-1' as source_contract_key, 'payer_plan' as contract_identity_precision,
+              'p1' as clean_payer_name, 'plan1' as clean_plan_name,
+              'payer-1' as canonical_payer_id, 'commercial' as market_segment,
+              10 as raw_observation_count, 1 as distinct_amount_count,
+              1 as distinct_charge_item_count,
+              cast(100.00 as decimal(18, 4)) as contract_amount_min,
+              cast(100.00 as decimal(18, 4)) as contract_amount_max,
+              cast(100.00 as decimal(18, 4)) as contract_representative_amount,
+              false as has_multiple_contract_amounts
+          union all
+          select
+              'h1', 'snap-1', 'ctx-n', 'svc-1', 'inpatient', 'unspecified',
+              'nomod', 'negotiated_dollar', 'case rate', null,
+              'c-2', 'payer_plan', 'p2', 'plan2', 'payer-2', 'commercial',
+              5, 1, 1, cast(300.00 as decimal(18, 4)), cast(300.00 as decimal(18, 4)),
+              cast(300.00 as decimal(18, 4)), false
+          union all
+          select
+              'h2', 'snap-1', 'ctx-n', 'svc-1', 'inpatient', 'unspecified',
+              'nomod', 'negotiated_dollar', 'case rate', null,
+              'c-3', 'payer_plan', 'p1', 'plan1', 'payer-1', 'commercial',
+              2, 1, 1, cast(400.00 as decimal(18, 4)), cast(400.00 as decimal(18, 4)),
+              cast(400.00 as decimal(18, 4)), false
+          union all
+          select
+              'h2', 'snap-1', 'ctx-n', 'svc-1', 'inpatient', 'unspecified',
+              'nomod', 'negotiated_dollar', 'case rate', null,
+              'c-4', 'payer_plan', 'p2', 'plan2', 'payer-2', 'commercial',
+              4, 2, 2, cast(50.00 as decimal(18, 4)), cast(900.00 as decimal(18, 4)),
+              cast(null as decimal(18, 4)), true
+          union all
+          -- h3: every contract ambiguous -> reporting hospital, no representative
+          select
+              'h3', 'snap-1', 'ctx-n', 'svc-1', 'inpatient', 'unspecified',
+              'nomod', 'negotiated_dollar', 'case rate', null,
+              'c-5', 'payer_plan', 'p1', 'plan1', 'payer-1', 'commercial',
+              6, 3, 3, cast(10.00 as decimal(18, 4)), cast(90.00 as decimal(18, 4)),
+              cast(null as decimal(18, 4)), true
+      - input: ref('gld_int__service_comparison_spine')
+        format: sql
+        rows: |
+          select
+              'h1' as hospital_id, 'ctx-g' as service_context_key,
+              'svc-1' as service_code_key, 'inpatient' as clean_setting,
+              'unspecified' as clean_billing_class, 'nomod' as modifier_signature,
+              'gross_charge' as amount_kind, 'not applicable' as comparison_methodology,
+              cast(null as varchar) as canonical_drug_unit_type,
+              cast(10.00 as decimal(18, 4)) as amount_value,
+              'tier_2_context_aligned' as comparison_tier, true as is_price_rankable
+          union all
+          select
+              'h1', 'ctx-g', 'svc-1', 'inpatient', 'unspecified', 'nomod',
+              'gross_charge', 'not applicable', null,
+              cast(30.00 as decimal(18, 4)), 'tier_2_context_aligned', true
+          union all
+          -- Excluded: not context-aligned.
+          select
+              'h1', 'ctx-g', 'svc-1', 'inpatient', 'unspecified', 'nomod',
+              'gross_charge', 'not applicable', null,
+              cast(999.00 as decimal(18, 4)), 'tier_1_code_backed', true
+    expect:
+      rows:
+        - hospital_id: h1
+          service_context_key: ctx-n
+          hospital_amount: 200.0
+          raw_observation_count: 15
+          source_contract_count: 2
+          valid_contract_count: 2
+          ambiguous_contract_count: 0
+          matched_payer_count: 2
+          hospital_amount_input_count: 2
+        - hospital_id: h2
+          service_context_key: ctx-n
+          hospital_amount: 400.0
+          raw_observation_count: 6
+          source_contract_count: 2
+          valid_contract_count: 1
+          ambiguous_contract_count: 1
+          matched_payer_count: 2
+          hospital_amount_input_count: 1
+        - hospital_id: h3
+          service_context_key: ctx-n
+          hospital_amount: null
+          raw_observation_count: 6
+          source_contract_count: 1
+          valid_contract_count: 0
+          ambiguous_contract_count: 1
+          matched_payer_count: 1
+          hospital_amount_input_count: 0
+        - hospital_id: h1
+          service_context_key: ctx-g
+          hospital_amount: 20.0
+          raw_observation_count: 2
+          source_contract_count: null
+          valid_contract_count: null
+          ambiguous_contract_count: null
+          matched_payer_count: 0
+          hospital_amount_input_count: 2
+
+  - name: summary_hospital_weighted_and_methodology_separated
+    description: >
+      Market percentiles are computed over one representative per hospital,
+      within one methodology: the per-diem cohort's numbers never touch the
+      case-rate cohort's; a context with only two valid representatives (a third
+      hospital reporting but excluded as ambiguous) stays below the floor with
+      null statistics and an honest excluded_hospital_count.
+    model: gld_mart__service_price_summary
+    given:
+      - input: ref('gld_int__hospital_service_amounts')
+        format: sql
+        rows: |
+          -- ctx-perdiem (per diem): 1000 / 2000 / 3000, one vote each; the 56x
+          -- repetition lives only in raw_observation_count.
+          select
+              'h1' as hospital_id, 'ctx-perdiem' as service_context_key,
+              'svc-003' as service_code_key, 'inpatient' as clean_setting,
+              'unspecified' as clean_billing_class, 'nomod' as modifier_signature,
+              'negotiated_dollar' as amount_kind, 'per diem' as comparison_methodology,
+              cast(null as varchar) as canonical_drug_unit_type,
+              56 as raw_observation_count, cast(1 as bigint) as source_contract_count,
+              cast(1 as bigint) as valid_contract_count,
+              cast(0 as bigint) as ambiguous_contract_count,
+              cast(1 as bigint) as matched_payer_count,
+              cast(1000.00 as decimal(18, 4)) as hospital_amount,
+              1 as hospital_amount_input_count
+          union all
+          select
+              'h2', 'ctx-perdiem', 'svc-003', 'inpatient', 'unspecified', 'nomod',
+              'negotiated_dollar', 'per diem', null,
+              1, 1, 1, 0, 1, cast(2000.00 as decimal(18, 4)), 1
+          union all
+          select
+              'h3', 'ctx-perdiem', 'svc-003', 'inpatient', 'unspecified', 'nomod',
+              'negotiated_dollar', 'per diem', null,
+              1, 1, 1, 0, 1, cast(3000.00 as decimal(18, 4)), 1
+          union all
+          -- ctx-case (case rate): six-figure episode prices, unaffected by the
+          -- per-diem cohort.
+          select
+              'h1', 'ctx-case', 'svc-003', 'inpatient', 'unspecified', 'nomod',
+              'negotiated_dollar', 'case rate', null,
+              1, 1, 1, 0, 1, cast(160000.00 as decimal(18, 4)), 1
+          union all
+          select
+              'h2', 'ctx-case', 'svc-003', 'inpatient', 'unspecified', 'nomod',
+              'negotiated_dollar', 'case rate', null,
+              1, 1, 1, 0, 1, cast(170000.00 as decimal(18, 4)), 1
+          union all
+          select
+              'h3', 'ctx-case', 'svc-003', 'inpatient', 'unspecified', 'nomod',
+              'negotiated_dollar', 'case rate', null,
+              1, 1, 1, 0, 1, cast(185000.00 as decimal(18, 4)), 1
+          union all
+          -- ctx-partial (fee schedule): three reporting hospitals, one excluded
+          -- as ambiguous -> only two valid representatives, below the floor.
+          select
+              'h1', 'ctx-partial', 'svc-fee', 'outpatient', 'unspecified', 'nomod',
+              'negotiated_dollar', 'fee schedule', null,
+              3, 1, 1, 0, 1, cast(500.00 as decimal(18, 4)), 1
+          union all
+          select
+              'h2', 'ctx-partial', 'svc-fee', 'outpatient', 'unspecified', 'nomod',
+              'negotiated_dollar', 'fee schedule', null,
+              2, 1, 1, 0, 1, cast(700.00 as decimal(18, 4)), 1
+          union all
+          select
+              'h3', 'ctx-partial', 'svc-fee', 'outpatient', 'unspecified', 'nomod',
+              'negotiated_dollar', 'fee schedule', null,
+              4, 1, 0, 1, 1, cast(null as decimal(18, 4)), 0
+      - input: ref('gld_int__service_contract_representatives')
+        format: sql
+        rows: |
+          select
+              'h1' as hospital_id, 'snap-1' as snapshot_id,
+              'ctx-perdiem' as service_context_key, 'united' as canonical_payer_id
+          union all
+          select 'h2', 'snap-1', 'ctx-perdiem', 'united'
+          union all
+          select 'h3', 'snap-1', 'ctx-perdiem', 'united'
+          union all
+          select 'h1', 'snap-1', 'ctx-case', 'payer-a'
+          union all
+          select 'h2', 'snap-1', 'ctx-case', 'payer-b'
+          union all
+          select 'h3', 'snap-1', 'ctx-case', 'payer-c'
+          union all
+          select 'h1', 'snap-1', 'ctx-partial', 'payer-a'
+          union all
+          select 'h2', 'snap-1', 'ctx-partial', 'payer-a'
+          union all
+          select 'h3', 'snap-1', 'ctx-partial', 'payer-b'
+    expect:
+      rows:
+        - service_context_key: ctx-perdiem
+          comparison_methodology: "per diem"
+          observation_count: 58
+          contract_count: 3
+          reporting_hospital_count: 3
+          hospital_count: 3
+          excluded_hospital_count: 0
+          ambiguous_contract_count: 0
+          payer_count: 1
+          meets_hospital_threshold: true
+          p10_amount: 1200.0
+          median_amount: 2000.0
+          p90_amount: 2800.0
+          outlier_hospital_count: 0
+        - service_context_key: ctx-case
+          comparison_methodology: "case rate"
+          observation_count: 3
+          contract_count: 3
+          reporting_hospital_count: 3
+          hospital_count: 3
+          excluded_hospital_count: 0
+          ambiguous_contract_count: 0
+          payer_count: 3
+          meets_hospital_threshold: true
+          p10_amount: 162000.0
+          median_amount: 170000.0
+          p90_amount: 182000.0
+          outlier_hospital_count: 0
+        - service_context_key: ctx-partial
+          comparison_methodology: "fee schedule"
+          observation_count: 9
+          contract_count: 3
+          reporting_hospital_count: 3
+          hospital_count: 2
+          excluded_hospital_count: 1
+          ambiguous_contract_count: 1
+          payer_count: 2
+          meets_hospital_threshold: false
+          p10_amount: null
+          median_amount: null
+          p90_amount: null
+          outlier_hospital_count: null

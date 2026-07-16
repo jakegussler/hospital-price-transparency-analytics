@@ -30,7 +30,7 @@ where meets_hospital_threshold = false
         or spread_amount_p90_to_p10 is not null
         or spread_ratio_p90_to_p10 is not null
         or iqr_amount is not null
-        or outlier_observation_count is not null
+        or outlier_hospital_count is not null
     )
 
 union all
@@ -91,4 +91,8 @@ where hospital_count < 0
     or cash_available_context_count > contract_context_count
     or below_cash_context_count + equal_to_cash_context_count
         + above_cash_context_count <> cash_available_context_count
+    or cash_incompatible_context_count < 0
+    or ambiguous_context_count < 0
+    or cash_available_context_count + cash_incompatible_context_count
+        + ambiguous_context_count > contract_context_count
     or share_above_cash not between 0 and 1

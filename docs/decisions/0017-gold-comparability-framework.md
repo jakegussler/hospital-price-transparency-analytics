@@ -1,6 +1,7 @@
 # 0017: Define The v1 Gold Comparability Framework
 
-Status: accepted
+Status: accepted (comparison key and market-statistic weighting amended by
+decision 0021)
 
 ## Context
 
@@ -35,7 +36,8 @@ create a cross-hospital service master.
 
 ### Comparison Key
 
-Cross-hospital comparison uses:
+Cross-hospital comparison uses (amended by decision 0021, which added
+`amount_kind` and `comparison_methodology`):
 
 ```text
 canonical_code_system
@@ -43,6 +45,9 @@ canonical_code_system
 + clean_setting
 + clean_billing_class
 + modifier_signature
++ amount_kind
++ comparison_methodology (negotiated-rate methodology; 'not applicable'
+  for non-negotiated amount kinds)
 + drug unit context when the item is drug/NDC-relevant
 ```
 
@@ -108,6 +113,11 @@ hospitals in the exact comparison context. If denominators are thinner than
 that threshold, Gold should publish the observation spine and coverage
 scorecards first, then delay percentile-heavy marts.
 
+Decision 0021 tightened both sides of this rule: market percentiles are
+computed over one representative amount per hospital (never over raw
+observations), and the three-hospital floor counts hospitals with a valid
+representative amount, not merely hospitals with raw rows.
+
 ### Blocker Reasons
 
 Every exclusion from a stricter Gold use case must be explainable as a blocker
@@ -126,6 +136,7 @@ minimum:
 - `payer_unmatched`
 - `market_segment_unknown`
 - `below_min_hospital_denominator`
+- `multiple_amounts_per_contract_context` (added by decision 0021)
 
 The blocker list may grow as Gold models are implemented, but new blocker codes
 must remain stable, documented values rather than ad hoc text.

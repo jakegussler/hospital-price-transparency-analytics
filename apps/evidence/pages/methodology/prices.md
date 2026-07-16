@@ -29,9 +29,39 @@ compare the two directly ([see below](#negotiated-vs-cash)).
 The dollar amount a specific insurer agreed to pay the hospital for the
 service. Each insurer-hospital pair can have its own rate, and one hospital
 can publish many rates for one service. On hospital and service pages, a
-hospital's "price" for a context summarizes its negotiated rates as the median
-across its insurer contracts (each insurer's rate is also individually visible
-in the insurer views).
+hospital's "price" for a context is ONE representative amount: each insurer
+contract's rate counts once (a rate repeated across many rows — for example
+against dozens of revenue-code variants — is deduplicated first), and the
+hospital's representative is the median across its contracts. Each insurer's
+rate is also individually visible in the insurer views.
+
+## Payment methodology: what unit the rate buys
+
+A negotiated dollar is only meaningful together with **how** it is paid. CMS
+files label each rate with a methodology, and we never mix methodologies in
+one comparison:
+
+- **Fee schedule (per item/service)** — the amount applies to one item or
+  service. The most directly comparable kind of rate.
+- **Case rate (per episode)** — one flat amount covers an entire episode or
+  bundle of care, however long it takes.
+- **Per diem (per day)** — the amount is **per day** of inpatient care. A
+  $1,947 per-diem is a daily payment, NOT the price of a full stay — comparing
+  it against a $160,000 case rate would be meaningless, so we never do.
+
+Every negotiated-rate comparison on this site is methodology-specific: a
+per-diem cohort contains only per-diem rates, a case-rate cohort only case
+rates. Per-diem rates are also never labeled above or below a cash price,
+because the cash price describes an item or episode, not a day.
+
+## Market statistics are hospital-weighted
+
+Every market median and percentile is computed over one representative price
+per hospital — one hospital, one vote. Raw row counts are shown for
+transparency, but a hospital repeating one rate hundreds of times gains no
+statistical weight. Insurer contracts whose rows carry several different
+amounts for the exact same context are excluded from statistics and labeled
+in [data quality](/data-quality), never silently averaged.
 
 ## Published values that are never ranked as prices
 

@@ -32,3 +32,4 @@ live in the architecture and development documentation.
 - [0018 — Keep The Gold Fact Atomic And Expand Codes Through A Bridge](0018-gold-fact-is-atomic-code-expansion-is-a-bridge.md)
 - [0019 — Scope The Active Corpus And Enrich Code Descriptions](0019-scope-active-corpus-and-enrich-code-descriptions.md)
 - [0020 — Use Evidence For Public BI](0020-use-evidence-for-public-bi.md)
+- [0021 — Separate Methodology And Weight Hospitals Equally In Market Statistics](0021-methodology-separated-hospital-weighted-market-statistics.md)

@@ -3,77 +3,72 @@
 -- User question: "For a given service + context, how does THIS hospital's price
 -- compare to the market and to its peer groups?"
 --
--- Grain: one row per (hospital_id, service_code_key, clean_setting,
--- clean_billing_class, modifier_signature, amount_kind). Built from the
--- price-ranking subset of gld_mart__service_price_comparison_current
--- (is_price_ranking_row = true), so it reconciles to that mart and inherits its
--- current-only, tier_2 + dollar-rankable inclusion.
+-- Grain: one row per (hospital_id, service_context_key) = hospital × exact
+-- comparison context (service_code_key, clean_setting, clean_billing_class,
+-- modifier_signature, amount_kind, comparison_methodology,
+-- canonical_drug_unit_type).
 --
--- The hospital's representative amount per context is the MEDIAN of its rankable
--- observations there (a hospital can report many — e.g. several payer rates for one
--- negotiated_dollar context). Market comparison is published for four peer groups —
--- all, same state, same hospital_type, same health_system — each gated by its own
--- 3-hospital denominator (decision 0017): below the floor, that peer group's stats
--- are null but the row and its hospital_amount still appear.
+-- Decision 0021: the hospital's representative amount comes from the shared
+-- gld_int__hospital_service_amounts layer (one vote per hospital; negotiated
+-- dollars are medians of valid contract representatives, so repeated contract
+-- rows cannot add weight), and every peer partition includes the methodology-
+-- separated exact context. The service summary reads the same representative
+-- layer, so its percentiles and these benchmarks reconcile by construction.
+-- Hospitals whose context could not be represented safely (all contracts
+-- ambiguous) carry no representative and are excluded here; they remain visible
+-- in the comparison mart and the summary's excluded_hospital_count.
 --
--- Cross-snapshot aggregate → full-refresh table (marts config) reading the
--- comparison mart through plain ref().
+-- Market comparison is published for four peer groups — all, same state, same
+-- hospital_type, same health_system — each gated by its own 3-hospital
+-- denominator (decision 0017): below the floor, that peer group's stats are
+-- null but the row and its hospital_amount still appear.
+--
+-- Cross-snapshot aggregate → full-refresh table (marts config).
 
-with base as (
+with hosp_amounts as (
     select
-        hospital_id,
-        canonical_state,
-        hospital_type,
-        health_system,
-        service_code_key,
-        clean_setting,
-        clean_billing_class,
-        modifier_signature,
-        amount_kind,
-        amount_value
-    from {{ ref('gld_mart__service_price_comparison_current') }}
-    where is_price_ranking_row = true
+        h.hospital_id,
+        dh.canonical_state,
+        dh.hospital_type,
+        dh.health_system,
+        h.service_context_key,
+        h.service_code_key,
+        h.clean_setting,
+        h.clean_billing_class,
+        h.modifier_signature,
+        h.amount_kind,
+        h.comparison_methodology,
+        h.canonical_drug_unit_type,
+        h.hospital_amount,
+        h.raw_observation_count,
+        h.source_contract_count,
+        h.valid_contract_count,
+        h.ambiguous_contract_count
+    from {{ ref('gld_int__hospital_service_amounts') }} as h
+    left join {{ ref('gld_dim__hospital') }} as dh
+        on h.hospital_id = dh.hospital_id
+    where h.hospital_amount is not null
 ),
 
--- One row per hospital per service context: the hospital's representative amount.
-hosp_amounts as (
-    select
-        hospital_id,
-        canonical_state,
-        hospital_type,
-        health_system,
-        service_code_key,
-        clean_setting,
-        clean_billing_class,
-        modifier_signature,
-        amount_kind,
-        median(amount_value) as hospital_amount
-    from base
-    group by 1, 2, 3, 4, 5, 6, 7, 8, 9
-),
-
--- Per-hospital percentile rank within each peer group.
+-- Per-hospital percentile rank within each peer group (one row per hospital in
+-- hosp_amounts, so percent_rank is hospital-weighted by construction).
 ranked as (
     select
         *,
         percent_rank() over (
-            partition by service_code_key, clean_setting, clean_billing_class,
-                modifier_signature, amount_kind
+            partition by service_context_key
             order by hospital_amount
         ) as amount_pct_rank_all,
         percent_rank() over (
-            partition by service_code_key, clean_setting, clean_billing_class,
-                modifier_signature, amount_kind, canonical_state
+            partition by service_context_key, canonical_state
             order by hospital_amount
         ) as amount_pct_rank_state,
         percent_rank() over (
-            partition by service_code_key, clean_setting, clean_billing_class,
-                modifier_signature, amount_kind, hospital_type
+            partition by service_context_key, hospital_type
             order by hospital_amount
         ) as amount_pct_rank_type,
         percent_rank() over (
-            partition by service_code_key, clean_setting, clean_billing_class,
-                modifier_signature, amount_kind, health_system
+            partition by service_context_key, health_system
             order by hospital_amount
         ) as amount_pct_rank_system
     from hosp_amounts
@@ -83,58 +78,63 @@ ranked as (
 -- count(*) is the distinct hospital count).
 all_stats as (
     select
-        service_code_key, clean_setting, clean_billing_class,
-        modifier_signature, amount_kind,
+        service_context_key,
         count(*) as peer_hospital_count_all,
         median(hospital_amount) as market_median_all,
         quantile_cont(hospital_amount, 0.1) as market_p10_all,
         quantile_cont(hospital_amount, 0.9) as market_p90_all
     from hosp_amounts
-    group by 1, 2, 3, 4, 5
+    group by 1
 ),
 
 state_stats as (
     select
-        service_code_key, clean_setting, clean_billing_class,
-        modifier_signature, amount_kind, canonical_state,
+        service_context_key, canonical_state,
         count(*) as peer_hospital_count_state,
         median(hospital_amount) as market_median_state
     from hosp_amounts
-    group by 1, 2, 3, 4, 5, 6
+    group by 1, 2
 ),
 
 type_stats as (
     select
-        service_code_key, clean_setting, clean_billing_class,
-        modifier_signature, amount_kind, hospital_type,
+        service_context_key, hospital_type,
         count(*) as peer_hospital_count_type,
         median(hospital_amount) as market_median_type
     from hosp_amounts
-    group by 1, 2, 3, 4, 5, 6
+    group by 1, 2
 ),
 
 system_stats as (
     select
-        service_code_key, clean_setting, clean_billing_class,
-        modifier_signature, amount_kind, health_system,
+        service_context_key, health_system,
         count(*) as peer_hospital_count_system,
         median(hospital_amount) as market_median_system
     from hosp_amounts
-    group by 1, 2, 3, 4, 5, 6
+    group by 1, 2
 )
 
 select
     r.hospital_id,
+    r.service_context_key,
     r.service_code_key,
     r.clean_setting,
     r.clean_billing_class,
     r.modifier_signature,
     r.amount_kind,
+    r.comparison_methodology,
+    r.canonical_drug_unit_type,
     r.canonical_state,
     r.hospital_type,
     r.health_system,
     'tier_2_context_aligned' as comparison_tier,
     r.hospital_amount,
+
+    -- contract-level diagnostics (null for gross/cash; no contract concept)
+    r.raw_observation_count,
+    r.source_contract_count,
+    r.valid_contract_count,
+    r.ambiguous_contract_count,
 
     -- all-market peer group
     a.peer_hospital_count_all,
@@ -189,29 +189,13 @@ select
     end as delta_from_market_median_system
 from ranked as r
 left join all_stats as a
-    on r.service_code_key = a.service_code_key
-    and r.clean_setting = a.clean_setting
-    and r.clean_billing_class = a.clean_billing_class
-    and r.modifier_signature = a.modifier_signature
-    and r.amount_kind = a.amount_kind
+    on r.service_context_key = a.service_context_key
 left join state_stats as st
-    on r.service_code_key = st.service_code_key
-    and r.clean_setting = st.clean_setting
-    and r.clean_billing_class = st.clean_billing_class
-    and r.modifier_signature = st.modifier_signature
-    and r.amount_kind = st.amount_kind
+    on r.service_context_key = st.service_context_key
     and r.canonical_state is not distinct from st.canonical_state
 left join type_stats as ty
-    on r.service_code_key = ty.service_code_key
-    and r.clean_setting = ty.clean_setting
-    and r.clean_billing_class = ty.clean_billing_class
-    and r.modifier_signature = ty.modifier_signature
-    and r.amount_kind = ty.amount_kind
+    on r.service_context_key = ty.service_context_key
     and r.hospital_type is not distinct from ty.hospital_type
 left join system_stats as sy
-    on r.service_code_key = sy.service_code_key
-    and r.clean_setting = sy.clean_setting
-    and r.clean_billing_class = sy.clean_billing_class
-    and r.modifier_signature = sy.modifier_signature
-    and r.amount_kind = sy.amount_kind
+    on r.service_context_key = sy.service_context_key
     and r.health_system is not distinct from sy.health_system

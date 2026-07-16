@@ -38,6 +38,164 @@ models:
           the mart.
         tests:
           - not_null
+      - name: comparison_methodology
+        description: >
+          Decision 0021 methodology-separated comparison dimension: the canonical
+          negotiated-rate methodology for negotiated_dollar rows, 'not applicable'
+          for every other amount kind. Market cohorts never mix values.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - "fee schedule"
+                  - "case rate"
+                  - "per diem"
+                  - "percent of total billed charges"
+                  - "other"
+                  - "unmapped"
+                  - "not applicable"
+      - name: service_context_key
+        description: >
+          Exact-comparison-context key (decision 0021): md5 over (service_code_key,
+          clean_setting, clean_billing_class, modifier_signature, amount_kind,
+          comparison_methodology, drug unit context). The grain of every market
+          cohort downstream.
+        tests:
+          - not_null
+      - name: source_contract_key
+        description: >
+          Source-contract identity carried from the fact (decision 0021); null for
+          standard_charge scope.
+
+  - name: gld_int__service_contract_representatives
+    description: >
+      Contract-level representative amounts (decision 0021, level 1 of the market
+      statistic hierarchy). Grain: one row per (hospital_id, snapshot_id,
+      service_context_key, source_contract_key) over the negotiated-dollar
+      price-ranking subset of the spine (tier_2 + is_price_rankable, current
+      snapshots only). Exact repetitions of one amount inside a contract/context
+      collapse to one representative; a contract/context with multiple distinct
+      amounts is flagged has_multiple_contract_amounts and receives NO
+      representative (visible, excluded from ranking, never silently averaged).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - hospital_id
+              - snapshot_id
+              - service_context_key
+              - source_contract_key
+    columns:
+      - name: hospital_id
+        description: "Owning hospital. Grain component."
+        tests: [not_null]
+      - name: snapshot_id
+        description: "Owning snapshot. Grain component."
+        tests: [not_null]
+      - name: service_context_key
+        description: "Exact comparison context. Grain component."
+        tests: [not_null]
+      - name: source_contract_key
+        description: >
+          One negotiated source contract (snapshot + hospital + cleaned payer/plan
+          labels + methodology). Grain component.
+        tests: [not_null]
+      - name: comparison_methodology
+        description: "Canonical negotiated methodology of the contract's rows."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["fee schedule", "case rate", "per diem"]
+      - name: raw_observation_count
+        description: "Ranking rows collapsed into this contract/context."
+        tests: [not_null]
+      - name: distinct_amount_count
+        description: "Distinct dollar amounts inside the contract/context."
+        tests: [not_null]
+      - name: distinct_charge_item_count
+        description: "Distinct charge items behind the contract/context."
+        tests: [not_null]
+      - name: contract_amount_min
+        description: "Smallest amount in the contract/context."
+      - name: contract_amount_max
+        description: "Largest amount in the contract/context."
+      - name: contract_representative_amount
+        description: >
+          The contract's single vote: its amount when distinct_amount_count = 1,
+          null when the contract/context is ambiguous.
+      - name: has_multiple_contract_amounts
+        description: >
+          Contract-grain ambiguity blocker (multiple_amounts_per_contract_context):
+          multiple distinct amounts under one contract identity — a hidden context
+          (often revenue-code or network) the comparison key does not model.
+        tests: [not_null]
+      - name: contract_identity_precision
+        description: "payer_plan | payer_only | row (see the fact column)."
+
+  - name: gld_int__hospital_service_amounts
+    description: >
+      Hospital-level representative amounts (decision 0021, level 2). Grain: one
+      row per (hospital_id, service_context_key) — each hospital gets exactly one
+      vote per exact comparison context. Negotiated dollars: median of the
+      hospital's valid contract representatives (null when every contract is
+      ambiguous; the hospital stays visible as reporting-but-excluded). Gross /
+      cash: median of the hospital's ranking rows. Every market percentile,
+      median, rank, and delta downstream is computed over hospital_amount from
+      this model.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - hospital_id
+              - service_context_key
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - hospital_id
+              - service_code_key
+              - clean_setting
+              - clean_billing_class
+              - modifier_signature
+              - amount_kind
+              - comparison_methodology
+              - canonical_drug_unit_type
+    columns:
+      - name: hospital_id
+        description: "Hospital. Grain component."
+        tests: [not_null]
+      - name: service_context_key
+        description: "Exact comparison context. Grain component."
+        tests: [not_null]
+      - name: amount_kind
+        description: "Rankable amount kind."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["gross_charge", "discounted_cash", "negotiated_dollar"]
+      - name: comparison_methodology
+        description: "Methodology cohort; 'not applicable' for gross/cash."
+        tests: [not_null]
+      - name: raw_observation_count
+        description: "Ranking rows behind the hospital's context."
+        tests: [not_null]
+      - name: source_contract_count
+        description: "Contracts behind the context (negotiated only; null for gross/cash)."
+      - name: valid_contract_count
+        description: "Contracts with a representative amount (negotiated only)."
+      - name: ambiguous_contract_count
+        description: "Contracts excluded as multi-amount ambiguous (negotiated only)."
+      - name: matched_payer_count
+        description: "Distinct matched payers behind the context's contracts."
+      - name: hospital_amount
+        description: >
+          The hospital's one vote for the context; null when the hospital reports
+          rows but no contract could be represented safely.
+      - name: hospital_amount_input_count
+        description: "Values the hospital median was computed over."
+        tests: [not_null]
 
   - name: gld_mart__service_price_comparison_current
     description: >
@@ -49,14 +207,21 @@ models:
       their comparison_tier and blocker_reasons set, never dropped. Amount
       semantics are consumed from the fact (is_price_rankable); the price-ranking
       subset is comparison_tier = tier_2_context_aligned AND is_price_rankable =
-      true. Two peer cuts are published: the market-wide cut and the
-      payer-specific cut (additionally partitioned by canonical_payer_id, matched
-      payers only). Both are published only when their peer hospital count >= 3
-      (decision 0017 denominator floor); below that the row still appears with
-      below_min_hospital_denominator set and null stats. Guarded gross/cash and
-      cash/negotiated ratios are carried per charge-item context. Known
-      missingness/bias: cross-hospital stats require a multi-hospital corpus (a
-      single pinned snapshot yields one hospital and therefore null peer stats).
+      true. Decision 0021: market peer statistics are HOSPITAL-WEIGHTED and
+      METHODOLOGY-SEPARATED — the exact comparison context is service_context_key
+      (code cohort + setting + billing class + modifier signature + amount kind +
+      comparison_methodology + drug unit context), and the market median/P10/P90,
+      percentile rank, and deltas come from one representative amount per hospital
+      (gld_int__hospital_service_amounts), so every ranked row of one
+      hospital/context shares the hospital's rank and repeated contract rows add
+      no weight. The payer-specific cut is built the same way from contract
+      representatives. Both cuts are published only when the valid-representative
+      hospital count >= 3 (0017 floor as amended by 0021); below that the row
+      still appears with below_min_hospital_denominator set and null stats.
+      Guarded gross/cash and cash/negotiated ratios are carried per charge-item
+      context. Known missingness/bias: cross-hospital stats require a
+      multi-hospital corpus (a single pinned snapshot yields one hospital and
+      therefore null peer stats).
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -157,34 +322,84 @@ models:
         description: "Blocker: market_segment is unknown (gates segment cuts)."
         tests: [not_null]
       - name: below_min_hospital_denominator
-        description: "Blocker: price-ranking row whose comparison context has < 3 distinct hospitals."
+        description: >
+          Blocker: price-ranking row whose comparison context has < 3 hospitals
+          with a valid representative amount (decision 0021 denominator).
+        tests: [not_null]
+      - name: multiple_amounts_per_contract_context
+        description: >
+          Contract-grain blocker (decision 0021): this row's source contract has
+          multiple distinct amounts inside the exact context (hidden revenue-code /
+          network distinction). The row stays visible but its contract has no
+          representative and cannot influence any published statistic.
         tests: [not_null]
       - name: blocker_reasons
         description: "Array of the blocker codes that fired on the row (convenience over the boolean flags)."
+      - name: comparison_methodology
+        description: >
+          Methodology cohort (decision 0021): canonical negotiated-rate methodology
+          for negotiated_dollar rows, 'not applicable' otherwise. Market cohorts
+          never mix values.
+        tests: [not_null]
+      - name: service_context_key
+        description: >
+          Exact-comparison-context key (decision 0021): the grain of every market
+          cohort and the durable cross-page link identity.
+        tests: [not_null]
+      - name: clean_payer_name
+        description: "Cleaned source payer label (contract identity input); null for standard_charge scope."
+      - name: clean_plan_name
+        description: "Cleaned source plan label (contract identity input); null for standard_charge scope."
+      - name: source_contract_key
+        description: "Source-contract identity (decision 0021); null for standard_charge scope."
+      - name: contract_identity_precision
+        description: "payer_plan | payer_only | row; null for standard_charge scope."
+      - name: contract_representative_amount
+        description: >
+          The row's contract single vote (decision 0021); null when the contract
+          is ambiguous or the row is not a negotiated ranking row.
+      - name: contract_distinct_amount_count
+        description: "Distinct amounts inside the row's contract/context; null off the negotiated ranking subset."
+      - name: hospital_amount
+        description: >
+          The hospital's one representative amount for the row's exact context
+          (decision 0021); every market rank/delta on the row derives from it.
       - name: peer_hospital_count
-        description: "Distinct hospitals in the comparison context (price-ranking subset); null off-subset."
+        description: >
+          Hospitals with a valid representative amount in the exact context
+          (decision 0021 denominator); null when the context has none.
       - name: market_median_amount
-        description: "Median dollar amount across the comparison context; null below the 3-hospital floor."
+        description: >
+          Hospital-weighted median for the exact context — the median of one
+          representative amount per hospital; null below the 3-hospital floor.
       - name: market_p10_amount
-        description: "10th-percentile dollar amount across the context; null below the floor."
+        description: "Hospital-weighted 10th percentile for the exact context; null below the floor."
       - name: market_p90_amount
-        description: "90th-percentile dollar amount across the context; null below the floor."
+        description: "Hospital-weighted 90th percentile for the exact context; null below the floor."
       - name: amount_pct_rank
-        description: "This observation's percentile rank within its context; null below the floor."
+        description: >
+          The HOSPITAL's percentile rank within the exact context (every ranked
+          row of one hospital/context shares it); null below the floor.
       - name: delta_from_market_median
-        description: "amount_value minus market_median_amount; null below the floor."
+        description: "hospital_amount minus market_median_amount; null below the floor."
       - name: pct_delta_from_market_median
-        description: "Percent delta from the market median; null below the floor or when the median is zero."
+        description: "Percent delta of hospital_amount from the market median; null below the floor or when the median is zero."
+      - name: payer_hospital_amount
+        description: >
+          The payer-hospital representative for the exact context: median of the
+          payer's valid contract representatives (decision 0021).
       - name: payer_peer_hospital_count
-        description: "Distinct hospitals in the payer-specific comparison context (matched payers only); null off-subset."
+        description: "Hospitals with a valid payer-hospital representative for the payer + exact context."
       - name: payer_market_median_amount
-        description: "Median negotiated dollar for the same payer + context; null below the 3-hospital floor."
+        description: >
+          Hospital-weighted median of payer-hospital representatives for the payer
+          + exact context; null below the 3-hospital floor.
       - name: payer_amount_pct_rank
-        description: "This observation's percentile rank within its payer + context; null below the floor."
+        description: "The hospital's percentile rank within its payer + exact context; null below the floor."
       - name: payer_delta_from_market_median
-        description: "amount_value minus payer_market_median_amount; null below the floor."
+        description: "payer_hospital_amount minus payer_market_median_amount; null below the floor."
       - name: payer_pct_delta_from_market_median
-        description: "Percent delta from the payer market median; null below the floor or when the median is zero."
+        description: "Percent delta of payer_hospital_amount from the payer market median; null below the floor or when the median is zero."
       - name: gross_to_cash_ratio
         description: "Charge-item gross_charge / discounted_cash; null when the cash denominator is zero or absent."
       - name: cash_to_negotiated_ratio
@@ -218,18 +433,24 @@ models:
   - name: gld_mart__service_price_summary
     description: >
       User question: "Across hospitals, how does the price for this service +
-      context vary?" Aggregate distribution model. Grain: one row per
-      (service_code_key, clean_setting, clean_billing_class, modifier_signature,
-      amount_kind). Built from the price-ranking subset of
-      gld_mart__service_price_comparison_current (is_price_ranking_row = true), so it
-      reconciles to that mart and inherits its current-only, tier_2 + dollar-rankable
-      inclusion. Denominator rule (0017): percentile/median/spread/IQR/outlier
-      columns are suppressed (null) below the 3-hospital floor, with the
-      observation/hospital/payer denominators always beside them and
-      meets_hospital_threshold flagging the row. Outliers are flagged via robust
-      1.5×IQR fences, never winsorized. Known missingness/bias: a single-hospital
-      corpus never clears the floor, so all distribution columns are null until a
-      multi-hospital corpus is built (human-run).
+      context vary?" Aggregate distribution model. Grain: one row per exact
+      comparison context (service_code_key, clean_setting, clean_billing_class,
+      modifier_signature, amount_kind, comparison_methodology,
+      canonical_drug_unit_type) — equivalently one row per service_context_key.
+      Decision 0021: every distribution statistic is HOSPITAL-WEIGHTED — computed
+      over one representative amount per hospital
+      (gld_int__hospital_service_amounts, built from deduplicated contract
+      representatives) — and every cohort contains exactly one negotiated
+      methodology, so per-diem daily rates never mix with case-rate or
+      fee-schedule dollars and repeated contract rows add no weight. Denominator
+      rule (0017 as amended by 0021): distribution columns are suppressed (null)
+      below the 3-hospital floor counted over hospitals with a VALID
+      representative (hospital_count); reporting_hospital_count and
+      excluded_hospital_count are always published beside it. Outliers are
+      flagged hospitals via robust 1.5×IQR fences, never winsorized. Known
+      missingness/bias: a single-hospital corpus never clears the floor, so all
+      distribution columns are null until a multi-hospital corpus is built
+      (human-run).
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -239,7 +460,16 @@ models:
               - clean_billing_class
               - modifier_signature
               - amount_kind
+              - comparison_methodology
+              - canonical_drug_unit_type
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - service_context_key
     columns:
+      - name: service_context_key
+        description: "Exact-comparison-context key (decision 0021). 1:1 with the natural grain."
+        tests: [not_null]
       - name: service_code_key
         description: "Conformed code-cohort key. Grain component."
         tests:
@@ -264,48 +494,80 @@ models:
           - accepted_values:
               arguments:
                 values: ["gross_charge", "discounted_cash", "negotiated_dollar"]
+      - name: comparison_methodology
+        description: >
+          Methodology cohort (decision 0021). Grain component: negotiated
+          methodology for negotiated_dollar, 'not applicable' for gross/cash.
+          Rankable cohorts only ever carry fee schedule / case rate / per diem /
+          not applicable.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["fee schedule", "case rate", "per diem", "not applicable"]
+      - name: canonical_drug_unit_type
+        description: "Drug unit context. Grain component; null for non-drug contexts."
       - name: observation_count
-        description: "Rankable observations in the group (always published)."
+        description: "Raw ranking rows behind the context (always published; reconciliation count, never a statistical weight)."
+        tests: [not_null]
+      - name: contract_count
+        description: "Source contracts behind the context (negotiated only; null for gross/cash)."
+      - name: reporting_hospital_count
+        description: "Hospitals that published any raw ranking row for the context."
         tests: [not_null]
       - name: hospital_count
-        description: "Distinct hospitals in the group (denominator; always published)."
+        description: >
+          Hospitals with a VALID representative amount — the decision 0021
+          denominator every published statistic is computed over.
         tests: [not_null]
+      - name: excluded_hospital_count
+        description: "Reporting hospitals excluded because no contract could be represented safely."
+        tests: [not_null]
+      - name: ambiguous_contract_count
+        description: "Multi-amount (ambiguous) contracts excluded from representatives."
       - name: payer_count
-        description: "Distinct matched payers contributing to the group."
+        description: "Distinct matched payers behind the context's contracts."
       - name: meets_hospital_threshold
         description: "True when hospital_count >= 3 (the publish gate for distribution stats)."
         tests: [not_null]
       - name: market_coverage_rate
-        description: "hospital_count / total distinct hospitals reporting any rankable price."
+        description: "hospital_count / total distinct hospitals with any valid representative."
       - name: min_amount
-        description: "Group minimum; null below the 3-hospital floor."
+        description: "Smallest hospital representative amount; null below the 3-hospital floor."
       - name: p10_amount
-        description: "Group 10th percentile; null below the floor."
+        description: "Hospital-weighted 10th percentile (one vote per hospital); null below the floor."
       - name: median_amount
-        description: "Group median; null below the floor."
+        description: "Hospital-weighted median; null below the floor."
       - name: p90_amount
-        description: "Group 90th percentile; null below the floor."
+        description: "Hospital-weighted 90th percentile; null below the floor."
       - name: max_amount
-        description: "Group maximum; null below the floor."
+        description: "Largest hospital representative amount; null below the floor."
       - name: iqr_amount
-        description: "Interquartile range (p75 − p25); null below the floor."
+        description: "Interquartile range of hospital representatives (p75 − p25); null below the floor."
       - name: spread_ratio_p90_to_p10
-        description: "p90 / p10; null below the floor or when p10 is zero."
-      - name: outlier_observation_count
-        description: "Observations outside the 1.5×IQR fences; null below the floor."
+        description: "Hospital-weighted p90 / p10; null below the floor or when p10 is zero."
+      - name: outlier_hospital_count
+        description: "Hospitals whose representative falls outside the 1.5×IQR fences; null below the floor."
 
   - name: gld_mart__hospital_service_benchmarks
     description: >
       User question: "For a service + context, how does THIS hospital's price
       compare to the market and to its peer groups?" Grain: one row per
-      (hospital_id, service_code_key, clean_setting, clean_billing_class,
-      modifier_signature, amount_kind). Built from the price-ranking subset of
-      gld_mart__service_price_comparison_current. The hospital's representative amount is
-      the median of its rankable observations in the context. Market comparison is
-      published for four peer groups (all / same state / same hospital_type / same
-      health_system), each gated by its own 3-hospital denominator (0017): below the
-      floor a peer group's stats are null but the row and hospital_amount remain.
-      Known missingness/bias: peer groups with < 3 hospitals (common in a small
+      (hospital_id, service_context_key) — hospital × exact comparison context
+      (service_code_key, clean_setting, clean_billing_class, modifier_signature,
+      amount_kind, comparison_methodology, canonical_drug_unit_type). Decision
+      0021: hospital_amount comes from the shared representative layer
+      (gld_int__hospital_service_amounts — negotiated dollars are medians of
+      valid deduplicated contract representatives), every peer partition is
+      methodology-separated, and the service summary reads the same
+      representatives, so both models' percentiles reconcile by construction.
+      Hospitals whose context could not be represented safely are excluded here
+      but stay visible in the comparison mart and the summary's
+      excluded_hospital_count. Market comparison is published for four peer
+      groups (all / same state / same hospital_type / same health_system), each
+      gated by its own 3-hospital denominator (0017): below the floor a peer
+      group's stats are null but the row and hospital_amount remain. Known
+      missingness/bias: peer groups with < 3 hospitals (common in a small
       corpus) yield null comparisons.
     tests:
       - dbt_utils.unique_combination_of_columns:
@@ -317,6 +579,13 @@ models:
               - clean_billing_class
               - modifier_signature
               - amount_kind
+              - comparison_methodology
+              - canonical_drug_unit_type
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - hospital_id
+              - service_context_key
     columns:
       - name: hospital_id
         description: "Hospital. Grain component; FK to gld_dim__hospital."
@@ -326,6 +595,9 @@ models:
               arguments:
                 to: ref('gld_dim__hospital')
                 field: hospital_id
+      - name: service_context_key
+        description: "Exact-comparison-context key (decision 0021). Grain component."
+        tests: [not_null]
       - name: service_code_key
         description: "Conformed code-cohort key. Grain component."
         tests:
@@ -350,6 +622,15 @@ models:
           - accepted_values:
               arguments:
                 values: ["gross_charge", "discounted_cash", "negotiated_dollar"]
+      - name: comparison_methodology
+        description: "Methodology cohort (decision 0021). Grain component."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["fee schedule", "case rate", "per diem", "not applicable"]
+      - name: canonical_drug_unit_type
+        description: "Drug unit context. Grain component; null for non-drug contexts."
       - name: canonical_state
         description: "Hospital state (peer-group key)."
       - name: hospital_type
@@ -359,8 +640,19 @@ models:
       - name: comparison_tier
         description: "Always tier_2_context_aligned (built from the rankable subset)."
       - name: hospital_amount
-        description: "Median of the hospital's rankable observations in the context."
+        description: >
+          The hospital's one representative amount for the exact context
+          (decision 0021): median of valid contract representatives for
+          negotiated dollars, median of ranking rows for gross/cash.
         tests: [not_null]
+      - name: raw_observation_count
+        description: "Ranking rows behind the hospital's context (reconciliation count)."
+      - name: source_contract_count
+        description: "Contracts behind the context (negotiated only)."
+      - name: valid_contract_count
+        description: "Contracts with a representative amount (negotiated only)."
+      - name: ambiguous_contract_count
+        description: "Multi-amount contracts excluded from the representative (negotiated only)."
       - name: peer_hospital_count_all
         description: "Distinct hospitals reporting this context (all-market denominator)."
       - name: market_median_all
@@ -404,16 +696,24 @@ models:
     description: >
       User question: "For a matched payer, how does this hospital's negotiated
       dollar compare to the payer's market and to the hospital's own cash price?"
-      Grain: one row per (canonical_payer_id, hospital_id, service_code_key,
-      clean_setting, clean_billing_class, modifier_signature); amount_kind is always
-      negotiated_dollar. Prerequisite gate (0017): canonical_payer_id is required —
+      Grain: one row per (canonical_payer_id, hospital_id, service_context_key) —
+      payer × hospital × exact comparison context (methodology included);
+      amount_kind is always negotiated_dollar. Decision 0021: built from contract
+      representatives — one representative per source contract, one payer-hospital
+      representative per exact context (median of valid contract representatives),
+      one payer-market distribution over those hospital representatives — so a
+      payer's per-diem contracts never enter the same market as its case rates and
+      repeated contract rows add no weight. Rows whose contracts are all ambiguous
+      keep a null negotiated_dollar with cash_comparison_status =
+      'ambiguous_negotiated_context' (visible, blocked from statistics).
+      Cash comparisons are methodology-guarded: per-diem rates are never labeled
+      above/below cash. Prerequisite gate (0017): canonical_payer_id is required —
       unmatched/null-payer rows never enter. market_segment is a representative
-      (any_value) attribute for segment cuts, not a grain key. Built from the
-      price-ranking negotiated_dollar subset of gld_mart__service_price_comparison_current.
-      The payer-market median is gated by a 3-hospital floor. Known missingness/bias:
-      payer + context groups rarely reach 3 hospitals in a small corpus, so
-      payer_market_median_negotiated is often null; the hospital-cash delta is null
-      when the hospital publishes no cash price for the context.
+      (any_value) attribute for segment cuts, not a grain key. The payer-market
+      median is gated by a 3-hospital floor over valid representatives. Known
+      missingness/bias: payer + context groups rarely reach 3 hospitals in a small
+      corpus, so payer_market_median_negotiated is often null; the hospital-cash
+      delta is null when the hospital publishes no cash price for the context.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -424,6 +724,14 @@ models:
               - clean_setting
               - clean_billing_class
               - modifier_signature
+              - comparison_methodology
+              - canonical_drug_unit_type
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - canonical_payer_id
+              - hospital_id
+              - service_context_key
     columns:
       - name: canonical_payer_id
         description: "Matched canonical payer. Grain component; FK to gld_dim__payer (never unmatched)."
@@ -447,6 +755,9 @@ models:
               arguments:
                 to: ref('gld_dim__hospital')
                 field: hospital_id
+      - name: service_context_key
+        description: "Exact-comparison-context key (decision 0021). Grain component."
+        tests: [not_null]
       - name: service_code_key
         description: "Conformed code-cohort key. Grain component."
         tests:
@@ -471,26 +782,63 @@ models:
           - accepted_values:
               arguments:
                 values: ["negotiated_dollar"]
+      - name: comparison_methodology
+        description: "Methodology cohort (decision 0021). Grain component; rankable negotiated methodologies only."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["fee schedule", "case rate", "per diem"]
+      - name: canonical_drug_unit_type
+        description: "Drug unit context. Grain component; null for non-drug contexts."
       - name: market_segment
         description: "Representative market segment for the (payer, hospital, context) group."
       - name: negotiated_dollar
-        description: "Median of the hospital's negotiated dollars for this payer + context."
+        description: >
+          The payer-hospital representative (decision 0021): median of the payer's
+          valid contract representatives for the exact context. Null when every
+          contract is ambiguous (cash_comparison_status = 'ambiguous_negotiated_context').
+      - name: source_contract_count
+        description: "The payer's contracts behind the context."
         tests: [not_null]
+      - name: valid_contract_count
+        description: "Contracts with a representative amount."
+        tests: [not_null]
+      - name: ambiguous_contract_count
+        description: "Multi-amount contracts excluded from the representative."
+        tests: [not_null]
+      - name: cash_comparison_status
+        description: >
+          Methodology compatibility of the negotiated-vs-cash comparison (decision
+          0021): 'comparable', 'cash_unavailable', 'per_diem_incompatible' (a daily
+          payment is never labeled above/below an item/episode cash amount), or
+          'ambiguous_negotiated_context' (no valid negotiated representative).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - comparable
+                  - cash_unavailable
+                  - per_diem_incompatible
+                  - ambiguous_negotiated_context
       - name: hospital_cash_amount
-        description: "Hospital's median cash price for the same context; null when none published."
+        description: "Hospital's cash representative for the same context components; null when none published."
       - name: delta_from_hospital_cash
-        description: "negotiated_dollar − hospital_cash_amount; null when cash is absent."
+        description: "negotiated_dollar − hospital_cash_amount; null unless cash_comparison_status = 'comparable'."
       - name: pct_delta_from_hospital_cash
-        description: "Percent delta from hospital cash; null when cash is absent or zero."
+        description: "Percent delta from hospital cash; null unless comparable and cash is nonzero."
       - name: payer_hospital_count
-        description: "Distinct hospitals reporting this payer + context."
+        description: "Hospitals with a valid payer-hospital representative for this payer + exact context."
       - name: payer_market_median_negotiated
-        description: "Median negotiated dollar for the payer + context across hospitals; null below the 3-hospital floor."
+        description: >
+          Hospital-weighted median of the payer's hospital representatives for the
+          exact context; null below the 3-hospital floor.
       - name: delta_from_payer_market_median
         description: "negotiated_dollar − payer_market_median_negotiated; null below the floor."
       - name: pct_delta_from_payer_market_median
         description: "Percent delta from the payer-market median; null below the floor or when median is zero."
       - name: context_hospital_count
-        description: "Distinct hospitals reporting a comparable negotiated dollar for the context (matched or not)."
+        description: "Hospitals with a valid negotiated representative for the exact context (any payer)."
       - name: payer_match_coverage_rate
         description: "payer_hospital_count / context_hospital_count — how broadly this payer is matched for the context."
