@@ -26,8 +26,6 @@ for dbt/DuckDB normalization and analysis.
   Gold, and the `gld_bi__*` presentation marts.
 - `apps/evidence/` is the static public reporting app. It reads exported Parquet
   from allowlisted BI marts; analytical semantics stay in dbt.
-- `infra/` and `orchestration/` are planned integration points, not production
-  implementations.
 
 ## Development Commands
 
