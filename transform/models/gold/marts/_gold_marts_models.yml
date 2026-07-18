@@ -3,16 +3,18 @@ version: 2
 models:
   - name: gld_int__service_comparison_spine
     description: >
-      Intermediate for gld_mart__service_price_comparison_current: the code-expanded,
-      classified "expanded spine" (fact ⋈ bridge + the §6 comparison_tier /
-      blocker columns) materialized once as a table so the consuming mart's five
-      peer cuts read it back via narrow columnar scans instead of rebuilding the
-      fact ⋈ bridge join per reference (the prior single-model CTE form OOM'd on
-      the full cross-snapshot corpus). Grain and classification are identical to
-      the rows the mart used to build inline; only the materialization boundary
-      moved. Grain: one row per (gold_rate_observation_id, service_code_key) over
-      current snapshots (service_code_key null for observations with no
-      cross-hospital-comparable code).
+      Retained-snapshot code-expanded, classified spine (atomic fact × deduplicated
+      charge-item service cohorts + the §6 comparison_tier / blocker columns),
+      materialized once so current marts and all-snapshot scorecards read narrow
+      columnar scans instead of rebuilding the observation-level bridge join.
+      Service cohorts are deduplicated before amount-observation fan-out to bound
+      the DISTINCT state. Snapshot-grained incremental with snapshot_replace,
+      allowing the Gold per-snapshot pass to bound peak memory. Grain: one row per
+      (gold_rate_observation_id, service_code_key) over every retained snapshot;
+      service_code_key is null for observations without a cross-hospital-
+      comparable code. Current-only consumers use
+      gld_int__service_comparison_spine_current because denormalized currentness
+      can become stale when a newer snapshot supersedes an existing partition.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -67,6 +69,30 @@ models:
         description: >
           Source-contract identity carried from the fact (decision 0021); null for
           standard_charge scope.
+
+  - name: gld_int__service_comparison_spine_current
+    description: >
+      Authoritative current-snapshot view over the retained-snapshot comparison
+      spine. Joins gld_dim__snapshot and filters on its currentness flag, replacing
+      the spine's denormalized is_current_snapshot / not_current_snapshot values.
+      Current comparison marts and representative intermediates read this view so
+      historical partitions can never receive votes in current market statistics.
+    columns:
+      - name: snapshot_id
+        description: "Current snapshot owning the observation."
+        tests: [not_null]
+      - name: is_current_snapshot
+        description: "Authoritative currentness from gld_dim__snapshot; always true."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [true]
+      - name: not_current_snapshot
+        description: "Temporal blocker derived from authoritative currentness; always false."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [false]
 
   - name: gld_int__service_contract_representatives
     description: >

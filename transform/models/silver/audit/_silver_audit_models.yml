@@ -80,9 +80,12 @@ models:
         tests:
           - not_null
       - name: has_conflicting_amounts
-        description: "True when the duplicated context carries more than one distinct negotiated value (dollar, percentage, or algorithm)."
-        tests:
-          - not_null
+        description: >
+          True when the duplicated context carries more than one distinct
+          negotiated value (dollar, percentage, or algorithm). Derived only from
+          non-null count(distinct ...) aggregates, so a generic not_null test is
+          redundant and would force the 30M-row audit view to recompute its most
+          expensive aggregate states.
 
   - name: slv_audit__plan_context_coverage
     description: >

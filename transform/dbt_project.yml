@@ -167,6 +167,7 @@ models:
         +tags: ["gold_core", "gold"]
         gld_fct__rate_observations: { +tags: ["gold_per_snapshot"] }
         gld_bridge__rate_observation_code: { +tags: ["gold_per_snapshot"] }
+        gld_int__service_comparison_spine: { +tags: ["gold_per_snapshot"] }
         # Conformed dimensions are full-refresh tables read UNscoped (plain ref)
         gld_dim__snapshot: { +materialized: table, +incremental_strategy: null, +tags: ["gold_dimension"] }
         gld_dim__payer: { +materialized: table, +incremental_strategy: null, +tags: ["gold_dimension"] }
@@ -179,6 +180,8 @@ models:
         # Marts read the completed fact + dimensions unscoped and are built once
         # at the end of the per-snapshot full-refresh workflow.
         +tags: ["gold_marts", "gold"]
+        gld_int__service_comparison_spine_current:
+          +materialized: view
       scorecards:
         +materialized: table
         +incremental_strategy: null

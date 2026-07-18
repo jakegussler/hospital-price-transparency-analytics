@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import logging
 import zipfile
 
 import pytest
@@ -78,12 +79,16 @@ def _zip_bytes(members: dict[str, bytes]) -> bytes:
 
 
 class TestFirstFetch:
-    def test_downloads_and_creates_snapshot(self, httpx_mock, storage, snapshots, client_cfg):
+    def test_downloads_and_creates_snapshot(
+        self, httpx_mock, storage, snapshots, client_cfg, caplog
+    ):
         httpx_mock.add_response(url="https://example.com/charges.csv", content=MRF_BYTES_V1)
         hospital = _make_hospital()
         client = _build_client(client_cfg)
 
-        result = download_hospital(hospital, storage, snapshots, client)
+        with caplog.at_level(logging.DEBUG, logger="hpt.ingest.download"):
+            assert logging.getLogger("hpt.ingest.download").isEnabledFor(logging.DEBUG)
+            result = download_hospital(hospital, storage, snapshots, client)
         client.close()
 
         assert result.outcome == Outcome.DOWNLOADED

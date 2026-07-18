@@ -7,15 +7,14 @@
 --
 -- Two count sources, joined per snapshot:
 --   * fact_agg       — atomic counts + amount-kind coverage from the fact.
---   * comparison_agg — code-cohort, tier, and row-level blocker counts re-derived
---     from fact ⋈ bridge through the §6 framework macros (the same classification
---     the comparison mart applies), so the scorecard explains blocked rows with the
---     identical vocabulary. Computed over ALL snapshots (not current-only) so
---     non-current snapshots are still scored. below_min_hospital_denominator is a
---     mart-grain (window) blocker and is intentionally not counted here.
+--   * comparison_agg — code-cohort, tier, and row-level blocker counts aggregated
+--     from the retained-snapshot comparison spine. The spine materializes the
+--     expensive observation × code-cohort classification once. Computed over 
+--     all retained snapshots. below_min_hospital_denominator is a mart-grain (window) 
+--     blocker and is intentionally not counted here.
 --
 -- Cross-snapshot aggregate → full-refresh table (gold.scorecards config block)
--- reading the fact and bridge through plain ref(); excluded from the snapshot prune.
+-- reading the fact and retained-snapshot spine through plain ref().
 
 with fact_agg as (
     select
@@ -58,79 +57,31 @@ with fact_agg as (
     group by snapshot_id
 ),
 
--- Re-derive comparison tier + row-level blockers + code-cohort coverage from
--- fact ⋈ bridge using macros (same classification as
--- gld_mart__service_price_comparison_current, minus the current-only filter and peer
--- windows). Grain: observation × comparable cohort, tier_0 collapse via the left
--- join — identical to the mart and the gld_int spine.
-comparison_cohorts as (
-    select distinct
-        gold_rate_observation_id,
-        service_code_key,
-        match_code,
-        code_is_specific
-    from {{ ref('gld_bridge__rate_observation_code') }}
-    where service_code_key is not null
-),
-
-comparison_assembled as (
-    select
-        f.snapshot_id,
-        f.silver_charge_item_id,
-        f.is_current_snapshot,
-        f.amount_unit,
-        f.amount_role,
-        f.amount_comparability_tier,
-        f.has_pro_tech_split_modifier,
-        f.is_drug_observation,
-        f.drug_unit_status,
-        f.observation_scope,
-        f.canonical_payer_id,
-        f.market_segment,
-        f.clean_setting,
-        f.clean_billing_class,
-        cc.service_code_key,
-        cc.match_code,
-        coalesce(cc.code_is_specific, false) as code_is_specific,
-        (cc.service_code_key is not null) as code_cross_hospital_comparable
-    from {{ ref('gld_fct__rate_observations') }} as f
-    left join comparison_cohorts as cc
-        on f.gold_rate_observation_id = cc.gold_rate_observation_id
-),
-
-comparison_classified as (
-    select
-        snapshot_id,
-        silver_charge_item_id,
-        service_code_key,
-        code_cross_hospital_comparable,
-        {{ hpt_comparison_tier() }} as comparison_tier,
-        {{ hpt_comparison_blocker_flags() }}
-    from comparison_assembled
-),
-
 comparison_agg as (
     select
-        snapshot_id,
-        count(distinct service_code_key) as distinct_comparable_codes,
+        spine.snapshot_id,
+        count(distinct spine.service_code_key) as distinct_comparable_codes,
         count(distinct case
-            when code_cross_hospital_comparable then silver_charge_item_id
+            when spine.code_cross_hospital_comparable then spine.silver_charge_item_id
         end) as items_with_comparable_code,
-        sum((comparison_tier = 'tier_0_trace_only')::int) as tier_0_count,
-        sum((comparison_tier = 'tier_1_code_backed')::int) as tier_1_count,
-        sum((comparison_tier = 'tier_2_context_aligned')::int) as tier_2_count,
-        sum(not_current_snapshot::int) as blocker_not_current_snapshot,
-        sum(code_not_cross_hospital_comparable::int) as blocker_code_not_cross_hospital_comparable,
-        sum(code_not_specific::int) as blocker_code_not_specific,
-        sum(missing_match_code::int) as blocker_missing_match_code,
-        sum(non_rankable_amount::int) as blocker_non_rankable_amount,
-        sum(derived_dollar::int) as blocker_derived_dollar,
-        sum(modifier_context_required::int) as blocker_modifier_context_required,
-        sum(drug_unit_context_missing::int) as blocker_drug_unit_context_missing,
-        sum(payer_unmatched::int) as blocker_payer_unmatched,
-        sum(market_segment_unknown::int) as blocker_market_segment_unknown
-    from comparison_classified
-    group by snapshot_id
+        sum((spine.comparison_tier = 'tier_0_trace_only')::int) as tier_0_count,
+        sum((spine.comparison_tier = 'tier_1_code_backed')::int) as tier_1_count,
+        sum((spine.comparison_tier = 'tier_2_context_aligned')::int) as tier_2_count,
+        sum((not snapshots.is_current_snapshot)::int) as blocker_not_current_snapshot,
+        sum(spine.code_not_cross_hospital_comparable::int)
+            as blocker_code_not_cross_hospital_comparable,
+        sum(spine.code_not_specific::int) as blocker_code_not_specific,
+        sum(spine.missing_match_code::int) as blocker_missing_match_code,
+        sum(spine.non_rankable_amount::int) as blocker_non_rankable_amount,
+        sum(spine.derived_dollar::int) as blocker_derived_dollar,
+        sum(spine.modifier_context_required::int) as blocker_modifier_context_required,
+        sum(spine.drug_unit_context_missing::int) as blocker_drug_unit_context_missing,
+        sum(spine.payer_unmatched::int) as blocker_payer_unmatched,
+        sum(spine.market_segment_unknown::int) as blocker_market_segment_unknown
+    from {{ ref('gld_int__service_comparison_spine') }} as spine
+    inner join {{ ref('gld_dim__snapshot') }} as snapshots
+        on spine.snapshot_id = snapshots.snapshot_id
+    group by spine.snapshot_id
 )
 
 select

@@ -6,11 +6,11 @@ models:
       Coverage / trust scorecard. Grain: one row per snapshot_id. Ranks trust
       before price and doubles as the Gold-side reconciliation anchor — its atomic
       observation/charge/rate counts come straight from gld_fct__rate_observations
-      (no code fan-out) and reconcile to the fact by construction. Code counts come
-      from the bridge; comparison-tier and blocker-reason counts are re-derived from
-      fact ⋈ bridge through the §6 framework macros (same classification the
-      comparison mart applies) across all snapshots. This is a coverage /
-      data-readiness instrument, not a legal-compliance verdict.
+      (no code fan-out) and reconcile to the fact by construction. Comparable-code,
+      comparison-tier, and blocker-reason counts are aggregated from the
+      retained-snapshot comparison spine, whose classification is shared with the
+      current comparison mart. This is a coverage / data-readiness instrument,
+      not a legal-compliance verdict.
     columns:
       - name: snapshot_id
         description: "Snapshot identifier. Primary key."

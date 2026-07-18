@@ -8,6 +8,24 @@ version: 2
 # statistic is computed over one representative amount per hospital.
 
 unit_tests:
+  - name: current_spine_uses_authoritative_snapshot_dimension
+    description: >
+      The current projection excludes superseded snapshots and replaces stale
+      denormalized currentness flags with gld_dim__snapshot values.
+    model: gld_int__service_comparison_spine_current
+    given:
+      - input: ref('gld_int__service_comparison_spine')
+        rows:
+          - {gold_rate_observation_id: obs-current, snapshot_id: snap-current, is_current_snapshot: false, not_current_snapshot: true}
+          - {gold_rate_observation_id: obs-old, snapshot_id: snap-old, is_current_snapshot: true, not_current_snapshot: false}
+      - input: ref('gld_dim__snapshot')
+        rows:
+          - {snapshot_id: snap-current, is_current_snapshot: true}
+          - {snapshot_id: snap-old, is_current_snapshot: false}
+    expect:
+      rows:
+        - {gold_rate_observation_id: obs-current, snapshot_id: snap-current, is_current_snapshot: true, not_current_snapshot: false}
+
   - name: contract_representatives_collapse_and_quarantine
     description: >
       56 identical per-diem rows under one contract/context collapse to ONE
@@ -16,7 +34,7 @@ unit_tests:
       non-ranking rows (tier_1, gross_charge, derived dollars) never enter.
     model: gld_int__service_contract_representatives
     given:
-      - input: ref('gld_int__service_comparison_spine')
+      - input: ref('gld_int__service_comparison_spine_current')
         format: sql
         rows: |
           -- TriStar-Ashland-style repetition: one $1,947 per-diem rate published
@@ -168,7 +186,7 @@ unit_tests:
               'c-5', 'payer_plan', 'p1', 'plan1', 'payer-1', 'commercial',
               6, 3, 3, cast(10.00 as decimal(18, 4)), cast(90.00 as decimal(18, 4)),
               cast(null as decimal(18, 4)), true
-      - input: ref('gld_int__service_comparison_spine')
+      - input: ref('gld_int__service_comparison_spine_current')
         format: sql
         rows: |
           select

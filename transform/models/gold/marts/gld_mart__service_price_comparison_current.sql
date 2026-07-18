@@ -28,24 +28,26 @@
 --
 -- Cross-snapshot aggregate → full-refresh table. The code-expanded, classified
 -- "expanded spine" (fact ⋈ bridge + the §6 comparison_tier / blocker columns) is
--- materialized once in gld_int__service_comparison_spine and read back here and
--- by the representative intermediates, keeping the cross-hospital build inside
--- memory. The classification comes from the gold_comparison_framework macros so
--- this mart and the coverage scorecard classify identically.
+-- materialized once in gld_int__service_comparison_spine. This current mart and
+-- its representative intermediates read the authoritative current-only view;
+-- the coverage scorecard reads the retained-snapshot base. The classification
+-- therefore stays identical without rebuilding the cross-hospital join.
 
 
 with classified as (
     select *
-    from {{ ref('gld_int__service_comparison_spine') }}
+    from {{ ref('gld_int__service_comparison_spine_current') }}
 ),
 
 -- The un-expanded fact, kept only for item_amounts below: the gross/cash/
 -- negotiated charge-item aggregates must be computed at the observation grain,
 -- not the code-expanded spine grain (the cohort fan-out would skew median()).
 fact as (
-    select *
-    from {{ ref('gld_fct__rate_observations') }}
-    where is_current_snapshot = true
+    select f.*
+    from {{ ref('gld_fct__rate_observations') }} as f
+    inner join {{ ref('gld_dim__snapshot') }} as ds
+        on f.snapshot_id = ds.snapshot_id
+    where ds.is_current_snapshot = true
 ),
 
 -- One representative amount per hospital per exact context (decision 0021).

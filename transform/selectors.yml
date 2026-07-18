@@ -54,7 +54,9 @@ selectors:
       value: gold_core
 
   - name: gold_marts
-    description: "Gold analytical marts."
+    description: >
+      Gold analytical marts built after the retained-snapshot comparison spine is
+      complete, including its current-only projection and downstream comparisons.
     definition:
       method: tag
       value: gold_marts
@@ -97,13 +99,12 @@ selectors:
 
   - name: gold_per_snapshot
     description: >
-      Snapshot-grained Gold models built per snapshot: the rate-observation fact
-      (gld_fct__rate_observations) and the code bridge
-      (gld_bridge__rate_observation_code). They read inputs through
-      hpt_scoped_ref and use the snapshot_replace incremental strategy, so the
-      per-snapshot full-refresh workflow full-refreshes the first snapshot and
-      appends the rest. Excludes the conformed dimensions and marts, which are
-      run-once models built unscoped.
+      Snapshot-grained Gold models built per snapshot: the rate-observation fact,
+      code bridge, and retained-snapshot comparison spine. They read inputs
+      through hpt_scoped_ref and use the snapshot_replace incremental strategy,
+      so the per-snapshot full-refresh workflow full-refreshes the first snapshot
+      and appends the rest. Excludes the conformed dimensions, current-spine view,
+      and marts, which are run-once models built unscoped.
     definition:
       method: tag
       value: gold_per_snapshot

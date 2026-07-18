@@ -52,7 +52,7 @@ with negotiated as (
         comparison_methodology, canonical_drug_unit_type
 ),
 
--- Gross / cash: no contract concept; hospital median over ranking rows.
+-- Gross / cash: no contract concept; hospital median over current ranking rows.
 standard as (
     select
         hospital_id,
@@ -71,7 +71,7 @@ standard as (
         cast(0 as bigint) as matched_payer_count,
         median(amount_value) as hospital_amount,
         count(*) as hospital_amount_input_count
-    from {{ ref('gld_int__service_comparison_spine') }}
+    from {{ ref('gld_int__service_comparison_spine_current') }}
     where comparison_tier = 'tier_2_context_aligned'
         and is_price_rankable = true
         and amount_kind in ('gross_charge', 'discounted_cash')

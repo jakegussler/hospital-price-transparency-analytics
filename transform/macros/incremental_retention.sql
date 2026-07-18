@@ -42,6 +42,7 @@
         'val_stats__value_distributions',
         'gld_fct__rate_observations',
         'gld_bridge__rate_observation_code',
+        'gld_int__service_comparison_spine',
     ]) }}
 {%- endmacro %}
 

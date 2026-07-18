@@ -184,7 +184,7 @@ def download_hospital(
                     "filename_resolved",
                     extra={
                         "hospital_id": hid,
-                        "filename": filename,
+                        "source_file_name": filename,
                         "content_type": resp.headers.get("content-type"),
                     },
                 )

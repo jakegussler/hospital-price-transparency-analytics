@@ -3,8 +3,8 @@
 -- Contract-level representative amounts (decision 0021, level 1 of the market
 -- statistic hierarchy). Grain: one row per (hospital_id, snapshot_id,
 -- service_context_key, source_contract_key) over the negotiated-dollar
--- price-ranking subset of the spine (tier_2 + is_price_rankable, current
--- snapshots only).
+-- price-ranking subset of the authoritative current-spine view (tier_2 +
+-- is_price_rankable, current snapshots only).
 --
 -- Exact repetitions of one amount inside a contract/context collapse to ONE
 -- representative (the fix for one hospital repeating a per-diem rate across 56
@@ -39,7 +39,7 @@ with ranking_rows as (
         market_segment,
         silver_charge_item_id,
         amount_value
-    from {{ ref('gld_int__service_comparison_spine') }}
+    from {{ ref('gld_int__service_comparison_spine_current') }}
     where comparison_tier = 'tier_2_context_aligned'
         and is_price_rankable = true
         and amount_kind = 'negotiated_dollar'
