@@ -8,6 +8,36 @@
 	const githubRepo = 'https://github.com/jakegussler/hospital-price-transparency-analytics';
 	const linkedin = 'https://www.linkedin.com/in/jakegussler'; // TODO: confirm exact LinkedIn URL
 	const year = new Date().getFullYear();
+
+	/**
+	 * Evidence builds its sidebar from the route tree. The public /compare page has
+	 * implementation-only detail routes below it, so leaving those children in the
+	 * tree turns "Compare Prices" into a section and exposes a non-linking
+	 * "Context" folder. Keep the routes available while presenting /compare as the
+	 * single global-navigation destination.
+	 */
+	function buildLayoutData(sourceData) {
+		const pagesManifest = sourceData?.pagesManifest;
+		const comparePage = pagesManifest?.children?.compare;
+
+		if (!comparePage) return sourceData;
+
+		return {
+			...sourceData,
+			pagesManifest: {
+				...pagesManifest,
+				children: {
+					...pagesManifest.children,
+					compare: {
+						...comparePage,
+						children: {}
+					}
+				}
+			}
+		};
+	}
+
+	$: layoutData = buildLayoutData(data);
 </script>
 
 <svelte:head>
@@ -39,7 +69,7 @@
 </svelte:head>
 
 <EvidenceDefaultLayout
-	{data}
+	data={layoutData}
 	logo="/brand/logo.svg"
 	lightLogo="/brand/logo.svg"
 	darkLogo="/brand/logo-dark.svg"

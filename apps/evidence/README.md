@@ -41,8 +41,11 @@ The site is branded **Hospital Price Lens** (hospitalpricelens.com):
 - **Chrome** is set in `pages/+layout.svelte`, a custom layout that overrides the
   generated Evidence template layout. It supplies the logo (`lightLogo`/`darkLogo`
   → `static/brand/logo*.svg`), disables `builtWithEvidence`, adds the `githubRepo`
-  link, sets `<svelte:head>` social/OG meta, and renders the site footer. Keep its
-  `{data}` prop and named `content` slot wiring intact when editing.
+  link, sets `<svelte:head>` social/OG meta, and renders the site footer. It also
+  removes the implementation-only `/compare` detail routes from the manifest
+  passed to the layout so the sidebar shows one ordinary **Compare Prices** link
+  instead of a dead **Context** folder. Keep its `data` prop and named `content`
+  slot wiring intact when editing.
 - **Brand assets** are in `static/`: `brand/logo.svg` + `brand/logo-dark.svg`
   (header wordmark, rendered at 20px height), `icon.svg` (SVG favicon),
   `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, and
