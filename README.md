@@ -11,18 +11,19 @@ CMS hospital price files into lineage-preserving, comparison-ready market data.
 
 ## Project At A Glance
 
-<!-- portfolio-metrics:start source=hospitalpricelens.com exported=2026-07-11 -->
+<!-- portfolio-metrics:start source=hospitalpricelens.com exported=2026-07-17 -->
 | Current Nashville release | Value |
 |---|---:|
 | Hospitals | **14** |
 | Health systems | **5** |
 | Published services | **47,642** |
-| Services comparable across hospitals | **18,404** |
+| Services comparable across hospitals | **18,397** |
 | Identified insurers | **36** |
 
 The current public release uses one published file per hospital and was exported
-on **July 11, 2026**. Results describe this Nashville-area corpus; they are not
-regional or national benchmarks.
+on **July 17, 2026**. The files were published between **July 1, 2024** and
+**March 12, 2026**. Results describe this 14-hospital Nashville metro corpus;
+they are not regional or national benchmarks.
 <!-- portfolio-metrics:end -->
 
 ## Why This Project Exists
@@ -47,8 +48,9 @@ and denominator requirements.
   conformed Gold dimensions, an atomic rate fact, a multi-code bridge, benchmark
   marts, and data-readiness scorecards.
 - An explainable comparability framework that separates rankable dollar prices
-  from percentages and algorithms, retains blocker reasons, and suppresses
-  cohorts below a three-hospital denominator.
+  from percentages and algorithms, keeps fee-schedule, case-rate, and per-diem
+  cohorts distinct, weights hospitals equally, retains blocker reasons, and
+  suppresses cohorts below a three-hospital denominator.
 - Nine presentation marts and a static Evidence application that publishes
   market, hospital, payer, data-quality, methodology, and downloadable-data
   views without exposing the working warehouse.
@@ -97,16 +99,17 @@ published number as though it represented the same thing.
 | Has a code usable across hospitals | 77,479,175 | 98.0% |
 | Has full service context | 45,127,753 | 57.1% |
 | Has a directly rankable dollar price | 18,005,569 | 22.8% |
-| Context is reported by at least 3 hospitals | **13,408,216** | **17.0%** |
+| Context is reported by at least 3 hospitals | **13,324,477** | **16.8%** |
 
 Rows that fail a gate remain available for diagnostics; they are excluded from
 rankings with an explicit reason. Scores measure the usability of published data,
 not quality of care or legal compliance.
 
-[![Hospital Price Lens comparing hospital prices for MS-DRG 003](docs/assets/screenshots/hospital-price-lens-service-comparison.jpg)](https://hospitalpricelens.com/compare/ms-drg-003/)
+[![Hospital Price Lens comparing case-rate hospital prices for MS-DRG 003](docs/assets/screenshots/hospital-price-lens-service-comparison.jpg)](https://hospitalpricelens.com/compare/context/ms-drg-003-negotiated-case-rate-21f6a10604)
 
-The live comparison view keeps the service context, hospital denominator,
-percentile range, and confidence label beside the prices they qualify.
+The live comparison view keeps the service context, payment methodology,
+hospital denominator, percentile range, and confidence label beside the prices
+they qualify.
 
 ## Engineering Decisions
 
@@ -122,11 +125,21 @@ One hospital charge item may carry several billing codes. The Gold fact stores
 one reported amount cell per row, while a bridge represents the many-to-many code
 relationship. This prevents code expansion from duplicating monetary facts.
 
+### Give each hospital one statistical vote
+
+Repeated source rows first collapse to one amount per insurer contract. Contracts
+with multiple distinct amounts for the same exact context remain visible but are
+excluded as ambiguous. Each hospital is then represented by the median of its
+valid contract amounts, and market percentiles are calculated across those
+hospital representatives. A hospital cannot gain statistical weight by
+publishing the same rate many times.
+
 ### Treat comparability as a data contract
 
-Price rankings require a usable code, aligned service context, a rankable amount,
-and a sufficient hospital denominator. The contract and its blocker vocabulary
-are defined in dbt and tested before publication.
+Price rankings require a usable code, aligned service context, matching payment
+methodology, a rankable amount, and a sufficient denominator of hospitals with
+valid representative prices. The contract and its blocker vocabulary are
+defined in dbt and tested before publication.
 
 ### Bound local analytical workloads
 
