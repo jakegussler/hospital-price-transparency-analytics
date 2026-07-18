@@ -2,3 +2,5 @@ name: hpt
 type: duckdb
 options:
   filename: ":memory:"
+buildOptions:
+  batchSize: 100000
