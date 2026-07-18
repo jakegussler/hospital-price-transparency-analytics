@@ -33,8 +33,14 @@ Split 0017's single "expanded spine" into two models:
 The code-expanded, blocker-annotated surface that 0017 asks for is materialized
 **downstream** by `gld_mart__service_price_comparison_current` (`fact ⋈ bridge ⋈
 dims`), with the atomic fact underneath guaranteeing no double count. The
-intermediate `gld_int__service_comparison_spine` persists that join once so the
-mart's several peer cuts read it back instead of rebuilding it.
+intermediate `gld_int__service_comparison_spine` persists the semantically
+equivalent observation × service-cohort expansion once so the mart's several
+peer cuts read it back instead of rebuilding it. For memory efficiency it
+deduplicates service cohorts from `slv_core__charge_item_codes` at charge-item
+grain before joining them to amount observations; performing the same `distinct`
+after the observation-level bridge fan-out creates an unnecessarily large
+blocking aggregate. The lineage-preserving bridge remains the authoritative
+observation-to-source-code relation.
 
 All of 0017's *rules* are implemented verbatim: the code-cohort + context
 comparison key, `code_cross_hospital_comparable` / `code_is_specific` gates,

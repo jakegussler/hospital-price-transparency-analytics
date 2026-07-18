@@ -48,11 +48,12 @@ flowchart LR
   CIC --> BR
 
   F --> SPINE[gld_int__service_comparison_spine]
-  BR --> SPINE
-  SPINE --> CR[gld_int__service_contract_representatives]
+  CIC --> SPINE
+  SPINE --> CURSPINE[gld_int__service_comparison_spine_current]
+  CURSPINE --> CR[gld_int__service_contract_representatives]
   CR --> HSA[gld_int__hospital_service_amounts]
-  SPINE --> HSA
-  SPINE --> MART[gld_mart__service_price_comparison_current]
+  CURSPINE --> HSA
+  CURSPINE --> MART[gld_mart__service_price_comparison_current]
   CR --> MART
   HSA --> MART
   DH --> MART
@@ -66,7 +67,7 @@ flowchart LR
   HSA --> PB
 
   F --> COV[gld_score__snapshot_coverage_scorecard]
-  BR --> COV
+  SPINE --> COV
   COV --> HSCORE[gld_score__hospital_transparency_scorecard]
 
   SUM --> BI_SERVICE[gld_bi__service_market_explorer]
@@ -88,15 +89,17 @@ flowchart LR
 | Model(s) | Materialization | Strategy | Reads inputs | Tag |
 |---|---|---|---|---|
 | `gld_dim__*` (5) | `table` | full refresh | **unscoped** `ref()` | `gold_dimension` |
-| `gld_fct__rate_observations`, `gld_bridge__rate_observation_code` | `incremental` | `snapshot_replace` on `snapshot_id` | `hpt_scoped_ref()` | `gold_per_snapshot` |
-| `gld_int__service_comparison_spine`, `gld__*` marts | `table` | full refresh | `ref()` | `gold_marts` |
+| `gld_fct__rate_observations`, `gld_bridge__rate_observation_code`, `gld_int__service_comparison_spine` | `incremental` | `snapshot_replace` on `snapshot_id` | `hpt_scoped_ref()` | `gold_per_snapshot` |
+| `gld_int__service_comparison_spine_current` | `view` | current-snapshot projection | `ref()` | `gold_marts` |
+| `gld__*` marts | `table` | full refresh | `ref()` | `gold_marts` |
 | `gld__*` scorecards | `table` | full refresh | `ref()` | `gold_scorecards` |
 | `gld_bi__*` presentation marts | `table` | full refresh | `ref()` | `gold_bi` |
 
 The per-snapshot workflow (`hpt run-dbt --per-snapshot`) runs five ordered Gold
 passes: `gold_dimension` (unscoped, once) → `gold_per_snapshot` (scoped fact +
-bridge) → `gold_marts` (unscoped, once) → `gold_scorecards` (unscoped, once) →
-`gold_bi` (unscoped, once).
+bridge + retained-snapshot comparison spine) → `gold_marts` (current projection
+and unscoped marts, once) → `gold_scorecards` (unscoped, once) → `gold_bi`
+(unscoped, once).
 Selectors: `gold_core`, `gold_dimension`, `gold_per_snapshot`, `gold_marts`,
 `gold_scorecards`, `gold_bi`, and `gold` (everything).
 
@@ -169,14 +172,25 @@ and the mart can apply the gate.
 ## Marts (aggregates)
 
 ### `gld_int__service_comparison_spine` (intermediate)
-Materializes the code-expanded, classified spine (`fact ⋈ bridge` + the §6
-`comparison_tier` / blocker columns) once, current snapshots only, so the
-downstream references read it back instead of rebuilding it (memory). Adds the
-decision 0021 identity columns: `comparison_methodology` (`methodology` for
-negotiated dollars, `'not applicable'` otherwise) and `service_context_key`
-(md5 of the exact comparison context: code cohort + setting + billing class +
-modifier signature + amount kind + comparison methodology + drug unit context).
-Grain: `(gold_rate_observation_id, service_code_key)`.
+Materializes the code-expanded, classified spine (atomic fact × deduplicated
+charge-item service cohorts + the §6 `comparison_tier` / blocker columns) once
+over every retained snapshot, so downstream references read it back instead of
+rebuilding the observation-level bridge join. Deduplicating the 4.4M-row
+charge-item code surface before amount-observation fan-out avoids a blocking
+`distinct` over the 104.5M-row bridge. It is
+snapshot-grained incremental and built in the memory-bounded Gold per-snapshot
+pass. Adds the decision 0021 identity columns: `comparison_methodology`
+(`methodology` for negotiated dollars, `'not applicable'` otherwise) and
+`service_context_key` (md5 of the exact comparison context: code cohort + setting
++ billing class + modifier signature + amount kind + comparison methodology +
+drug unit context). Grain: `(gold_rate_observation_id, service_code_key)`.
+
+### `gld_int__service_comparison_spine_current` (intermediate view)
+
+Filters the retained-snapshot spine through authoritative currentness from
+`gld_dim__snapshot`. Current comparison marts and representative intermediates
+read this view so a superseded historical partition cannot receive a vote even
+if its denormalized fact/spine currentness flag predates the superseding snapshot.
 
 ### `gld_int__service_contract_representatives` (intermediate)
 Decision 0021 level 1: one row per `(hospital_id, snapshot_id,
@@ -237,7 +251,7 @@ stay visible with null statistics. Plus `payer_match_coverage_rate`.
 Grain: one row per `snapshot_id`. Atomic record/observation/amount-kind counts
 from the fact (reconcile by construction), comparable-code counts, coverage
 rates, comparison-tier counts, and the ten row-level blocker counts re-derived
-from `fact ⋈ bridge` via the §6 macros. Ranks trust before price.
+from the retained-snapshot comparison spine. Ranks trust before price.
 
 ### `gld_score__hospital_transparency_scorecard`
 Grain: one row per `hospital_id` (current snapshot). Rolls the coverage
@@ -338,13 +352,14 @@ gld_dim__modifier_signature 1───* gld_fct__rate_observations  (modifier_si
 gld_fct__rate_observations 1───* gld_bridge__rate_observation_code
 gld_dim__service_code 1───* gld_bridge__rate_observation_code  (service_code_key; null for non-comparable)
 
-gld_fct__rate_observations + gld_bridge ──> gld_int__service_comparison_spine
-gld_int__service_comparison_spine ──> gld_int__service_contract_representatives ──> gld_int__hospital_service_amounts
-gld_int__service_comparison_spine + representatives ──> gld_mart__service_price_comparison_current
+gld_fct__rate_observations + slv_core__charge_item_codes ──> gld_int__service_comparison_spine
+gld_int__service_comparison_spine ──> gld_int__service_comparison_spine_current
+gld_int__service_comparison_spine_current ──> gld_int__service_contract_representatives ──> gld_int__hospital_service_amounts
+gld_int__service_comparison_spine_current + representatives ──> gld_mart__service_price_comparison_current
 gld_int__hospital_service_amounts ──> gld_mart__service_price_summary
 gld_int__hospital_service_amounts ──> gld_mart__hospital_service_benchmarks
 gld_int__service_contract_representatives + gld_int__hospital_service_amounts ──> gld_mart__payer_service_benchmarks
-gld_fct__rate_observations + gld_bridge ──> gld_score__snapshot_coverage_scorecard ──> gld_score__hospital_transparency_scorecard
+gld_fct__rate_observations + gld_int__service_comparison_spine ──> gld_score__snapshot_coverage_scorecard ──> gld_score__hospital_transparency_scorecard
 gld__* marts + gld__* scorecards + dimensions ──> gld_bi__* presentation marts
 ```
 
